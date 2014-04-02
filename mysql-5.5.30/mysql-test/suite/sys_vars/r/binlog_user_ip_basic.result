@@ -1,0 +1,3 @@
+select @@global.binlog_user_ip;
+@@global.binlog_user_ip
+1

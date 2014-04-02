@@ -1,0 +1,101 @@
+include/master-slave.inc
+[connection master]
+"-----------batch Xid commit-------------"
+create table t(a int)engine=innodb;
+set global batch_commit_max=3;
+set global debug="+d,skip_relay_end";
+insert into t select 1;
+insert into t select 2;
+insert into t select 3;
+select * from t;
+a
+1
+2
+3
+show binlog events from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Query	#	#	use `test`; create table t(a int)engine=innodb
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Query	#	#	use `test`; insert into t select 1
+slave-bin.000001	#	Query	#	#	use `test`; insert into t select 2
+slave-bin.000001	#	Query	#	#	use `test`; insert into t select 3
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+set global debug="";
+delete from t;
+"-----rotate change master log file-----"
+stop slave SQL_THREAD;
+include/wait_for_slave_sql_to_stop.inc
+set global batch_commit_max=4;
+use test;
+insert into t select 6;
+insert into t select 7;
+flush logs;
+start slave SQL_THREAD;
+include/wait_for_slave_sql_to_start.inc
+select a from t;
+a
+6
+7
+ok
+delete from t;
+stop slave SQL_THREAD;
+include/wait_for_slave_sql_to_stop.inc
+set global batch_commit_max=4;
+use test;
+insert into t select 8;
+insert into t select 9;
+flush logs;
+insert into t select 10;
+insert into t select 11;
+start slave SQL_THREAD;
+include/wait_for_slave_sql_to_start.inc
+select a from t;
+a
+8
+9
+10
+11
+ok
+delete from t;
+"---------reach_relay_log_end------------"
+stop slave;
+include/wait_for_slave_to_stop.inc
+set global batch_commit_max=10;
+use test;
+insert into t select 4;
+flush logs;
+start slave;
+include/wait_for_slave_to_start.inc
+use test;
+select a from t;
+a
+4
+stop slave;
+include/wait_for_slave_to_stop.inc
+use test;
+create table t1(c int);
+flush logs;
+start slave;
+include/wait_for_slave_to_start.inc
+use test;
+show tables;
+Tables_in_test
+t
+t1
+drop table t1;
+stop slave SQL_THREAD;
+include/wait_for_slave_sql_to_stop.inc
+use test;
+insert into t select 5;
+include/wait_for_slave_param.inc [Read_Master_Log_Pos]
+flush relay logs;
+start slave SQL_THREAD;
+include/wait_for_slave_sql_to_start.inc
+select a from t;
+a
+4
+5
+"-----------------clean-----------------"
+drop table t;
+set global batch_commit_max=1;
+include/rpl_end.inc

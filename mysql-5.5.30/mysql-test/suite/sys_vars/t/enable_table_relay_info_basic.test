@@ -1,0 +1,62 @@
+
+#
+# exists as a global only
+#
+# 2010-01-21 OBN - Added 
+#
+#
+source include/not_embedded.inc;
+select @@global.enable_table_relay_info;
+SET @start_global_value = @@global.enable_table_relay_info;
+
+select @@global.enable_table_relay_info in (0,1);
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.enable_table_relay_info;
+show global variables like 'enable_table_relay_info';
+show session variables like 'enable_table_relay_info';
+select * from information_schema.global_variables where variable_name='enable_table_relay_info';
+select * from information_schema.session_variables where variable_name='enable_table_relay_info';
+
+#
+# show that it's writable
+#
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global enable_table_relay_info=0;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set session enable_table_relay_info=0;
+select @@global.enable_table_relay_info;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.enable_table_relay_info;
+show global variables like 'enable_table_relay_info';
+show session variables like 'enable_table_relay_info';
+select * from information_schema.global_variables where variable_name='enable_table_relay_info';
+select * from information_schema.session_variables where variable_name='enable_table_relay_info';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global enable_table_relay_info=1;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set session enable_table_relay_info=1;
+select @@global.enable_table_relay_info;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.enable_table_relay_info;
+show global variables like 'enable_table_relay_info';
+show session variables like 'enable_table_relay_info';
+select * from information_schema.global_variables where variable_name='enable_table_relay_info';
+select * from information_schema.session_variables where variable_name='enable_table_relay_info';
+
+#
+# incorrect types
+#
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global enable_table_relay_info=1.1;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global enable_table_relay_info=1e1;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global enable_table_relay_info="some text";
+
+
+#
+# Cleanup
+#
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.enable_table_relay_info = @start_global_value;
+select @@global.enable_table_relay_info;

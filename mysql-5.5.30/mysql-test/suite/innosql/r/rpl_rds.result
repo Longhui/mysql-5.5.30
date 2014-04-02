@@ -1,0 +1,67 @@
+include/master-slave.inc
+[connection master]
+INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master.so';
+set global rpl_semi_sync_master_enabled=ON;
+show variables like "rpl_semi_sync_master_trysyncrepl";
+Variable_name	Value
+rpl_semi_sync_master_trysyncrepl	ON
+show variables like "rpl_semi_sync_master_keepsyncrepl";
+Variable_name	Value
+rpl_semi_sync_master_keepsyncrepl	OFF
+INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so';
+set global rpl_semi_sync_slave_enabled=ON;
+include/stop_slave.inc
+include/start_slave.inc
+include/wait_for_slave_to_start.inc
+create table test.t1(a int) engine=InnoDB;
+[check rpl_semi_sync_master_keepsyncrepl]
+[switch off slave semisync]
+include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled=OFF;
+include/start_slave.inc
+include/wait_for_slave_to_start.inc
+set global rpl_semi_sync_master_timeout=5;
+set global rpl_semi_sync_master_keepsyncrepl=ON;
+insert into test.t1 select 1;
+[switch on slave semisync]
+include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled=ON;
+include/start_slave.inc
+include/wait_for_slave_to_start.inc
+show status like "Rpl_semi_sync_master_status";
+Variable_name	Value
+Rpl_semi_sync_master_status	ON
+set global rpl_semi_sync_master_keepsyncrepl=OFF;
+[check rpl_semi_sync_master_trysyncrepl]
+[switch off slave semisync]
+include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled=OFF;
+include/start_slave.inc
+include/wait_for_slave_to_start.inc
+[switch off master semisync]
+set global rpl_semi_sync_master_timeout=10;
+insert into test.t1 select 2;
+show status like "Rpl_semi_sync_master_status";
+Variable_name	Value
+Rpl_semi_sync_master_status	OFF
+set global rpl_semi_sync_master_trysyncrepl=OFF;
+[switch off master semisync]
+include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled=ON;
+include/start_slave.inc
+include/wait_for_slave_to_start.inc
+[master semiync is still off]
+insert into test.t1 select 3;
+select * from test.t1;
+a
+1
+2
+3
+show status like "Rpl_semi_sync_master_status";
+Variable_name	Value
+Rpl_semi_sync_master_status	OFF
+[clean]
+drop table test.t1;
+UNINSTALL PLUGIN rpl_semi_sync_master;
+UNINSTALL PLUGIN rpl_semi_sync_slave;
+include/rpl_end.inc

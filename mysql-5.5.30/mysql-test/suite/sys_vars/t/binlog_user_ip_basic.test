@@ -1,0 +1,2 @@
+
+select @@global.binlog_user_ip;

@@ -1,0 +1,76 @@
+INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master.so';
+select @@global.rpl_semi_sync_master_commit_after_ack;
+@@global.rpl_semi_sync_master_commit_after_ack
+0
+SET @start_global_value = @@global.rpl_semi_sync_master_commit_after_ack;
+select @@global.rpl_semi_sync_master_commit_after_ack in (0,1);
+@@global.rpl_semi_sync_master_commit_after_ack in (0,1)
+1
+select @@session.rpl_semi_sync_master_commit_after_ack;
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a GLOBAL variable
+show global variables like 'rpl_semi_sync_master_commit_after_ack';
+Variable_name	Value
+rpl_semi_sync_master_commit_after_ack	OFF
+show session variables like 'rpl_semi_sync_master_commit_after_ack';
+Variable_name	Value
+rpl_semi_sync_master_commit_after_ack	OFF
+select * from information_schema.global_variables where variable_name='rpl_semi_sync_master_commit_after_ack';
+VARIABLE_NAME	VARIABLE_VALUE
+RPL_SEMI_SYNC_MASTER_COMMIT_AFTER_ACK	OFF
+select * from information_schema.session_variables where variable_name='rpl_semi_sync_master_commit_after_ack';
+VARIABLE_NAME	VARIABLE_VALUE
+RPL_SEMI_SYNC_MASTER_COMMIT_AFTER_ACK	OFF
+set global rpl_semi_sync_master_commit_after_ack=0;
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a read only variable
+set session rpl_semi_sync_master_commit_after_ack=0;
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a read only variable
+select @@global.rpl_semi_sync_master_commit_after_ack;
+@@global.rpl_semi_sync_master_commit_after_ack
+0
+select @@session.rpl_semi_sync_master_commit_after_ack;
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a GLOBAL variable
+show global variables like 'rpl_semi_sync_master_commit_after_ack';
+Variable_name	Value
+rpl_semi_sync_master_commit_after_ack	OFF
+show session variables like 'rpl_semi_sync_master_commit_after_ack';
+Variable_name	Value
+rpl_semi_sync_master_commit_after_ack	OFF
+select * from information_schema.global_variables where variable_name='rpl_semi_sync_master_commit_after_ack';
+VARIABLE_NAME	VARIABLE_VALUE
+RPL_SEMI_SYNC_MASTER_COMMIT_AFTER_ACK	OFF
+select * from information_schema.session_variables where variable_name='rpl_semi_sync_master_commit_after_ack';
+VARIABLE_NAME	VARIABLE_VALUE
+RPL_SEMI_SYNC_MASTER_COMMIT_AFTER_ACK	OFF
+set global rpl_semi_sync_master_commit_after_ack=1;
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a read only variable
+set session rpl_semi_sync_master_commit_after_ack=1;
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a read only variable
+select @@global.rpl_semi_sync_master_commit_after_ack;
+@@global.rpl_semi_sync_master_commit_after_ack
+0
+select @@session.rpl_semi_sync_master_commit_after_ack;
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a GLOBAL variable
+show global variables like 'rpl_semi_sync_master_commit_after_ack';
+Variable_name	Value
+rpl_semi_sync_master_commit_after_ack	OFF
+show session variables like 'rpl_semi_sync_master_commit_after_ack';
+Variable_name	Value
+rpl_semi_sync_master_commit_after_ack	OFF
+select * from information_schema.global_variables where variable_name='rpl_semi_sync_master_commit_after_ack';
+VARIABLE_NAME	VARIABLE_VALUE
+RPL_SEMI_SYNC_MASTER_COMMIT_AFTER_ACK	OFF
+select * from information_schema.session_variables where variable_name='rpl_semi_sync_master_commit_after_ack';
+VARIABLE_NAME	VARIABLE_VALUE
+RPL_SEMI_SYNC_MASTER_COMMIT_AFTER_ACK	OFF
+set global rpl_semi_sync_master_commit_after_ack=1.1;
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a read only variable
+set global rpl_semi_sync_master_commit_after_ack=1e1;
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a read only variable
+set global rpl_semi_sync_master_commit_after_ack="some text";
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a read only variable
+SET @@global.rpl_semi_sync_master_commit_after_ack = @start_global_value;
+ERROR HY000: Variable 'rpl_semi_sync_master_commit_after_ack' is a read only variable
+select @@global.rpl_semi_sync_master_commit_after_ack;
+@@global.rpl_semi_sync_master_commit_after_ack
+0
+UNINSTALL PLUGIN rpl_semi_sync_master;
