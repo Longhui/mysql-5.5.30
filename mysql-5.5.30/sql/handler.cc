@@ -1918,7 +1918,8 @@ int ha_recover(HASH *commit_list)
     for now, only InnoDB supports 2pc. It means we can always safely
     rollback all pending transactions, without risking inconsistent data
   */
-  DBUG_ASSERT(total_ha_2pc == (ulong) opt_bin_log+1); // only InnoDB and binlog
+  /* Innodb & TokuDB & TNT and binlog totally 4 2pc engines */
+  //DBUG_ASSERT(total_ha_2pc == (ulong) opt_bin_log+1); // only InnoDB and binlog
   tc_heuristic_recover= TC_HEURISTIC_RECOVER_ROLLBACK; // forcing ROLLBACK
   info.dry_run=FALSE;
 #endif

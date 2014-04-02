@@ -1,0 +1,5 @@
+NTSE开发者注意事项
+
+每次记录或大对象的存储格式发生变化时，注意修改ControlFile.h中的REC_STORAGE_VERSION。索引存储格式发生变化时，注意修改ControlFile.h中的IDX_STORAGE_VERSION。
+
+正式发布版本前请使用udpate_ntse_version.sh更新NTSE的版本信息，运行该命令里需要能访问NTSE的svn库。

@@ -1,0 +1,14 @@
+MYSQL_STORAGE_ENGINE(tnt,,  [TNT Storage Engine],
+        [Non-transactional high performance storage engine from NetEase corp.], [max,max-no-ndb])
+MYSQL_PLUGIN_DYNAMIC(tnt,   [ha_tnt.la])
+MYSQL_PLUGIN_STATIC(tnt,   [libtnt.a])
+MYSQL_PLUGIN_DIRECTORY(tnt, [storage/tnt])
+MYSQL_PLUGIN_ACTIONS(tnt,  [
+#    MYSQLD_EXTRA_LDFLAGS="$MYSQLD_EXTRA_LDFLAGS -lstdc++"
+#	 CLIENT_EXTRA_LDFLAGS="$CLIENT_EXTRA_LDFLAGS -lstdc++"
+	 CXXFLAGS="$CXXFLAGS  -fimplicit-templates -fexceptions"
+	 LDFLAGS="$LDFLAGS -lstdc++"
+	 MYSQL_INC=""
+	 AC_SUBST([MYSQL_INC])
+])
+

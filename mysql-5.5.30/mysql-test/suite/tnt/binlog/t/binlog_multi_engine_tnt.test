@@ -1,0 +1,44 @@
+# Test to test how logging is done depending on the capabilities of
+# the engines. Unfortunately, we don't have a good row-only logging
+# engine, and NDB does not really cut is since it is also
+# self-logging. I'm using it nevertheless.
+
+let $tnt = `SELECT  COUNT(*)
+  FROM (SELECT @@storage_engine AS se) AS a
+  WHERE se = 'tnt'`;
+
+source include/have_innodb.inc;
+source include/have_log_bin.inc;
+source include/have_binlog_format_row.inc;
+
+#let $tnt_binlog_method = `SELECT @@tnt_BINLOG_METHOD`;
+
+#let $method_direct_cached = 0;
+#if(`select 'direct' like '$tnt_binlog_method'`){
+#	let $method_direct_cached = 1;
+#}
+#if(`select 'cached' like '$tnt_binlog_method'`){
+#  let $method_direct_cached = 1;
+#}
+#}
+CREATE TABLE tm (m INT, n INT) ENGINE=MYISAM;
+CREATE TABLE ti (b INT, c INT) ENGINE=INNODB;
+CREATE TABLE tn (e INT, f INT) ENGINE=tnt;
+RESET MASTER;
+
+INSERT INTO tm VALUES (1,1), (1,2), (2,1), (2,2);
+INSERT INTO ti VALUES (1,1), (1,2), (2,1), (2,2);
+INSERT INTO tn VALUES (1,1), (1,2), (2,1), (2,2);
+
+UPDATE tm, tn SET m = 2, e = 3 WHERE n = f;
+
+UPDATE ti, tn SET e = 4, b = 5 WHERE f = c;
+
+UPDATE tm, ti SET m = 5, b = 6 WHERE n = c;
+
+if($tnt){sleep 1;}
+source include/show_binlog_events.inc;
+
+RESET MASTER;
+
+DROP TABLE tm, ti, tn;

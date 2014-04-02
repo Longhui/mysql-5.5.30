@@ -1,0 +1,28 @@
+#####################################################################
+# tnt-QA
+# [Description]:  验证参数binlog_cache_size和max_binlog_cache_size
+# 设置的较小时需要给出提示
+#
+# Created by：djy
+# Created On：2010-12-13
+#
+#####################################################################
+--source include/have_tnt.inc
+let $tnt = `select count(*) 
+						from (select @@storage_engine as se) as a 
+						where se = 'tnt'`;
+CREATE TABLE t1(a INT PRIMARY KEY, data BLOB);
+let $data = `select concat('"', repeat('a',2000), '"')`;
+
+
+--disable_query_log
+
+--error ER_TRANS_CACHE_FULL, ER_ERROR_ON_WRITE
+eval INSERT INTO t1 (a, data) VALUES (2,
+       CONCAT($data, $data, $data, $data, $data, $data));
+
+--enable_query_log
+DROP TABLE t1;
+FLUSH LOGS;
+--exec grep "Commit tnt binlog failed, may be caused by binlog_cache_size or max_binlog_cache_size is not big enough" var/log/mysqld.1.err|wc -l
+

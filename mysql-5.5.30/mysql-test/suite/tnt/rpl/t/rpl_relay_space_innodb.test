@@ -1,0 +1,22 @@
+###################################
+# Wrapper rpl_sv_relay_space.test #
+# This test has to be wrapped as  #
+# It tests ndb, tnt and MyISAM.#
+# By Wrapping we are saving some  #
+# space and making the test more  #
+# Maintainable by only having one #
+# test file and reusing the code  #
+# In Addition, tnt has to have #
+# Option files during this test   #
+# to force tnt on the slave    #
+# else the test will fail         #
+###################################
+#Change Author: JBM               #
+#Change Date: 2006-02-03          #
+#Change: Added Comments           #
+###################################
+-- source include/not_ndb_default.inc
+-- source include/have_tnt.inc
+let $engine_type=tnt;
+-- source extra/rpl_tests/rpl_sv_relay_space.test
+

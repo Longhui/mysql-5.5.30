@@ -67,7 +67,7 @@ IF(CMAKE_COMPILER_IS_GNUCXX)
   # MySQL "canonical" GCC flags. At least -fno-rtti flag affects
   # ABI and cannot be simply removed. 
   SET(CMAKE_CXX_FLAGS 
-    "${CMAKE_CXX_FLAGS} -fno-implicit-templates -fno-exceptions -fno-rtti")
+    "${CMAKE_CXX_FLAGS} -fimplicit-templates -fexceptions -frtti")
   IF(CMAKE_CXX_FLAGS)
     STRING(REGEX MATCH "fno-implicit-templates" NO_IMPLICIT_TEMPLATES
       ${CMAKE_CXX_FLAGS})

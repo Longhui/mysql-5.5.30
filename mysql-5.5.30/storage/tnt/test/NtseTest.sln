@@ -1,0 +1,49 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Ntse", "..\src\Ntse.vcproj", "{06C7C604-08E7-47DC-A4A7-5648571ADE67}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NtseTest", "NtseTest.vcproj", "{A31DE866-9349-4B45-ABB8-6D100F375728}"
+	ProjectSection(ProjectDependencies) = postProject
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67} = {06C7C604-08E7-47DC-A4A7-5648571ADE67}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug[UT,BP,MC]|Win32 = Debug[UT,BP,MC]|Win32
+		Debug[UT,BP]|Win32 = Debug[UT,BP]|Win32
+		Debug[UT,MC]|Win32 = Debug[UT,MC]|Win32
+		Debug[UT]|Win32 = Debug[UT]|Win32
+		Release[UT,BP]|Win32 = Release[UT,BP]|Win32
+		Release[UT]|Win32 = Release[UT]|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Debug[UT,BP,MC]|Win32.ActiveCfg = Debug[UT,BP,MC]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Debug[UT,BP,MC]|Win32.Build.0 = Debug[UT,BP,MC]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Debug[UT,BP]|Win32.ActiveCfg = Debug[UT,BP]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Debug[UT,BP]|Win32.Build.0 = Debug[UT,BP]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Debug[UT,MC]|Win32.ActiveCfg = Debug[UT,MC]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Debug[UT,MC]|Win32.Build.0 = Debug[UT,MC]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Debug[UT]|Win32.ActiveCfg = Debug[UT]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Debug[UT]|Win32.Build.0 = Debug[UT]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Release[UT,BP]|Win32.ActiveCfg = Release[UT,BP]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Release[UT,BP]|Win32.Build.0 = Release[UT,BP]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Release[UT]|Win32.ActiveCfg = Release[UT]|Win32
+		{06C7C604-08E7-47DC-A4A7-5648571ADE67}.Release[UT]|Win32.Build.0 = Release[UT]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Debug[UT,BP,MC]|Win32.ActiveCfg = Debug[UT,BP,MC]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Debug[UT,BP,MC]|Win32.Build.0 = Debug[UT,BP,MC]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Debug[UT,BP]|Win32.ActiveCfg = Debug[UT,BP]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Debug[UT,BP]|Win32.Build.0 = Debug[UT,BP]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Debug[UT,MC]|Win32.ActiveCfg = Debug[UT,MC]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Debug[UT,MC]|Win32.Build.0 = Debug[UT,MC]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Debug[UT]|Win32.ActiveCfg = Debug[UT]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Debug[UT]|Win32.Build.0 = Debug[UT]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Release[UT,BP]|Win32.ActiveCfg = Release[UT,BP]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Release[UT,BP]|Win32.Build.0 = Release[UT,BP]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Release[UT]|Win32.ActiveCfg = Release[UT]|Win32
+		{A31DE866-9349-4B45-ABB8-6D100F375728}.Release[UT]|Win32.Build.0 = Release[UT]|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

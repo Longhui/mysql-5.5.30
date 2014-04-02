@@ -1,0 +1,11 @@
+#####################################################################
+# NTSE-QA
+# [Description: Test grants for various objects (especially variables) 
+# related to the binary log
+# Created by£ºlinsa
+# Created on: 2011-01-05
+# Last Modified by: linsa
+# Last Modified on: 2011-01-05
+#
+#####################################################################
+-- source suite/binlog/t/binlog_grant.test

@@ -1,0 +1,262 @@
+#
+#  Trx/NonTrx connection operate Trx/NonTrx Table 
+#  without error
+#
+SET tnt_is_trx_connection = true;
+use test;
+drop table if exists t1;
+CREATE TABLE t1 (a int, b int, c varchar(20), primary key (a, b), key(a)) ENGINE=tnt;
+INSERT INTO t1 (a, b, c) VALUES (1, 2, "aaa");
+INSERT INTO t1 (a, b, c) VALUES (2, 3, "bbb");
+commit;
+begin work;
+use test;
+SET tnt_is_trx_connection = false;
+drop table t1;
+ERROR 42000: Non-Transactional Connection can't operate Transaction Table(./test/t1)
+truncate table t1;
+ERROR 42000: Non-Transactional connection only support select transaction table(t1) on IL_IS mode
+rename table t1 to t2;
+ERROR 42000: Non-Transactional Connection can't operate Transaction Table(./test/t1)
+alter table t1 add index Idx (b);
+ERROR 42000: Non-Transactional connection only support select transaction table(t1) on IL_IS mode
+alter table t1 drop index a;
+ERROR 42000: Non-Transactional connection only support select transaction table(t1) on IL_IS mode
+alter table t1 add column d int;
+ERROR 42000: Non-Transactional connection only support select transaction table(t1) on IL_IS mode
+alter table t1 drop column b;
+ERROR 42000: Non-Transactional connection only support select transaction table(t1) on IL_IS mode
+insert into t1(a, b, c) values(3, 4, "ccc");
+ERROR 42000: Non-Transactional connection only support select transaction table(t1) on IL_IS mode
+update t1 set b = b+1;
+ERROR 42000: Non-Transactional connection only support select transaction table(t1) on IL_IS mode
+select * from t1;
+a	b	c
+1	2	aaa
+2	3	bbb
+lock tables t1 read;
+ERROR 42000: Non-Transactional connection only support select transaction table(t1) on IL_IS mode
+unlock tables;
+SET TNT_COMMAND="alter table set test.t1.USEMMS = false";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.CACHE_UPDATE = true";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.UPDATE_CACHE_TIME = 120";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.CACHED_COLUMNS = ENABLE a,b";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_LOBS = true";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.HEAP_PCT_FREE = 30";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.SPLIT_FACTORS = a 6";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.INCR_SIZE = 64";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_ROWS = true";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.FIX_LEN = false";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.COLUMN_GROUPS = (a), (b), (c)";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_SIZE = 4096";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MIN_LEN = 4";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MAX_LEN = 45";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_THRESHOLD = 90";
+Warnings:
+Warning	1105	Non-Transactional Connection can't operate Transaction Table(./test/t1)
+begin work;
+use test;
+SET tnt_is_trx_connection = true;
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = false";
+drop table t1;
+ERROR 42000: Transactional Connection can't operate Non-Transaction Table(./test/t1)
+truncate table t1;
+ERROR 42000: Transactional connection can't operate on non-transactional table(t1)
+rename table t1 to t2;
+ERROR 42000: Transactional Connection can't operate Non-Transaction Table(./test/t1)
+alter table t1 add index Idx (b);
+ERROR 42000: Transactional connection can't operate on non-transactional table(t1)
+alter table t1 drop index a;
+ERROR 42000: Transactional connection can't operate on non-transactional table(t1)
+alter table t1 add column d int;
+ERROR 42000: Transactional connection can't operate on non-transactional table(t1)
+alter table t1 drop column b;
+ERROR 42000: Transactional connection can't operate on non-transactional table(t1)
+insert into t1(a, b, c) values(3, 4, "ccc");
+ERROR 42000: Transactional connection can't operate on non-transactional table(t1)
+update t1 set b = b+1;
+ERROR 42000: Transactional connection can't operate on non-transactional table(t1)
+select * from t1;
+ERROR 42000: Transactional connection can't operate on non-transactional table(t1)
+lock tables t1 read;
+ERROR 42000: Transactional connection can't operate on non-transactional table(t1)
+unlock tables;
+SET TNT_COMMAND="alter table set test.t1.USEMMS = false";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.CACHE_UPDATE = true";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.UPDATE_CACHE_TIME = 120";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.CACHED_COLUMNS = ENABLE a,b";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_LOBS = true";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.HEAP_PCT_FREE = 30";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.SPLIT_FACTORS = a 6";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.INCR_SIZE = 64";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_ROWS = true";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.FIX_LEN = false";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.COLUMN_GROUPS = (a), (b), (c)";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_SIZE = 4096";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MIN_LEN = 4";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MAX_LEN = 45";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_THRESHOLD = 90";
+Warnings:
+Warning	1105	Transactional Connection can't operate Non-Transaction Table(./test/t1)
+begin work;
+use test;
+SET tnt_is_trx_connection = false;
+drop table if exists t1;
+SET tnt_is_trx_connection = true;
+CREATE TABLE t1 (a int, b int, c varchar(20), primary key (a, b), key(a)) ENGINE=tnt;
+INSERT INTO t1 (a, b, c) VALUES (1, 2, "aaa");
+INSERT INTO t1 (a, b, c) VALUES (2, 3, "bbb");
+commit;
+insert into t1(a, b, c) values(3, 4, "ccc");
+update t1 set b = b+1;
+select * from t1;
+a	b	c
+1	3	aaa
+2	4	bbb
+3	5	ccc
+lock tables t1 read;
+SET tnt_is_trx_connection = false;
+Warnings:
+Warning	1105	This Connection is in lock tables, you must unlock tables
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = false";
+Warnings:
+Warning	1105	This Connection is in lock tables, you must unlock tables
+unlock tables;
+commit;
+SET TNT_COMMAND="alter table set test.t1.USEMMS = false";
+SET TNT_COMMAND="alter table set test.t1.CACHE_UPDATE = true";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.UPDATE_CACHE_TIME = 120";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.CACHED_COLUMNS = ENABLE a,b";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_LOBS = true";
+SET TNT_COMMAND="alter table set test.t1.HEAP_PCT_FREE = 30";
+SET TNT_COMMAND="alter table set test.t1.SPLIT_FACTORS = a 6";
+SET TNT_COMMAND="alter table set test.t1.INCR_SIZE = 64";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_ROWS = true";
+SET TNT_COMMAND="alter table set test.t1.FIX_LEN = false";
+SET TNT_COMMAND="alter table set test.t1.COLUMN_GROUPS = (a), (b), (c)";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_SIZE = 4096";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MIN_LEN = 4";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MAX_LEN = 45";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_THRESHOLD = 90";
+alter table t1 add index Idx (b);
+alter table t1 drop index a;
+alter table t1 add column d int;
+alter table t1 drop column b;
+rename table t1 to t2;
+truncate table t2;
+drop table t2;
+begin work;
+use test;
+SET tnt_is_trx_connection = false;
+drop table if exists t1;
+CREATE TABLE t1 (a int, b int, c varchar(20), primary key (a, b), key(a)) ENGINE=tnt;
+INSERT INTO t1 (a, b, c) VALUES (1, 2, "aaa");
+INSERT INTO t1 (a, b, c) VALUES (2, 3, "bbb");
+commit;
+insert into t1(a, b, c) values(3, 4, "ccc");
+update t1 set b = b+1;
+select * from t1;
+a	b	c
+1	3	aaa
+2	4	bbb
+3	5	ccc
+lock tables t1 read;
+SET tnt_is_trx_connection = true;
+Warnings:
+Warning	1105	This Connection is in lock tables, you must unlock tables
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = true";
+Warnings:
+Warning	1105	This Connection is in lock tables, you must unlock tables
+unlock tables;
+commit;
+SET TNT_COMMAND="alter table set test.t1.USEMMS = false";
+SET TNT_COMMAND="alter table set test.t1.CACHE_UPDATE = true";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.UPDATE_CACHE_TIME = 120";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.CACHED_COLUMNS = ENABLE a,b";
+Warnings:
+Warning	1105	Wrong Command type.
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_LOBS = true";
+SET TNT_COMMAND="alter table set test.t1.HEAP_PCT_FREE = 30";
+SET TNT_COMMAND="alter table set test.t1.SPLIT_FACTORS = a 6";
+SET TNT_COMMAND="alter table set test.t1.INCR_SIZE = 64";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_ROWS = true";
+SET TNT_COMMAND="alter table set test.t1.FIX_LEN = false";
+SET TNT_COMMAND="alter table set test.t1.COLUMN_GROUPS = (a), (b), (c)";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_SIZE = 4096";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MIN_LEN = 4";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MAX_LEN = 45";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_THRESHOLD = 90";
+alter table t1 add index Idx (b);
+alter table t1 drop index a;
+alter table t1 add column d int;
+alter table t1 drop column b;
+rename table t1 to t2;
+truncate table t2;
+drop table t2;
+End of tnt test

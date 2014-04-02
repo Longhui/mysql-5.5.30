@@ -1,0 +1,11 @@
+#!/bin/bash
+lcov --directory . -b . --capture --output-file app1.info
+lcov --remove app1.info "/usr/include/**" -o app2.info
+lcov --remove app2.info "**/src/include/lob/lzo/*.h" -o app1.info
+lcov --remove app1.info "**/src/lob/lzo/**" -o app2.info
+lcov --remove app2.info "**/test/**" -o ntse.info
+rm -rf cov-html
+rm -rf cov-html.tar.gz
+mkdir cov-html
+genhtml -o cov-html --html-prolog cov-prolog.html ntse.info
+tar zcf cov-html.tar.gz cov-html

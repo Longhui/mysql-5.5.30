@@ -1,0 +1,13 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (c1 CHAR) Engine=tnt;
+INSERT INTO t1 ( c1 ) VALUES ( 'w' ) ;
+SELECT * FROM t1;
+c1
+w
+UPDATE t1 SET c1=NULL WHERE c1='w';
+include/diff_tables.inc [master:t1, slave:t1]
+DELETE FROM t1 LIMIT 2;
+include/diff_tables.inc [master:t1, slave:t1]
+DROP TABLE t1;
+include/rpl_end.inc

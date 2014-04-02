@@ -1,0 +1,1 @@
+--binlog_cache_size=32768 --tnt_table_lock_timeout=1

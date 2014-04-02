@@ -1,0 +1,14 @@
+enum:
+innodb-ucs2.test
+
+semi-consisten:
+innodb-semi-consistent.test
+
+foreign key:
+innodb_bug21704.test
+
+partition:
+innodb_bug30919.test
+
+gis:
+innodb_gis.test

@@ -1,0 +1,43 @@
+#
+#  Trx/NonTrx connection operate Trx/NonTrx Table 
+#  without error
+#
+SET tnt_is_trx_connection = true;
+use test;
+drop table if exists t1;
+CREATE TABLE t1 (a int, b int, c varchar(20), primary key (a, b), key(a)) ENGINE=tnt;
+INSERT INTO t1 (a, b, c) VALUES (1, 2, "aaa");
+INSERT INTO t1 (a, b, c) VALUES (2, 3, "bbb");
+commit;
+begin work;
+use test;
+begin;
+update t1 set b = b+1;
+begin work;
+use test;
+begin;
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = false";
+Warnings:
+Warning	1105	Require transaction lock timeout!
+select * from t1;
+a	b	c
+1	3	aaa
+2	4	bbb
+commit;
+begin work;
+use test;
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = false";
+SET tnt_is_trx_connection = false;
+begin;
+update t1 set b = b + 1;
+begin work;
+use test;
+SET tnt_is_trx_connection = false;
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = true";
+select * from t1;
+a	b	c
+1	4	aaa
+2	5	bbb
+commit;
+drop table t1;
+End of tnt test

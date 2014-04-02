@@ -1,0 +1,238 @@
+--source include/have_tnt.inc
+
+--echo #
+--echo #  Trx/NonTrx connection operate Trx/NonTrx Table 
+--echo #  without error
+--echo #
+
+SET tnt_is_trx_connection = true;
+
+use test;
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+CREATE TABLE t1 (a int, b int, c varchar(20), primary key (a, b), key(a)) ENGINE=tnt;
+INSERT INTO t1 (a, b, c) VALUES (1, 2, "aaa");
+INSERT INTO t1 (a, b, c) VALUES (2, 3, "bbb");
+commit;
+
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+connect (con3, localhost, root,,);
+connect (con4, localhost, root,,);
+
+# con1 test nonTrx Connection operate Trx Table
+connection con1;
+begin work;
+use test;
+SET tnt_is_trx_connection = false;
+
+--error 1112
+drop table t1;
+--error 1112
+truncate table t1;
+--error 1112
+rename table t1 to t2;
+--error 1112
+alter table t1 add index Idx (b);
+--error 1112
+alter table t1 drop index a;
+--error 1112
+alter table t1 add column d int;
+--error 1112
+alter table t1 drop column b;
+
+--error 1112
+insert into t1(a, b, c) values(3, 4, "ccc");
+--error 1112
+update t1 set b = b+1;
+
+select * from t1;
+
+--error 1112
+lock tables t1 read;
+unlock tables;
+
+
+SET TNT_COMMAND="alter table set test.t1.USEMMS = false";
+SET TNT_COMMAND="alter table set test.t1.CACHE_UPDATE = true";
+SET TNT_COMMAND="alter table set test.t1.UPDATE_CACHE_TIME = 120";
+SET TNT_COMMAND="alter table set test.t1.CACHED_COLUMNS = ENABLE a,b";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_LOBS = true";
+SET TNT_COMMAND="alter table set test.t1.HEAP_PCT_FREE = 30";
+SET TNT_COMMAND="alter table set test.t1.SPLIT_FACTORS = a 6";
+SET TNT_COMMAND="alter table set test.t1.INCR_SIZE = 64";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_ROWS = true";	
+SET TNT_COMMAND="alter table set test.t1.FIX_LEN = false";
+SET TNT_COMMAND="alter table set test.t1.COLUMN_GROUPS = (a), (b), (c)";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_SIZE = 4096";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MIN_LEN = 4";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MAX_LEN = 45";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_THRESHOLD = 90";
+
+# con2 test Trx Connection operate NonTrx Table
+connection con2;
+begin work;
+use test;
+SET tnt_is_trx_connection = true;
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = false";
+
+--error 1112
+drop table t1;
+--error 1112
+truncate table t1;
+--error 1112
+rename table t1 to t2;
+--error 1112
+alter table t1 add index Idx (b);
+--error 1112
+alter table t1 drop index a;
+--error 1112
+alter table t1 add column d int;
+--error 1112
+alter table t1 drop column b;
+
+--error 1112
+insert into t1(a, b, c) values(3, 4, "ccc");
+--error 1112
+update t1 set b = b+1;
+--error 1112
+select * from t1;
+
+--error 1112
+lock tables t1 read;
+unlock tables;
+
+SET TNT_COMMAND="alter table set test.t1.USEMMS = false";
+SET TNT_COMMAND="alter table set test.t1.CACHE_UPDATE = true";
+SET TNT_COMMAND="alter table set test.t1.UPDATE_CACHE_TIME = 120";
+SET TNT_COMMAND="alter table set test.t1.CACHED_COLUMNS = ENABLE a,b";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_LOBS = true";
+SET TNT_COMMAND="alter table set test.t1.HEAP_PCT_FREE = 30";
+SET TNT_COMMAND="alter table set test.t1.SPLIT_FACTORS = a 6";
+SET TNT_COMMAND="alter table set test.t1.INCR_SIZE = 64";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_ROWS = true";	
+SET TNT_COMMAND="alter table set test.t1.FIX_LEN = false";
+SET TNT_COMMAND="alter table set test.t1.COLUMN_GROUPS = (a), (b), (c)";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_SIZE = 4096";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MIN_LEN = 4";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MAX_LEN = 45";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_THRESHOLD = 90";
+
+
+# con3 test Trx Connection operate Trx Table
+connection con3;
+begin work;
+use test;
+
+SET tnt_is_trx_connection = false;
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+SET tnt_is_trx_connection = true;
+CREATE TABLE t1 (a int, b int, c varchar(20), primary key (a, b), key(a)) ENGINE=tnt;
+INSERT INTO t1 (a, b, c) VALUES (1, 2, "aaa");
+INSERT INTO t1 (a, b, c) VALUES (2, 3, "bbb");
+commit;
+
+insert into t1(a, b, c) values(3, 4, "ccc");
+
+update t1 set b = b+1;
+
+select * from t1;
+
+# can't excude trx/nontrx switch between lock tables
+lock tables t1 read;
+SET tnt_is_trx_connection = false;
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = false";
+unlock tables;
+commit;
+
+SET TNT_COMMAND="alter table set test.t1.USEMMS = false";
+SET TNT_COMMAND="alter table set test.t1.CACHE_UPDATE = true";
+SET TNT_COMMAND="alter table set test.t1.UPDATE_CACHE_TIME = 120";
+SET TNT_COMMAND="alter table set test.t1.CACHED_COLUMNS = ENABLE a,b";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_LOBS = true";
+SET TNT_COMMAND="alter table set test.t1.HEAP_PCT_FREE = 30";
+SET TNT_COMMAND="alter table set test.t1.SPLIT_FACTORS = a 6";
+SET TNT_COMMAND="alter table set test.t1.INCR_SIZE = 64";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_ROWS = true";	
+SET TNT_COMMAND="alter table set test.t1.FIX_LEN = false";
+SET TNT_COMMAND="alter table set test.t1.COLUMN_GROUPS = (a), (b), (c)";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_SIZE = 4096";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MIN_LEN = 4";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MAX_LEN = 45";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_THRESHOLD = 90";
+
+alter table t1 add index Idx (b);
+alter table t1 drop index a;
+alter table t1 add column d int;
+alter table t1 drop column b;
+rename table t1 to t2;
+truncate table t2;
+drop table t2;
+
+
+# con4 test NonTrx Connection operate NonTrx Table
+connection con4;
+begin work;
+use test;
+SET tnt_is_trx_connection = false;
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+CREATE TABLE t1 (a int, b int, c varchar(20), primary key (a, b), key(a)) ENGINE=tnt;
+INSERT INTO t1 (a, b, c) VALUES (1, 2, "aaa");
+INSERT INTO t1 (a, b, c) VALUES (2, 3, "bbb");
+commit;
+
+insert into t1(a, b, c) values(3, 4, "ccc");
+
+update t1 set b = b+1;
+
+select * from t1;
+
+# can't excude trx/nontrx switch between lock tables
+lock tables t1 read;
+SET tnt_is_trx_connection = true;
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = true";
+unlock tables;
+commit;
+
+
+SET TNT_COMMAND="alter table set test.t1.USEMMS = false";
+SET TNT_COMMAND="alter table set test.t1.CACHE_UPDATE = true";
+SET TNT_COMMAND="alter table set test.t1.UPDATE_CACHE_TIME = 120";
+SET TNT_COMMAND="alter table set test.t1.CACHED_COLUMNS = ENABLE a,b";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_LOBS = true";
+SET TNT_COMMAND="alter table set test.t1.HEAP_PCT_FREE = 30";
+SET TNT_COMMAND="alter table set test.t1.SPLIT_FACTORS = a 6";
+SET TNT_COMMAND="alter table set test.t1.INCR_SIZE = 64";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_ROWS = true";	
+SET TNT_COMMAND="alter table set test.t1.FIX_LEN = false";
+SET TNT_COMMAND="alter table set test.t1.COLUMN_GROUPS = (a), (b), (c)";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_SIZE = 4096";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MIN_LEN = 4";
+SET TNT_COMMAND="alter table set test.t1.DICTIONARY_MAX_LEN = 45";
+SET TNT_COMMAND="alter table set test.t1.COMPRESS_THRESHOLD = 90";
+
+alter table t1 add index Idx (b);
+alter table t1 drop index a;
+alter table t1 add column d int;
+alter table t1 drop column b;
+rename table t1 to t2;
+truncate table t2;
+drop table t2;
+
+
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+
+--echo End of tnt test

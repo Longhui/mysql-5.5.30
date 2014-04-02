@@ -1,0 +1,3 @@
+CREATE TEMPORARY TABLE table_54044 ENGINE = tnt
+AS SELECT IF(NULL  IS NOT NULL, NULL, NULL);
+ERROR 42000: char/varchar/binary/varbinary with zero size is not supported: IF(NULL  IS NOT NULL, NULL, NULL).

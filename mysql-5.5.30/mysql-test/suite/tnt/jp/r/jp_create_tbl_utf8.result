@@ -1,0 +1,125 @@
+DROP TABLE IF EXISTS `ｱｱｱ`;
+DROP TABLE IF EXISTS `ｲｲｲ`;
+DROP TABLE IF EXISTS `ｳｳｳ`;
+DROP TABLE IF EXISTS `ｴｴｴ`;
+DROP TABLE IF EXISTS `ｵｵｵ`;
+DROP TABLE IF EXISTS `あああ`;
+DROP TABLE IF EXISTS `いいい`;
+DROP TABLE IF EXISTS `ううう`;
+DROP TABLE IF EXISTS `えええ`;
+DROP TABLE IF EXISTS `おおお`;
+DROP TABLE IF EXISTS `龖龖龖`;
+DROP TABLE IF EXISTS `龗龗龗`;
+DROP TABLE IF EXISTS `龞龞龞`;
+DROP TABLE IF EXISTS `龡龡龡`;
+DROP TABLE IF EXISTS `龢龢龢`;
+SET NAMES utf8;
+SET character_set_database = utf8;
+CREATE TABLE `ｱｱｱ`(`ｶｶｶ` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+CREATE TABLE `ｲｲｲ`(`ｷｷｷ` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+CREATE TABLE `あああ`(`かかか` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+CREATE TABLE `いいい`(`ききき` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+CREATE TABLE `龖龖龖`(`丂丂丂` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+CREATE TABLE `龗龗龗`(`丄丄丄` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+CREATE TABLE IF NOT EXISTS `ｱｱｱ`(`ｶｶｶ` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+Warnings:
+Note	1050	Table 'ｱｱｱ' already exists
+CREATE TABLE IF NOT EXISTS `ｲｲｲ`(`ｷｷｷ` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+Warnings:
+Note	1050	Table 'ｲｲｲ' already exists
+CREATE TABLE IF NOT EXISTS `あああ`(`かかか` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+Warnings:
+Note	1050	Table 'あああ' already exists
+CREATE TABLE IF NOT EXISTS `いいい`(`ききき` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+Warnings:
+Note	1050	Table 'いいい' already exists
+CREATE TABLE IF NOT EXISTS `龖龖龖`(`丂丂丂` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+Warnings:
+Note	1050	Table '龖龖龖' already exists
+CREATE TABLE IF NOT EXISTS `龗龗龗`(`丄丄丄` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+Warnings:
+Note	1050	Table '龗龗龗' already exists
+CREATE TABLE IF NOT EXISTS `ｳｳｳ`(`ｸｸｸ` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+CREATE TABLE IF NOT EXISTS `ううう`(`くくく` char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+CREATE TABLE IF NOT EXISTS `龞龞龞`(`丅丅丅`char(1)) DEFAULT CHARSET = utf8 engine=tnt;
+DESC `ｱｱｱ`;
+Field	Type	Null	Key	Default	Extra
+ｶｶｶ	char(1)	YES		NULL	
+DESC `ｲｲｲ`;
+Field	Type	Null	Key	Default	Extra
+ｷｷｷ	char(1)	YES		NULL	
+DESC `ｳｳｳ`;
+Field	Type	Null	Key	Default	Extra
+ｸｸｸ	char(1)	YES		NULL	
+DESC `あああ`;
+Field	Type	Null	Key	Default	Extra
+かかか	char(1)	YES		NULL	
+DESC `いいい`;
+Field	Type	Null	Key	Default	Extra
+ききき	char(1)	YES		NULL	
+DESC `ううう`;
+Field	Type	Null	Key	Default	Extra
+くくく	char(1)	YES		NULL	
+DESC `龖龖龖`;
+Field	Type	Null	Key	Default	Extra
+丂丂丂	char(1)	YES		NULL	
+DESC `龗龗龗`;
+Field	Type	Null	Key	Default	Extra
+丄丄丄	char(1)	YES		NULL	
+DESC `龞龞龞`;
+Field	Type	Null	Key	Default	Extra
+丅丅丅	char(1)	YES		NULL	
+SHOW CREATE TABLE `ｱｱｱ`;
+Table	Create Table
+ｱｱｱ	CREATE TABLE `ｱｱｱ` (
+  `ｶｶｶ` char(1) DEFAULT NULL
+) ENGINE=TNT DEFAULT CHARSET=utf8
+SHOW CREATE TABLE `ｲｲｲ`;
+Table	Create Table
+ｲｲｲ	CREATE TABLE `ｲｲｲ` (
+  `ｷｷｷ` char(1) DEFAULT NULL
+) ENGINE=TNT DEFAULT CHARSET=utf8
+SHOW CREATE TABLE `ｳｳｳ`;
+Table	Create Table
+ｳｳｳ	CREATE TABLE `ｳｳｳ` (
+  `ｸｸｸ` char(1) DEFAULT NULL
+) ENGINE=TNT DEFAULT CHARSET=utf8
+SHOW CREATE TABLE `あああ`;
+Table	Create Table
+あああ	CREATE TABLE `あああ` (
+  `かかか` char(1) DEFAULT NULL
+) ENGINE=TNT DEFAULT CHARSET=utf8
+SHOW CREATE TABLE `いいい`;
+Table	Create Table
+いいい	CREATE TABLE `いいい` (
+  `ききき` char(1) DEFAULT NULL
+) ENGINE=TNT DEFAULT CHARSET=utf8
+SHOW CREATE TABLE `ううう`;
+Table	Create Table
+ううう	CREATE TABLE `ううう` (
+  `くくく` char(1) DEFAULT NULL
+) ENGINE=TNT DEFAULT CHARSET=utf8
+SHOW CREATE TABLE `龖龖龖`;
+Table	Create Table
+龖龖龖	CREATE TABLE `龖龖龖` (
+  `丂丂丂` char(1) DEFAULT NULL
+) ENGINE=TNT DEFAULT CHARSET=utf8
+SHOW CREATE TABLE `龗龗龗`;
+Table	Create Table
+龗龗龗	CREATE TABLE `龗龗龗` (
+  `丄丄丄` char(1) DEFAULT NULL
+) ENGINE=TNT DEFAULT CHARSET=utf8
+SHOW CREATE TABLE `龞龞龞`;
+Table	Create Table
+龞龞龞	CREATE TABLE `龞龞龞` (
+  `丅丅丅` char(1) DEFAULT NULL
+) ENGINE=TNT DEFAULT CHARSET=utf8
+DROP TABLE `ｱｱｱ`;
+DROP TABLE `ｲｲｲ`;
+DROP TABLE `ｳｳｳ`;
+DROP TABLE `あああ`;
+DROP TABLE `いいい`;
+DROP TABLE `ううう`;
+DROP TABLE `龖龖龖`;
+DROP TABLE `龗龗龗`;
+DROP TABLE `龞龞龞`;

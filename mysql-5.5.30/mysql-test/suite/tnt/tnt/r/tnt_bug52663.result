@@ -1,0 +1,26 @@
+set session transaction isolation level read committed;
+create table tnt_bug52663 (what varchar(5), id integer, count integer, primary key
+(what, id)) engine=tnt;
+insert into tnt_bug52663 values ('total', 0, 0);
+begin;
+set session transaction isolation level read committed;
+begin;
+update tnt_bug52663 set count = count + 1 where what = 'total' and id = 0;
+select * from tnt_bug52663;
+what	id	count
+total	0	1
+update tnt_bug52663 set count = count + 1 where what = 'total' and id = 0;
+ERROR HY000: Require transaction lock timeout!
+select * from tnt_bug52663;
+what	id	count
+total	0	0
+commit;
+update tnt_bug52663 set count = count + 1 where what = 'total' and id = 0;
+commit;
+select * from tnt_bug52663;
+what	id	count
+total	0	2
+select * from tnt_bug52663;
+what	id	count
+total	0	2
+drop table tnt_bug52663;

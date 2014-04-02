@@ -1,0 +1,60 @@
+rpl000013.test，rpl_ignore_table
+tnt不支持temporary table
+
+rpl_begin_commit_rollback.test
+tnt不支持statement
+
+rpl_bit.test rpl_row_basic_8partition
+tnt不支持partition
+
+rpl_bit_npk.test
+tnt不支持bit
+
+rpl_bug31076.test,rpl_extraCol_innodb
+不支持timestamp
+
+rpl_charset.test,rpl_set_charset
+Unsupported charset latin2_general_ci
+
+rpl_charset_sjis.test
+Unsupported charset sjis
+
+rpl_colSize.test rpl_row_colSize rpl_row_basic_11bugs rpl_loaddata,rpl_extraColmaster_innodb
+移除enum和set，tinyblob tinytext longblob tinyblob bit部分
+
+tnt不支持statement
+
+rpl_typeconv_innodb, rpl_sp_effects, rpl_set_null_innodb rpl_row_basic_11bugs rpl_row_basic_11bugs rpl_multi_engine rpl_mixed_bit_pk
+tnt不支持bit
+
+
+rpl_timezone.test rpl_row_mysqlbinlog rpl_row_func002 rpl_multi_engine， rpl_load_table_from_master，rpl_innodb_bug30888，rpl_innodb_bug28430，
+tnt不支持timestamp 
+
+rpl_temporary.test rpl_temporary_errors.test rpl_temp_table_mix_row.test rpl_temp_table.test, rpl_row_reset_slave, 
+rpl_tmp_table_and_DDL.test, rpl_trunc_temp.test,rpl_row_trunc_temp.test rpl_row_drop rpl_rewrt_db，rpl_innodb,rpl_drop_temp,rpl_create_tmp_table_if_not_exists,rpl_create_if_not_exists
+tnt不支持temp table
+
+rpl_row_sp007_innodb.test，rpl_innodb_mixed_dml
+tnt不支持savepoint
+
+rpl_switch_stm_row_mixed, rpl_stm_until, rpl_stm_sql_mode,rpl_stm_reset_slave, rpl_stm_no_op, rpl_stm_multi_query, rpl_stm_mixing_engines, rpl_stm_max_relay_size, rpl_stm_log-slave, rpl_stm_log-master, rpl_stm_log, rpl_stm_loadfile, rpl_stm_insert_delayed,rpl_stm_flsh_tbls, rpl_stm_EE_err2, rpl_stm_conflicts, rpl_stm_binlog_direct-master, rpl_stm_binlog_direct, rpl_stm_auto_increment_bug33029, rpl_stm_000001,rpl_slow_query_log,rpl_slave_skip.test,rpl_concurrency_error， rpl_loaddata_symlink.test
+rpl_found_rows,rpl_filter_tables_not_exist
+tnt不支持statement
+
+
+rpl_row_insert_delayed rpl_row_delayed_ins，rpl_insert
+tnt不支持insert delayed
+
+rpl_loadfile
+tnt不支持Longblob
+
+rpl_geometry
+tnt不支持geometry
+
+rpl_foreign_key_innodb
+tnt不支持foreign key
+
+
+rpl_empty_master_crash 
+5.5之后不支持 load table from master 这样的语句了，因此废除

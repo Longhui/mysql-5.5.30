@@ -1,0 +1,6 @@
+#####################################################################
+# tnt-QA
+# [Description: Test that old binlog formats can be read.] 
+#
+#####################################################################
+-- source suite/binlog/t/binlog_old_versions.test

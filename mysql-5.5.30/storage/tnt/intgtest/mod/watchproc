@@ -1,0 +1,94 @@
+#!/usr/bin/python
+
+import sys
+from time import sleep
+import select
+import popen2
+
+pids = []
+fields = ["VIRT", "RES", "%CPU"]
+
+for arg in sys.argv[1:]:
+    try:
+        pid = int(arg)
+        pids.append(pid)
+    except ValueError:
+        fields.append(arg.upper())
+
+fields = list(set(fields))
+
+
+interval = 150.000 # second
+
+#sleep(interval)
+
+recordfile = {}
+
+for pid in pids:
+    fname = "proc_record_" + str(pid)
+    for field in fields:
+        fname += "_" + field
+    fname += ".log"
+    recordfile[pid] = file(fname, "w", 0)
+
+    headerlines = "process id " + str(pid) + ", fields:\n"
+    for field in fields:
+        headerlines += field + "\t"
+    headerlines += "\n"
+    recordfile[pid].write(headerlines)
+    
+
+while (True):
+    r, w, e = select.select([sys.stdin], [], [], interval)
+    #print "continue"
+    if  r:
+        word = sys.stdin.readline()
+        if word.strip() == "stop":
+            break
+        else:
+            continue
+
+    topcmd = "top -b -n1"
+    for pid in pids:
+        topcmd += " -p" + str(pid)
+
+    r, w = popen2.popen2(topcmd)
+
+    #for line in r.readlines():
+     #   #print line,
+      #  words = line.split()
+       # if words[0] == "PID":
+
+    topout = r.readlines()
+    pidstates = topout[-1 - len(pids):-1]
+    topfields = topout[-1 - len(pids) - 1].split()
+    if len(topfields) == 0 or topfields[0] != "PID":
+        for pid in recordfile.keys():
+            recordfile[pid].close()
+        sys.exit()
+
+    fieldidx = {}
+    for field in fields:
+        fieldidx[field] = -1
+        for idx in range(len(topfields)):
+            if topfields[idx] == field:
+                fieldidx[field] = idx
+                break
+
+    for procinfoline in pidstates:
+        procinfo = procinfoline.split()
+        pid = int(procinfo[0])
+        for field in fields:
+            if fieldidx[field] > 0:
+                recordfile[pid].write(procinfo[fieldidx[field]] + "\t")
+            else:
+                recordfile[pid].write("N/A" + "\t")
+        recordfile[pid].write("\n")
+
+            
+
+
+for pid in recordfile.keys():
+    recordfile[pid].close()
+
+    

@@ -1,0 +1,7 @@
+LIBRARY		ntse_udf
+VERSION		1.0
+EXPORTS
+  ntse_backup_str
+  ntse_backup_str_init
+  ntse_backup_int
+  ntse_backup_int_init

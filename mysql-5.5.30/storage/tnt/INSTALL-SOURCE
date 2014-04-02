@@ -1,0 +1,64 @@
+[编译]
+
+有动态编译和静态编译两种方式：
+1. 动态编译是：基于已安装的Mysql服务器，编译NTSE成一个存储引擎插件。
+2. 静态编译是：编译出带NTSE存储引擎的Mysql服务器。
+
+一、动态编译
+
+
+1.如果ntse包含在Mysql代码中，在ntse根目录下执行
+build.sh  $MYSQL_INSTALLDIR;
+make install;
+
+2.否则，在ntse根目录下，执行
+build.sh $MYSQL_SOURCEDIR $MYSQL_INSTALLDIR
+make install
+
+其中MYSQL_INSTALLDIR是mysql源代码目录，而MYSQL_INSTALLDIR是mysql安装目录
+
+
+二、静态编译
+
+
+1. 使用BUILD/compile-xxx-xxx脚本编译(推荐)
+
+2. Debug版本
+在Mysql的根目录下，执行
+BUILD/autorun.sh
+./configure  --with-debug=full  --with-plugins=max  --with-readline --with-extra-charsets=complex --prefix=$INSTALL_DIR
+make
+make install
+
+或者执行
+confntse.sh
+make
+make install
+
+3. 带调试信息的Release版本
+在Mysql的根目录下，执行
+BUILD/autorun.sh
+CFLAGS="-g -O3" .CXXFLAGS="-g -O3" ./configure  --with-plugins=max  --with-readline --with-extra-charsets=complex --prefix=$INSTALL_DIR
+make
+make install
+
+
+
+
+[编译后动作]
+0. 准备
+准备好一个my.cnf
+拷贝到$MYSQL_INSTALLDIR 
+cd $MYSQL_INSTALLDIR
+1. 安装数据库
+bin/mysql_install_db --defaults-file=my.cnf --basedir=. --datadir=var
+2. 启动数据库
+bin/mysqld_safe --defaults-file=my.cnf
+3. 启动客户端
+mysql --defaults-file=my.cnf
+
+
+
+
+[ Problems ]
+静态编译应同时生成动态库；

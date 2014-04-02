@@ -1,0 +1,263 @@
+#!/usr/bin/python
+
+import os,os.path,sys
+import ConfigParser
+from optparse import OptionParser
+
+### path setting
+curpath = os.path.abspath(os.path.curdir)
+objpath = curpath + os.path.sep + "obj"
+
+platform = os.name
+if platform == "posix":
+    objext = ".o"
+else:
+    if platform == "nt":
+        objext = ".obj"
+
+## clean function, clean option must exist to use this ##
+def clean(cleanExec):
+    #os.system("scons -Q -c")
+    os.system("rm -rf obj .sconsigh.dblite")
+    os.system("rm -f SConstruct")
+    os.system("rm -f core.*")
+    if cleanExec:
+        os.system("rm %s %s_* -f" % ((bin_name,) * 2))
+
+
+
+### parse config ###
+cfgParser = ConfigParser.ConfigParser()
+cfgParser.readfp(open('build.conf'))
+
+# parse main option
+bin_name = cfgParser.get("main", "name")
+vcprojs = cfgParser.get("main", "proj").split()
+try:
+    flags = cfgParser.get("main", "flags").split()
+except:
+    flags = []
+try:
+    libs = cfgParser.get("main", "libs").split()
+except:
+    libs = []
+try:
+    libpath = cfgParser.get("main", "libpath").split()
+except:
+    libpath = []
+try:
+    incpath = cfgParser.get("main", "incpath").split()
+except:
+    incpath = []
+#print incpath
+
+
+### parse option
+optParser =OptionParser(usage="usage: %prog [options]")
+optNames = []
+optDict = {}
+
+for section in cfgParser.sections():
+    pieces = section.split()
+    if len(pieces) != 2: continue
+    (title, optname) = pieces
+    if title == "option":
+        #parse a option
+        try:
+            shortopt = cfgParser.get(section, "short")
+        except:
+            shortopt = None
+        try:
+            longopt = cfgParser.get(section, "long")
+        except:
+            longopt = None
+        try:
+            opthelp = cfgParser.get(section, "help")
+        except:
+            opthelp = None
+        try:
+            optdefault = cfgParser.getboolean(section, "default")
+        except:
+            optdefault = False
+        # above is for option parser, following is for build config
+        try:
+            optflags = cfgParser.get(section, "flags").split()
+        except:
+            optflags = []
+        try:
+            falseflags = cfgParser.get(section, "falseflags").split()
+        except:
+            falseflags = []
+        try:
+            optlibs = cfgParser.get(section, "libs").split()
+        except:
+            optlibs = []
+        try:
+            optsuffix = cfgParser.get(section, "suffix")
+        except:
+            optsuffix = None
+        #print shortopt, longopt, optlibs, optflags, falseflags, optsuffix
+        assert(shortopt or longopt)
+        if shortopt:
+            optParser.add_option(shortopt, longopt, action = "store_true", dest=optname, default=optdefault, help=opthelp)
+        else:
+            optParser.add_option(longopt, action = "store_true", dest=optname, default=optdefault, help=opthelp)
+        # put into memory
+        optNames.append(optname)
+        optDict[(optname, "flags")] = optflags
+        optDict[(optname, "falseflags")] = falseflags
+        optDict[(optname, "libs")] = optlibs
+        optDict[(optname, "suffix")] = optsuffix
+        
+
+(options, args) = optParser.parse_args()
+
+
+#print optNames
+#print optDict
+
+
+### build option construct ###
+
+
+for optname in optNames:
+    if optDict[(optname, "flags")]:
+        if options.__dict__[optname]:
+            flags.extend(optDict[(optname, "flags")])
+for optname in optNames:
+    if optDict[(optname, "falseflags")]:
+        if not options.__dict__[optname]:
+            flags.extend(optDict[(optname, "falseflags")])
+flags = list(set(flags))
+#print str(flags)
+
+for optname in optNames:
+    if optDict[(optname, "libs")]:
+        if options.__dict__[optname]:
+            libs.extend(optDict[(optname, "libs")]);
+libs = list(set(libs))
+#print libs
+
+for optname in optNames:
+    if optDict[(optname, "suffix")]:
+        if options.__dict__[optname]:
+            bin_name += optDict[(optname, "suffix")]
+#print bin_name
+
+
+
+### clean and exit if --clean 
+if options.clean:
+    clean(True)
+    sys.exit()
+
+#sys.exit()
+
+
+
+
+### file parsing start ###
+
+print "Cleaning files ...... "
+clean(False)
+print "done."
+
+print "Reading visual c++ project file ...... "
+
+files = []
+headerDirs=[]
+sourceFiles=[]
+
+for projfilename in vcprojs: #["test/NtseTest.vcproj", "src/Ntse.vcproj"]:
+    vcprojfile = open(projfilename, 'r')
+    lines = vcprojfile.readlines()
+    vcprojfile.close()
+
+    linenum = 0
+    while linenum >= 0:
+        if lines[linenum].find('Name="Source Files"') >= 0:
+            srcpatline = lines[linenum + 1][lines[linenum + 1].find('"') + 1 : lines[linenum + 1].rfind('"')]
+            srcpat = srcpatline.split(";")
+            linenum = -1
+        else:
+            linenum += 1
+
+    linenum = 0
+    while linenum >= 0:
+        if lines[linenum].find('Name="Header Files"') >= 0:
+            hdrpatline = lines[linenum + 1][lines[linenum + 1].find('"') + 1 : lines[linenum + 1].rfind('"')]
+            hdrpat=hdrpatline.split(";")
+            linenum = -1
+        else:
+            linenum += 1
+
+    linenum = 0
+    while linenum >= 0 and linenum < len(lines):
+        if lines[linenum].find("RelativePath") >= 0:
+            filepath = lines[linenum][lines[linenum].find('"') + 1 : lines[linenum].rfind('"')].replace("\\", "/")
+            filepath = os.path.abspath(os.path.dirname(os.path.abspath(projfilename)) + os.path.sep + filepath)
+            files.append(filepath)
+        linenum += 1
+
+    linenum = 0
+    while linenum >=0 and linenum < len(lines):
+        if lines[linenum].find("AdditionalIncludeDirectories=") >= 0:
+            addpaths = (lines[linenum][lines[linenum].find('"') + 1 : lines[linenum].rfind('"')].replace("\\", "/")).split(";")
+            #print addpaths
+            for addpath in addpaths:
+                if not os.path.isabs(addpath): # it is not a absolute path
+                    addpath = os.path.abspath(os.path.dirname(os.path.abspath(projfilename)) + os.path.sep + addpath)
+                if not addpath in headerDirs:
+                    headerDirs.append(addpath)
+        linenum +=1
+
+print headerDirs
+
+objects = {}
+
+for f in files:
+    dirname,filename = os.path.dirname(f), os.path.basename(f)
+    if filename[filename.rfind(".")+1:] in hdrpat:
+        if not dirname in headerDirs:
+            pass
+    else:
+        if filename[filename.rfind(".")+1:] in srcpat:
+            sourceFiles.append((dirname,filename))
+            filenameshort = filename[:filename.find(".")]
+            objId = "Object" + filenameshort
+            objDef = "Object('%s', ['%s'])" % (objpath + os.path.sep + filenameshort + objext, f)
+            objects[objId] = objDef
+
+
+
+incpath.extend(headerDirs)
+incpath = list(set(incpath))
+
+#sys.exit()
+
+
+
+# write SConstruct file
+sconsfile = open("SConstruct", "w")
+
+sconsfile.write("DefaultEnvironment(%s, %s, %s, %s)\n" %("CPPPATH = " + str(incpath), "CPPFLAGS = " + str(flags), "LIBS = " + str(libs), "LIBPATH = " + str(libpath)))
+for objId in objects.keys():
+    sconsfile.write("%s = %s" % (objId, objects[objId]) + "\n")
+sconsfile.write("main = Program('%s', [" % bin_name)
+for objId in objects.keys():
+    sconsfile.write(objId +", ")
+sconsfile.write("])\n")
+
+sconsfile.close()
+
+#check the cores of the cpu
+numcpus = 1
+if os.path.exists("/proc/cpuinfo"):
+	numcpus = [ int(line.strip()[-1]) for line in open('/proc/cpuinfo', 'r') if line.startswith('processor') ][-1] + 1
+
+print "The current system has %d cpus, so will start %d build jobs." % tuple([numcpus, numcpus])
+
+execresult = os.system("scons -Q -j %d" % numcpus)
+if execresult != 0:
+    sys.exit("Build failed")
+

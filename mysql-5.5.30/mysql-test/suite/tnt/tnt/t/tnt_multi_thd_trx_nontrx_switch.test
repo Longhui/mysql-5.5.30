@@ -1,0 +1,69 @@
+--source include/have_tnt.inc
+
+--echo #
+--echo #  Trx/NonTrx connection operate Trx/NonTrx Table 
+--echo #  without error
+--echo #
+
+SET tnt_is_trx_connection = true;
+
+use test;
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+CREATE TABLE t1 (a int, b int, c varchar(20), primary key (a, b), key(a)) ENGINE=tnt;
+INSERT INTO t1 (a, b, c) VALUES (1, 2, "aaa");
+INSERT INTO t1 (a, b, c) VALUES (2, 3, "bbb");
+commit;
+
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+connect (con3, localhost, root,,);
+connect (con4, localhost, root,,);
+
+connection con1;
+begin work;
+use test;
+begin;
+update t1 set b = b+1;
+
+connection con2;
+begin work;
+use test;
+begin;
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = false";
+
+connection con1;
+select * from t1;
+commit;
+
+connection con3;
+begin work;
+use test;
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = false";
+SET tnt_is_trx_connection = false;
+begin;
+update t1 set b = b + 1;
+
+connection con4;
+begin work;
+use test;
+SET tnt_is_trx_connection = false;
+SET TNT_COMMAND="alter table set test.t1.SUPPORT_TRX = true";
+
+connection con3;
+select * from t1;
+commit;
+
+connection con1;
+drop table t1;
+
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+
+--echo End of tnt test
+

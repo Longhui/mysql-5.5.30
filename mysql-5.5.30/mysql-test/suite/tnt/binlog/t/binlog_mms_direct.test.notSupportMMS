@@ -1,0 +1,41 @@
+#############################################################################
+# NTSE-QA
+# [Description:] ntse_binlog_method设置与ntse_enable_mms_cache_update关系
+#
+# Created by: djy
+# Created On: 2010-08-30
+#
+#############################################################################
+
+-- source include/have_ntse.inc
+
+SET @@storage_engine = Ntse;
+
+
+
+#############################################################################
+# NTSE-QA
+# Added by: djy
+# [Description:] ntse_binlog_method设置与ntse_enable_mms_cache_update关系
+# ntse_binlog_method=1,那么程序内部简单的将ntse_enable_mms_cache_update设
+# 为false,如果这时ntse_enable_mms_cache_update已经为true了,会抛出一个warning。
+# ntse_binlog_method=0或者2时不发生变化
+#############################################################################
+
+
+source include/have_log_bin.inc;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT);
+
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1;
+SHOW VARIABLES LIKE "ntse_enable_mms_cache_update";
+DROP TABLE t1;
+FLUSH LOGS;
+
+--exec grep "ntse_enable_mms_cache_update can't be set to true and now is reset to false when ntse_binlog_method is set to \"direct\"" var/log/mysqld.1.err|wc -l
+

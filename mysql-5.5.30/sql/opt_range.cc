@@ -1639,7 +1639,7 @@ int QUICK_ROR_UNION_SELECT::reset()
     queue_insert(&queue, (uchar*)quick);
   }
 
-  if ((error= head->file->ha_rnd_init(1)))
+  if ((error= head->file->ha_rnd_init(0)))
   {
     DBUG_PRINT("error", ("ROR index_merge rnd_init call failed"));
     DBUG_RETURN(error);

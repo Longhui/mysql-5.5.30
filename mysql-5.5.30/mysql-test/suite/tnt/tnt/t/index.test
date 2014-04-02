@@ -1,0 +1,88 @@
+-- source include/have_tnt.inc
+
+#
+# Test online adding/dropping index
+#
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1(a int not null, b int, c varchar(10));
+insert into t1 values(1, 1, 'aaa');
+insert into t1 values(2, 2, 'bbb');
+insert into t1 values(3, 1, 'ccc');
+insert into t1 values(4, 3, 'ccc');
+insert into t1 values(5, 2, 'abc');
+insert into t1 values(6, 1, 'ccc');
+insert into t1 values(7, 1, 'bbc');
+insert into t1 values(8, 4, 'aab');
+insert into t1 values(9, 2, 'ccc');
+
+# add normal index
+set tnt_command = "add index on test.t1 idx_t_b(b), idx_t_c(c)";
+alter table t1 add index idx_t_b(b), add index idx_t_c(c);
+show create table t1;
+insert into t1 values(10, 3, 'fdf');
+explain select * from t1 where b = 3;
+select * from t1 where b = 3;
+
+# add combined index
+create index idx_t_bc on t1(b, c);
+show create table t1;
+insert into t1 values(11, 1, 'ccc');
+explain select * from t1 where b = 1 and c = 'ccc';
+select * from t1 where b = 1 and c = 'ccc';
+
+alter table t1 add primary key(a);
+
+alter table t1 drop index idx_t_b;
+alter table t1 drop index idx_t_c;
+alter table t1 drop index idx_t_bc;
+
+show create table t1;
+insert into t1 values(12, 2, 'abc');
+--error 1062
+insert into t1 values(12, 2, 'abc');
+explain select * from t1 where a = 6;
+select * from t1 where a = 6;
+
+# drop primary key
+alter table t1 drop primary key;
+show create table t1;
+explain select * from t1 where a = 6;
+select * from t1 where a = 6;
+
+# add primary key fail due to unique violation
+insert into t1 values(9, 3, 'dup');
+--error 1062
+alter table t1 add primary key(a); 
+show create table t1;
+
+# add primary key fail due to nullable column
+--error 1062
+alter table t1 add primary key(b);
+
+# add unique index fail
+--error 1062
+alter table t1 add unique index idx_t_a(a); 
+show create table t1;
+
+# drop all index
+set tnt_command = "add index on test.t1 idx_t_b(b), idx_t_c(c)";
+alter table t1 add index idx_t_b(b), add index idx_t_c(c);
+## can't drop multiple index in one statement
+--error 1112
+alter table t1 drop index idx_t_b, drop index idx_t_c;
+
+drop index idx_t_b on t1;
+show create table t1;
+explain select * from t1 where b = 3;
+select * from t1 where b = 3;
+
+alter table t1 drop index idx_t_c;
+show create table t1;
+
+# cleanup
+drop table t1;
+

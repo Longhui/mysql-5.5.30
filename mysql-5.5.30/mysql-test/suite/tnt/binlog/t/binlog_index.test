@@ -1,0 +1,6 @@
+#####################################################################
+# tnt-QA
+# [Description: testing of purging of binary log files bug#18199/Bug#18453]
+#
+#####################################################################
+-- source suite/binlog/t/binlog_index.test

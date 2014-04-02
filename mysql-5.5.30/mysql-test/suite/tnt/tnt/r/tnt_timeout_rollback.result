@@ -1,0 +1,33 @@
+drop table if exists t1;
+create table t1 (a int unsigned not null primary key) engine = tnt;
+insert into t1 values (1);
+commit;
+begin work;
+insert into t1 values (2);
+select * from t1;
+a
+1
+2
+begin work;
+insert into t1 values (5);
+select * from t1;
+a
+1
+5
+insert into t1 values (2);
+ERROR HY000: Require transaction lock timeout!
+select * from t1;
+a
+1
+commit;
+select * from t1;
+a
+1
+2
+commit;
+select * from t1;
+a
+1
+2
+drop table t1;
+End of 5.0 tests
