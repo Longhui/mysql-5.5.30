@@ -4073,10 +4073,13 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     global_system_variables.table_plugin= plugin;
   }
 
-  tc_log= (total_ha_2pc > 1 ? (opt_bin_log  ?
+  /* tc_log= (total_ha_2pc > 1 ? (opt_bin_log  ?
                                (TC_LOG *) &mysql_bin_log :
                                (TC_LOG *) &tc_log_mmap) :
-           (TC_LOG *) &tc_log_dummy);
+           (TC_LOG *) &tc_log_dummy); */
+
+  /* we cannot use tc_log_mmap, because of some bugs*/
+  tc_log = (opt_bin_log ? (TC_LOG *) &mysql_bin_log : (TC_LOG *) &tc_log_dummy);
 
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
   {

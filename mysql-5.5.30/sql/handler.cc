@@ -1182,16 +1182,20 @@ int ha_prepare(THD *thd)
 static
 uint
 ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
-                                    bool all)
+                                    bool all , bool *have_binlog)
 {
   /* The number of storage engines that have actual changes. */
   unsigned rw_ha_count= 0;
   Ha_trx_info *ha_info;
+  *have_binlog = false;
 
   for (ha_info= ha_list; ha_info; ha_info= ha_info->next())
   {
     if (ha_info->is_trx_read_write())
       ++rw_ha_count;
+
+    if (ha_info->ht()->db_type == DB_TYPE_BINLOG)
+      *have_binlog = true;
 
     if (! all)
     {
@@ -1214,7 +1218,8 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
         information up, and the need for two-phase commit has been
         already established. Break the loop prematurely.
       */
-      break;
+      /* we should check every handlerton to ensure whether binlog exists */
+      /* break; */
     }
   }
   return rw_ha_count;
@@ -1295,6 +1300,7 @@ int ha_commit_trans(THD *thd, bool all)
   else
   {
     uint rw_ha_count;
+    bool trx_binlog;
     bool rw_trans;
     MDL_request mdl_request;
 
@@ -1304,7 +1310,7 @@ int ha_commit_trans(THD *thd, bool all)
     if (is_real_trans)                          /* not a statement commit */
       thd->stmt_map.close_transient_cursors();
 
-    rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+    rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all, &trx_binlog);
     /* rw_trans is TRUE when we in a transaction changing data */
     rw_trans= is_real_trans && (rw_ha_count > 0);
 
@@ -1340,7 +1346,8 @@ int ha_commit_trans(THD *thd, bool all)
       goto err;
     }
 
-    if (trans->no_2pc || (rw_ha_count <= 1))
+    /* only trx with binlog use 2pc commit */
+    if (!trans->no_2pc && trx_binlog)
     {
 		error = ha_commit_one_phase(thd, all);
 		DBUG_EXECUTE_IF("crash_commit_after", DBUG_SUICIDE(););
