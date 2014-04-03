@@ -277,13 +277,13 @@ IF(WITH_TNT)
 ENDIF()
 
 MYSQL_ADD_EXECUTABLE(tnt_restore  src/restore.cpp)
-TARGET_LINK_LIBRARIES(tnt_restore tnt)
+TARGET_LINK_LIBRARIES(tnt_restore tnt pthread)
 
 MYSQL_ADD_EXECUTABLE(tnt_trace_dump  src/trace_dump.cpp)
 TARGET_LINK_LIBRARIES(tnt_trace_dump tnt mysqlclient)
 
 MYSQL_ADD_EXECUTABLE(tnt_upgrade  src/upgrade.cpp)
-TARGET_LINK_LIBRARIES(tnt_upgrade tnt)
+TARGET_LINK_LIBRARIES(tnt_upgrade tnt pthread)
 
 MYSQL_ADD_PLUGIN(tnt ${TNT_SOURCES} STORAGE_ENGINE 
   DEFAULT
