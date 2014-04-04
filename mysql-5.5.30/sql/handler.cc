@@ -1346,8 +1346,8 @@ int ha_commit_trans(THD *thd, bool all)
       goto err;
     }
 
-    /* only trx with binlog use 2pc commit */
-    if (trans->no_2pc || !trx_binlog)
+    /* binlog with at least one 2pc engine use 2pc commit */
+    if (trans->no_2pc || rw_ha_count <= 1 || !trx_binlog)
     {
 		error = ha_commit_one_phase(thd, all);
 		DBUG_EXECUTE_IF("crash_commit_after", DBUG_SUICIDE(););
