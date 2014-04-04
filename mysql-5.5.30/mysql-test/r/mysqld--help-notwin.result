@@ -745,6 +745,228 @@ The following options may be given as the first argument:
  -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
  separated by a colon (:), in this case they are used in a
  round-robin fashion
+ --tnt[=name]        Enable or disable Tnt plugin. Possible values are ON,
+ OFF, FORCE (don't start if the plugin fails to load).
+ --tnt-aio           flush page use Aio or not
+ (Defaults to on; use --skip-tnt-aio to disable.)
+ --tnt-backup-before-recover 
+ Backup database before recovery.
+ (Defaults to on; use --skip-tnt-backup-before-recover to disable.)
+ --tnt-command[=name] 
+ Used to send command to NTSE kernel.
+ --tnt-common-pool-size=# 
+ Size of record buffer in bytes.
+ --tnt-compress-batch-del-size[=#] 
+ Num of pages to sample when create a global dictionary
+ --tnt-compress-cte[=#] 
+ Num of pages to sample when create a global dictionary
+ --tnt-compress-sample-pct[=#] 
+ Percentage of records to sample when create global
+ dictionary
+ --tnt-compress-sample-strategy[=name] 
+ Strategy of sample table used to create compression
+ dictionary.
+ --tnt-compress-win-detect-times[=#] 
+ Num of pages to sample when create a global dictionary
+ --tnt-compress-win-mem-level[=#] 
+ Num of pages to sample when create a global dictionary
+ --tnt-compress-win-size[=#] 
+ Num of pages to sample when create a global dictionary
+ --tnt-deferred-read-cache-size[=#] 
+ Max size of cache used in deferred read, used mainly in
+ filesort.
+ --tnt-directio      flush data use O_DIRECT or not
+ (Defaults to on; use --skip-tnt-directio to disable.)
+ --tnt-enable-syslog write ntse syslog to mysql log
+ --tnt-incr-size[=#] Number of pages when heap/index/lob file extends.
+ --tnt-is-trx-connection 
+ whether the connnection is trx
+ (Defaults to on; use --skip-tnt-is-trx-connection to disable.)
+ --tnt-keep-dict-on-optimize 
+ Whether keep old dictionary when optimize table, can be
+ on/true or off/false. It's only useful to a
+ row-compressed table that has a compressed dictionary.
+ (Defaults to on; use --skip-tnt-keep-dict-on-optimize to disable.)
+ --tnt-log-buf-size=# 
+ Size of log buffer in bytes.
+ --tnt-log-file-cnt-hwm=# 
+ Count of log file high water mark
+ --tnt-log-file-size=# 
+ Size of log file in bytes.
+ --tnt-logdir=name   The directory to store log files used by NTSE (used only
+ in index building currently).
+ --tnt-max-sessions=# 
+ Max number of concurrent sessions.
+ --tnt-ntse-buf-distribution[=name] 
+ Enable or disable TNT_NTSE_BUF_DISTRIBUTION plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-ntse-column-def-ex[=name] 
+ Enable or disable TNT_NTSE_COLUMN_DEF_EX plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-command-return[=name] 
+ Enable or disable TNT_NTSE_COMMAND_RETURN plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-ntse-compress-stats[=name] 
+ Enable or disable TNT_NTSE_COMPRESS_STATS plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-ntse-connections[=name] 
+ Enable or disable TNT_NTSE_CONNECTIONS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-dbobj-stats[=name] 
+ Enable or disable TNT_NTSE_DBOBJ_STATS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-heap-stats[=name] 
+ Enable or disable TNT_NTSE_HEAP_STATS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-heap-stats-ex[=name] 
+ Enable or disable TNT_NTSE_HEAP_STATS_EX plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-index-def-ex[=name] 
+ Enable or disable TNT_NTSE_INDEX_DEF_EX plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-index-stats[=name] 
+ Enable or disable TNT_NTSE_INDEX_STATS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-index-stats-ex[=name] 
+ Enable or disable TNT_NTSE_INDEX_STATS_EX plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-ntse-intention-lock-stats[=name] 
+ Enable or disable TNT_NTSE_INTENTION_LOCK_STATS plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-ntse-lob-stats[=name] 
+ Enable or disable TNT_NTSE_LOB_STATS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-lob-stats-ex[=name] 
+ Enable or disable TNT_NTSE_LOB_STATS_EX plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-mms-ridhash-conflicts[=name] 
+ Enable or disable TNT_NTSE_MMS_RIDHASH_CONFLICTS plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-ntse-mms-rpcls-stats[=name] 
+ Enable or disable TNT_NTSE_MMS_RPCLS_STATS plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-ntse-mms-stats[=name] 
+ Enable or disable TNT_NTSE_MMS_STATS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-mutex-stats[=name] 
+ Enable or disable TNT_NTSE_MUTEX_STATS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-rwlock-stats[=name] 
+ Enable or disable TNT_NTSE_RWLOCK_STATS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-table-def-ex[=name] 
+ Enable or disable TNT_NTSE_TABLE_DEF_EX plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-ntse-table-stats[=name] 
+ Enable or disable TNT_NTSE_TABLE_STATS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-page-buf-size=# 
+ Size of page buffer in bytes.
+ --tnt-rec-buf-size=# 
+ Size of record buffer in bytes.
+ --tnt-sample-max-pages=# 
+ Maximal number of pages used in sampling in obtaining
+ extended status.
+ --tnt-scavenger-pages=# 
+ Scavenger Pages in one Round.
+ --tnt-support-xa    表示TNT当前线程是否支持MySQL的二阶段提交
+ (Defaults to on; use --skip-tnt-support-xa to disable.)
+ --tnt-system-io-capacity=# 
+ Size of log file in bytes.
+ --tnt-table-lock-timeout=# 
+ Timeout of table lock in seconds.
+ --tnt-tmpdir=name   The directory to store temparory files used by NTSE (used
+ only in index building currently).
+ --tnt-tnt-auto-upgrade-from-ntse 
+ Should TNT auto upgrade from ntse.
+ --tnt-tnt-buf-size=# 
+ Size of tnt page buffer in bytes
+ --tnt-tnt-defrag-hashIndex-max-traverse-cnt=# 
+ Defrag hash index max traverse count.
+ --tnt-tnt-dump-interval=# 
+ Time interval should we do an auto dump.
+ --tnt-tnt-hash-index-stats[=name] 
+ Enable or disable TNT_TNT_HASH_INDEX_STATS plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-tnt-index-stats[=name] 
+ Enable or disable TNT_TNT_INDEX_STATS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-tnt-inner-transaction-stats[=name] 
+ Enable or disable TNT_TNT_INNER_TRANSACTION_STATS plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-tnt-lock-timeout=# 
+ TNT Transaction Lock Time Out Threshold.
+ --tnt-tnt-max-trx-cnt=# 
+ TNT Transaction Flush mode.
+ --tnt-tnt-max-trx-common-idle-time=# 
+ max time tnt transaction can idle
+ --tnt-tnt-max-trx-locks=# 
+ max transaction locks per tnt transaction can hold
+ --tnt-tnt-max-trx-prepare-idle-time=# 
+ max time tnt prepared transaction can idle
+ --tnt-tnt-max-trx-run-time=# 
+ max time tnt transaction can run
+ --tnt-tnt-mem-index-reclaim-hwm=# 
+ Count of pages will be reclaimed in meory index high
+ water mark
+ --tnt-tnt-mem-index-reclaim-lwm=# 
+ Count of pages will be reclaimed in meory index low water
+ mark
+ --tnt-tnt-memory-index-stats[=name] 
+ Enable or disable TNT_TNT_MEMORY_INDEX_STATS plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-tnt-mheap-stats[=name] 
+ Enable or disable TNT_TNT_MHEAP_STATS plugin. Possible
+ values are ON, OFF, FORCE (don't start if the plugin
+ fails to load).
+ --tnt-tnt-open-table-cnt=# 
+ Number of Table Opened.
+ --tnt-tnt-purge-interval=# 
+ Time interval should we do an auto purge.
+ --tnt-tnt-transaction-stats[=name] 
+ Enable or disable TNT_TNT_TRANSACTION_STATS plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-tnt-transaction-sys-stats[=name] 
+ Enable or disable TNT_TNT_TRANSACTION_SYS_STATS plugin.
+ Possible values are ON, OFF, FORCE (don't start if the
+ plugin fails to load).
+ --tnt-tnt-trx-flush-mode=# 
+ TNT Transaction Flush mode.
+ --tnt-tnt-verpool-cnt=# 
+ Number of TNT version pools.
+ --tnt-tnt-verpool-file-size=# 
+ Size of TNT version pool in Bytes.
+ --tnt-tnt-version=name 
+ TNT version
+ --tnt-verify-after-recover 
+ Vefiry database after crash recovery.
+ --tnt-version=name  NTSE version
  --tokudb[=name]     Enable or disable TokuDB plugin. Possible values are ON,
  OFF, FORCE (don't start if the plugin fails to load).
  --tokudb-analyze-time=# 
@@ -1081,6 +1303,85 @@ thread-stack 262144
 time-format %H:%i:%s
 timed-mutexes FALSE
 tmp-table-size 16777216
+tnt ON
+tnt-aio TRUE
+tnt-backup-before-recover TRUE
+tnt-command (No default value)
+tnt-common-pool-size 33554432
+tnt-compress-batch-del-size 32768
+tnt-compress-cte 8
+tnt-compress-sample-pct 10
+tnt-compress-sample-strategy sequence
+tnt-compress-win-detect-times 2
+tnt-compress-win-mem-level 12
+tnt-compress-win-size 262144
+tnt-deferred-read-cache-size 1048576
+tnt-directio TRUE
+tnt-enable-syslog FALSE
+tnt-incr-size 512
+tnt-is-trx-connection TRUE
+tnt-keep-dict-on-optimize TRUE
+tnt-log-buf-size 33554432
+tnt-log-file-cnt-hwm 3
+tnt-log-file-size 52428800
+tnt-logdir .
+tnt-max-sessions 1024
+tnt-ntse-buf-distribution ON
+tnt-ntse-column-def-ex ON
+tnt-ntse-command-return ON
+tnt-ntse-compress-stats ON
+tnt-ntse-connections ON
+tnt-ntse-dbobj-stats ON
+tnt-ntse-heap-stats ON
+tnt-ntse-heap-stats-ex ON
+tnt-ntse-index-def-ex ON
+tnt-ntse-index-stats ON
+tnt-ntse-index-stats-ex ON
+tnt-ntse-intention-lock-stats ON
+tnt-ntse-lob-stats ON
+tnt-ntse-lob-stats-ex ON
+tnt-ntse-mms-ridhash-conflicts ON
+tnt-ntse-mms-rpcls-stats ON
+tnt-ntse-mms-stats ON
+tnt-ntse-mutex-stats ON
+tnt-ntse-rwlock-stats ON
+tnt-ntse-table-def-ex ON
+tnt-ntse-table-stats ON
+tnt-page-buf-size 8388608
+tnt-rec-buf-size 8388608
+tnt-sample-max-pages 1000
+tnt-scavenger-pages 200
+tnt-support-xa TRUE
+tnt-system-io-capacity 256
+tnt-table-lock-timeout 5
+tnt-tmpdir .
+tnt-tnt-auto-upgrade-from-ntse FALSE
+tnt-tnt-buf-size 8388608
+tnt-tnt-defrag-hashIndex-max-traverse-cnt 32000
+tnt-tnt-dump-interval 1
+tnt-tnt-hash-index-stats ON
+tnt-tnt-index-stats ON
+tnt-tnt-inner-transaction-stats ON
+tnt-tnt-lock-timeout 20000
+tnt-tnt-max-trx-cnt 512
+tnt-tnt-max-trx-common-idle-time 600
+tnt-tnt-max-trx-locks 200000
+tnt-tnt-max-trx-prepare-idle-time 1200
+tnt-tnt-max-trx-run-time 3600
+tnt-tnt-mem-index-reclaim-hwm 1000
+tnt-tnt-mem-index-reclaim-lwm 800
+tnt-tnt-memory-index-stats ON
+tnt-tnt-mheap-stats ON
+tnt-tnt-open-table-cnt 256
+tnt-tnt-purge-interval 3
+tnt-tnt-transaction-stats ON
+tnt-tnt-transaction-sys-stats ON
+tnt-tnt-trx-flush-mode 1
+tnt-tnt-verpool-cnt 2
+tnt-tnt-verpool-file-size 104857600
+tnt-tnt-version (No default value)
+tnt-verify-after-recover FALSE
+tnt-version (No default value)
 tokudb ON
 tokudb-analyze-time 60
 tokudb-backup-throttle 18446744073709551615
