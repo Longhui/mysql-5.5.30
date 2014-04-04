@@ -767,12 +767,12 @@ static MYSQL_SYSVAR_ULONG(log_file_cnt_hwm, ntse_log_file_cnt_hwm,
 static MYSQL_SYSVAR_ULONG(log_file_size, ntse_log_file_size,
 						  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
 						  "Size of log file in bytes.",
-						  NULL, NULL, LogConfig::MIN_LOGFILE_SIZE, LogConfig::MIN_LOGFILE_SIZE, ~0, 0);
+						  NULL, NULL, 64 * 1024 * 1024, LogConfig::MIN_LOGFILE_SIZE, ~0, 0);
 
 static MYSQL_SYSVAR_ULONG(log_buf_size, ntse_log_buf_size,
 						  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
 						  "Size of log buffer in bytes.",
-						  NULL, NULL, LogConfig::MIN_LOG_BUFFER_SIZE, LogConfig::MIN_LOG_BUFFER_SIZE, ~0, 0);
+						  NULL, NULL, 32 * 1024 * 1024, LogConfig::MIN_LOG_BUFFER_SIZE, ~0, 0);
 
 static MYSQL_SYSVAR_ULONGLONG(page_buf_size, ntse_page_buf_size,
 						  PLUGIN_VAR_RQCMDARG,
