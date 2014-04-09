@@ -297,6 +297,335 @@ def	information_schema	TABLE_PRIVILEGES	PRIVILEGE_TYPE	5		NO	varchar	64	192	NULL
 def	information_schema	TABLE_PRIVILEGES	TABLE_CATALOG	2		NO	varchar	512	1536	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select	
 def	information_schema	TABLE_PRIVILEGES	TABLE_NAME	4		NO	varchar	64	192	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
 def	information_schema	TABLE_PRIVILEGES	TABLE_SCHEMA	3		NO	varchar	64	192	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
+def	information_schema	TNT_NTSE_BUF_DISTRIBUTION	BUF_PAGES	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_BUF_DISTRIBUTION	INDEX	5		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_BUF_DISTRIBUTION	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_BUF_DISTRIBUTION	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_BUF_DISTRIBUTION	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_BUF_DISTRIBUTION	TYPE	4		NO	varchar	10	30	NULL	NULL	utf8	utf8_general_ci	varchar(10)			select	
+def	information_schema	TNT_NTSE_COLUMN_DEF_EX	CACHE_UPDATE	5	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_COLUMN_DEF_EX	COL_GROUP_NO	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_COLUMN_DEF_EX	COL_GROUP_OFFSET	7	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_COLUMN_DEF_EX	NAME	4		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_COLUMN_DEF_EX	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_COLUMN_DEF_EX	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_COLUMN_DEF_EX	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_COMMAND_RETURN	COMMAND	1		NO	varchar	255	765	NULL	NULL	utf8	utf8_general_ci	varchar(255)			select	
+def	information_schema	TNT_NTSE_COMMAND_RETURN	INFO	3		NO	varchar	255	765	NULL	NULL	utf8	utf8_general_ci	varchar(255)			select	
+def	information_schema	TNT_NTSE_COMMAND_RETURN	STATUS	2		NO	varchar	16	48	NULL	NULL	utf8	utf8_general_ci	varchar(16)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	COMPRESS_ROWS	4		NO	varchar	6	18	NULL	NULL	utf8	utf8_general_ci	varchar(6)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	COMPRESS_THRESHOLD	12		NO	varchar	6	18	NULL	NULL	utf8	utf8_general_ci	varchar(6)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_ACTUAL_SIZE	7	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_AVG_LEN	11	0	NO	double	NULL	NULL	8	NULL	NULL	NULL	double			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_CREATED	5		NO	varchar	5	15	NULL	NULL	utf8	utf8_general_ci	varchar(5)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_MAX_LEN	10		NO	varchar	6	18	NULL	NULL	utf8	utf8_general_ci	varchar(6)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_MAX_SIZE	6		NO	varchar	5	15	NULL	NULL	utf8	utf8_general_ci	varchar(5)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_MEM_USAGE	8	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_MIN_LEN	9		NO	varchar	6	18	NULL	NULL	utf8	utf8_general_ci	varchar(6)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	SCHEMA_NAME	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_COMPRESS_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	DURATION	5	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	IDX_SCAN	18	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	IDX_SCAN_ROW	19	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	INFO	6		NO	varchar	255	765	NULL	NULL	utf8	utf8_general_ci	varchar(255)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	LOG_READ	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	LOG_WRITE	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	NAME	4		NO	varchar	255	765	NULL	NULL	utf8	utf8_general_ci	varchar(255)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	OPER	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	PHY_READ	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	PHY_WRITE	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	POS_SCAN	20	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	POS_SCAN_ROW	21	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	ROW_DELETE	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	ROW_INSERT	13	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	ROW_READ	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	ROW_UPDATE	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	TBL_SCAN	16	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	TBL_SCAN_ROW	17	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	THD	3	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_CONNECTIONS	TYPE	2		NO	varchar	10	30	NULL	NULL	utf8	utf8_general_ci	varchar(10)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	INDEX_NAME	5		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	ITEM_DELETE	13	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	ITEM_INSERT	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	ITEM_READ	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	ITEM_UPDATE	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	LOG_READ	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	LOG_WRITE	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	PHY_READ	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	PHY_WRITE	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	SCAN	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	SCAN_ITEM	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	SCHEMA_NAME	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_DBOBJ_STATS	TYPE	4		NO	varchar	10	30	NULL	NULL	utf8	utf8_general_ci	varchar(10)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS	HEAP_VERSION	4		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS	RR_REC	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS	RR_SUBREC	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS	RU_REC	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS	RU_SUBREC	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS_EX	CMPRS_RATIO	8	0	NO	double	NULL	NULL	8	NULL	NULL	NULL	double			select	
+def	information_schema	TNT_NTSE_HEAP_STATS_EX	CMPRS_ROW	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS_EX	LINK_ROW	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS_EX	PCT_USED	7	0	NO	double	NULL	NULL	8	NULL	NULL	NULL	double			select	
+def	information_schema	TNT_NTSE_HEAP_STATS_EX	ROW	4	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS_EX	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS_EX	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_HEAP_STATS_EX	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_INDEX_DEF_EX	NAME	4		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_INDEX_DEF_EX	SPLIT_FACTOR	5	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_INDEX_DEF_EX	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_INDEX_DEF_EX	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_INDEX_DEF_EX	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	ALLOC_SIZE	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	BACK_SCAN	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	BSCAN_ROW	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	DEADLOCK	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	DELETE_PL_RESTART	13	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	INDEX_NAME	4		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	INSERT_PL_RESTART	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	MERGE	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	RL_RESTART	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	SPLIT	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS	USED_SIZE	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS_EX	COMPRESS_RATIO	6	0	NO	double	NULL	NULL	8	NULL	NULL	NULL	double			select	
+def	information_schema	TNT_NTSE_INDEX_STATS_EX	INDEX_NAME	4		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS_EX	PCT_USED	5	0	NO	double	NULL	NULL	8	NULL	NULL	NULL	double			select	
+def	information_schema	TNT_NTSE_INDEX_STATS_EX	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS_EX	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_INDEX_STATS_EX	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	FAILS	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	FILE	1		NO	varchar	256	768	NULL	NULL	utf8	utf8_general_ci	varchar(256)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	INSTANCES	4	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LINE	2	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_IS	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_IX	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_NO	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_S	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_SIX	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_U	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_X	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	NAME	3		NO	varchar	100	300	NULL	NULL	utf8	utf8_general_ci	varchar(100)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	SPINS	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	WAITS	13	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	WAIT_TIME	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	DELETE	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	INSERT	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	MOVE_UPDATE	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	POST_COMPRESS_SIZE	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	PRE_COMPRESS_SIZE	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	READ	4	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	UPDATE	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	USEFUL_COMPRESS	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS	USELESS_COMPRESS	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS_EX	BLOB_COUNT	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS_EX	BLOB_FREE_PAGE	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS_EX	BLOB_PCT_USED	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS_EX	SLOB_COUNT	4	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS_EX	SLOB_LINK	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS_EX	SLOB_PCT_USED	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_LOB_STATS_EX	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_LOB_STATS_EX	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_LOB_STATS_EX	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	AVG_CONFLICT_LENGTH	6	0	NO	double	NULL	NULL	8	NULL	NULL	NULL	double			select	
+def	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	MAX_CONFLICT_LENGTH	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	PARTITION	4	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	DELETE	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	INSERT	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	ISLOB	4	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	MAX_SIZE	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	MIN_SIZE	5	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	NONFULL_PAGE	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	PAGE	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	PAGE_REPLACE	13	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	RECORD_REPLACE	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_MMS_RPCLS_STATS	UPDATE	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	DELETE	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	DIRTY_RECORD	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	INSERT	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	INSERT_FAIL	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	ISLOB	4	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	PAGE	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	PAGE_REPLACE	16	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	QUERY	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	QUERY_HIT	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	RECORD	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	RECORD_REPLACE	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	UPDATE	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MMS_STATS	UPDATE_MERGE	13	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MUTEX_STATS	FILE	1		NO	varchar	256	768	NULL	NULL	utf8	utf8_general_ci	varchar(256)			select	
+def	information_schema	TNT_NTSE_MUTEX_STATS	INSTANCES	4	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_MUTEX_STATS	LINE	2	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_MUTEX_STATS	LOCKS	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MUTEX_STATS	NAME	3		NO	varchar	100	300	NULL	NULL	utf8	utf8_general_ci	varchar(100)			select	
+def	information_schema	TNT_NTSE_MUTEX_STATS	SPINS	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MUTEX_STATS	WAITS	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_MUTEX_STATS	WAIT_TIME	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_RWLOCK_STATS	FILE	1		NO	varchar	256	768	NULL	NULL	utf8	utf8_general_ci	varchar(256)			select	
+def	information_schema	TNT_NTSE_RWLOCK_STATS	INSTANCES	4	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_RWLOCK_STATS	LINE	2	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_RWLOCK_STATS	NAME	3		NO	varchar	100	300	NULL	NULL	utf8	utf8_general_ci	varchar(100)			select	
+def	information_schema	TNT_NTSE_RWLOCK_STATS	READ_LOCKS	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_RWLOCK_STATS	SPINS	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_RWLOCK_STATS	WAITS	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_RWLOCK_STATS	WAIT_TIME	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_RWLOCK_STATS	WRITE_LOCKS	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	CACHE_UPDATE	8	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	COMPRESS_LOBS	10	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	CREATE_ARGS	14		NO	varchar	2000	6000	NULL	NULL	utf8	utf8_general_ci	varchar(2000)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	INCR_SIZE	12	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	INDEX_ONLY	13	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	PCT_FREE	11	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	ROW_COMPRESS	15	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	SUPPORT_TRX	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	TABLE_PART_NAME	4		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	TABLE_PART_SUB_NAME	5		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	UPDATE_CACHE_TIME	9	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_DEF_EX	USE_MMS	7	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	BLOB_DAT_SIZE	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	BLOB_DIR_SIZE	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	HEAP_SIZE	4	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	INDEX_SIZE	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	RLOCK_NONE	17	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	RLOCK_READ	18	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	RLOCK_WRITE	19	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	SLOB_SIZE	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TABLE_SCHEMA	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TBL_IS_LOCKS	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TBL_IX_LOCKS	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TBL_LOCK_SPINS	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TBL_LOCK_WAITS	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TBL_LOCK_WAIT_TIME	16	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TBL_SIX_LOCKS	13	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TBL_S_LOCKS	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_NTSE_TABLE_STATS	TBL_X_LOCKS	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	DEFRAG_CNT	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	HASHINDEX_NO	4	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	INSERT_CNT	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	READ_CNT	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	REMOVE_CNT	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	SCHEMA_NAME	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	TOTAL	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	TRXID_CNT	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_HASH_INDEX_STATS	UPDATE_CNT	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	BACKSCANROWS_CNT	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	BACKSCAN_CNT	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	DRS_RETURN_CNT	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	INDEX_NAME	4		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	MIDX_RETURN_CNT	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	ROWLOCK_CONFLICT_CNT	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	SCANROWS_CNT	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	SCAN_CNT	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	SCHEMA_NAME	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_INDEX_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX STATUS	2		NO	varchar	50	150	NULL	NULL	utf8	utf8_general_ci	varchar(50)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRXID	1	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_BEGIN_LSN	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_EXCUTE_TIME	4	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_IS_READ_ONLY	6	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	smallint(2)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_IS_RECOVER_HANG	12	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	smallint(2)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_LAST_LSN	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_LOCK_CNT	5	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_REAL_START_LSN	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_REDO_CNT	11	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_START_TIME	3	0000-00-00 00:00:00	NO	datetime	NULL	NULL	NULL	NULL	NULL	NULL	datetime			select	
+def	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_VERSION_POOL_ID	10	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	smallint(2)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	ALLOC_PAGE_CNT	20	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	BACKSCANROWS_CNT	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	BACKSCAN_CNT	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	DECREASE_HEIGHT_CNT	19	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	DELETE_CNT	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	FREE_PAGE_CNT	21	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	INCREASE_HEIGHT_CNT	18	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	INDEX_NAME	4		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	INSERT_CNT	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	LATCH_CONFLICT_CNT	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	MERGE_CNT	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	REDISTRIBUTE_CNT	13	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	REPAIR_OVERFLOW_CNT	17	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	REPAIR_UNDERFLOW_CNT	16	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	RESTART_CNT	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	SCANROWS_CNT	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	SCAN_CNT	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	SCHEMA_NAME	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	SPLIT_CNT	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_MEMORY_INDEX_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	AVG_SEARCH_SIZE	9	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	DELETE_FIRST	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	DELETE_SECOND	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	FREENODE0_SIZE	5	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	FREENODE1_SIZE	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	FREENODE2_SIZE	7	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	FREENODE3_SIZE	8	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	INSERT	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	MAX_SEARCH_SIZE	10	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	SCHEMA_NAME	2		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	TABLE_ID	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	TABLE_NAME	3		NO	varchar	65	195	NULL	NULL	utf8	utf8_general_ci	varchar(65)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	TOTAL	4	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	UPDATE_FIRST	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_MHEAP_STATS	UPDATE_SECORND	13	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRXID	1	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_BEGIN_LSN	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_EXCUTE_TIME	4	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_IS_READ_ONLY	7	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	smallint(2)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_IS_RECOVER_HANG	13	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	smallint(2)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_LAST_LSN	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_LOCK_CNT	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_LOCK_MEMORY_BYTES	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_REAL_START_LSN	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_REDO_CNT	12	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_SQL_STATEMENT	15	NULL	YES	varchar	1024	3072	NULL	NULL	utf8	utf8_general_ci	varchar(1024)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_START_TIME	3	0000-00-00 00:00:00	NO	datetime	NULL	NULL	NULL	NULL	NULL	NULL	datetime			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_STATUS	2		NO	varchar	50	150	NULL	NULL	utf8	utf8_general_ci	varchar(50)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_VERSION_POOL_ID	11	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	smallint(2)			select	
+def	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_WAIT_START_TIME	5	NULL	YES	datetime	NULL	NULL	NULL	NULL	NULL	NULL	datetime			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	COMMIT_INNER	2	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	COMMIT_NORMAL	1	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	PARTIAL_ROLLBACK_DEADLOCK	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	PARTIAL_ROLLBACK_NORMAL	10	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	PARTIAL_ROLLBACK_TIMEOUT	11	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_ABORT	8	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_DEADLOCK	5	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_DUPLICATE_KEY	6	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_NORMAL	3	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_NO_MEMORY	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_ROW_TOO_LONG	7	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_TIMEOUT	4	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(8)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	TRX_LOCKCNT_AVG	14	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	TRX_LOCKCNT_MAX	15	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	TRX_REDOCNT_AVG	16	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	TRX_REDOCNT_MAX	17	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
+def	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	TRX_TIME_MAX	13	0	NO	int	NULL	NULL	10	0	NULL	NULL	int(4)			select	
 def	information_schema	TokuDB_file_map	dictionary_name	1		NO	varchar	256	768	NULL	NULL	utf8	utf8_general_ci	varchar(256)			select	
 def	information_schema	TokuDB_file_map	internal_file_name	2		NO	varchar	256	768	NULL	NULL	utf8	utf8_general_ci	varchar(256)			select	
 def	information_schema	TokuDB_fractal_tree_block_map	blocknum	4	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	bigint(0)			select	
@@ -393,7 +722,9 @@ ORDER BY CHARACTER_SET_NAME, COLLATION_NAME, COL_CML;
 COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
 NULL	bigint	NULL	NULL
 NULL	datetime	NULL	NULL
+NULL	double	NULL	NULL
 NULL	int	NULL	NULL
+NULL	smallint	NULL	NULL
 --> CHAR(0) is allowed (see manual), and here both CHARACHTER_* values
 --> are 0, which is intended behavior, and the result of 0 / 0 IS NULL
 SELECT CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH AS COL_CML,
@@ -705,6 +1036,335 @@ NULL	information_schema	TABLESPACES	NODEGROUP_ID	bigint	NULL	NULL	NULL	NULL	bigi
 3.0000	information_schema	TABLE_PRIVILEGES	TABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	TABLE_PRIVILEGES	PRIVILEGE_TYPE	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	TABLE_PRIVILEGES	IS_GRANTABLE	varchar	3	9	utf8	utf8_general_ci	varchar(3)
+NULL	information_schema	TNT_NTSE_BUF_DISTRIBUTION	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_BUF_DISTRIBUTION	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_BUF_DISTRIBUTION	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_BUF_DISTRIBUTION	TYPE	varchar	10	30	utf8	utf8_general_ci	varchar(10)
+3.0000	information_schema	TNT_NTSE_BUF_DISTRIBUTION	INDEX	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_BUF_DISTRIBUTION	BUF_PAGES	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_COLUMN_DEF_EX	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_COLUMN_DEF_EX	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_COLUMN_DEF_EX	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_COLUMN_DEF_EX	NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_COLUMN_DEF_EX	CACHE_UPDATE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_COLUMN_DEF_EX	COL_GROUP_NO	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_COLUMN_DEF_EX	COL_GROUP_OFFSET	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_COMMAND_RETURN	COMMAND	varchar	255	765	utf8	utf8_general_ci	varchar(255)
+3.0000	information_schema	TNT_NTSE_COMMAND_RETURN	STATUS	varchar	16	48	utf8	utf8_general_ci	varchar(16)
+3.0000	information_schema	TNT_NTSE_COMMAND_RETURN	INFO	varchar	255	765	utf8	utf8_general_ci	varchar(255)
+NULL	information_schema	TNT_NTSE_COMPRESS_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_COMPRESS_STATS	SCHEMA_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_COMPRESS_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_COMPRESS_STATS	COMPRESS_ROWS	varchar	6	18	utf8	utf8_general_ci	varchar(6)
+3.0000	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_CREATED	varchar	5	15	utf8	utf8_general_ci	varchar(5)
+3.0000	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_MAX_SIZE	varchar	5	15	utf8	utf8_general_ci	varchar(5)
+NULL	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_ACTUAL_SIZE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_MEM_USAGE	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_MIN_LEN	varchar	6	18	utf8	utf8_general_ci	varchar(6)
+3.0000	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_MAX_LEN	varchar	6	18	utf8	utf8_general_ci	varchar(6)
+NULL	information_schema	TNT_NTSE_COMPRESS_STATS	DICT_AVG_LEN	double	NULL	NULL	NULL	NULL	double
+3.0000	information_schema	TNT_NTSE_COMPRESS_STATS	COMPRESS_THRESHOLD	varchar	6	18	utf8	utf8_general_ci	varchar(6)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_CONNECTIONS	TYPE	varchar	10	30	utf8	utf8_general_ci	varchar(10)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	THD	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_CONNECTIONS	NAME	varchar	255	765	utf8	utf8_general_ci	varchar(255)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	DURATION	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_CONNECTIONS	INFO	varchar	255	765	utf8	utf8_general_ci	varchar(255)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	OPER	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	LOG_READ	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	PHY_READ	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	LOG_WRITE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	PHY_WRITE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	ROW_READ	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	ROW_INSERT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	ROW_UPDATE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	ROW_DELETE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	TBL_SCAN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	TBL_SCAN_ROW	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	IDX_SCAN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	IDX_SCAN_ROW	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	POS_SCAN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_CONNECTIONS	POS_SCAN_ROW	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_DBOBJ_STATS	SCHEMA_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_DBOBJ_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_DBOBJ_STATS	TYPE	varchar	10	30	utf8	utf8_general_ci	varchar(10)
+3.0000	information_schema	TNT_NTSE_DBOBJ_STATS	INDEX_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	LOG_READ	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	PHY_READ	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	LOG_WRITE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	PHY_WRITE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	ITEM_READ	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	ITEM_INSERT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	ITEM_UPDATE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	ITEM_DELETE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	SCAN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_DBOBJ_STATS	SCAN_ITEM	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_HEAP_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_HEAP_STATS	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_HEAP_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_HEAP_STATS	HEAP_VERSION	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_HEAP_STATS	RR_SUBREC	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_HEAP_STATS	RR_REC	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_HEAP_STATS	RU_SUBREC	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_HEAP_STATS	RU_REC	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_HEAP_STATS_EX	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_HEAP_STATS_EX	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_HEAP_STATS_EX	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_HEAP_STATS_EX	ROW	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_HEAP_STATS_EX	CMPRS_ROW	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_HEAP_STATS_EX	LINK_ROW	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_HEAP_STATS_EX	PCT_USED	double	NULL	NULL	NULL	NULL	double
+NULL	information_schema	TNT_NTSE_HEAP_STATS_EX	CMPRS_RATIO	double	NULL	NULL	NULL	NULL	double
+NULL	information_schema	TNT_NTSE_INDEX_DEF_EX	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_INDEX_DEF_EX	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_INDEX_DEF_EX	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_INDEX_DEF_EX	NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_INDEX_DEF_EX	SPLIT_FACTOR	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_INDEX_STATS	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_INDEX_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_INDEX_STATS	INDEX_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	ALLOC_SIZE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	USED_SIZE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	BACK_SCAN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	BSCAN_ROW	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	SPLIT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	MERGE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	RL_RESTART	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	INSERT_PL_RESTART	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	DELETE_PL_RESTART	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INDEX_STATS	DEADLOCK	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INDEX_STATS_EX	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_INDEX_STATS_EX	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_INDEX_STATS_EX	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_INDEX_STATS_EX	INDEX_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_INDEX_STATS_EX	PCT_USED	double	NULL	NULL	NULL	NULL	double
+NULL	information_schema	TNT_NTSE_INDEX_STATS_EX	COMPRESS_RATIO	double	NULL	NULL	NULL	NULL	double
+3.0000	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	FILE	varchar	256	768	utf8	utf8_general_ci	varchar(256)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LINE	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	NAME	varchar	100	300	utf8	utf8_general_ci	varchar(100)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	INSTANCES	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_NO	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_IS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_IX	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_S	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_SIX	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_U	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	LOCKS_X	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	SPINS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	WAITS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	WAIT_TIME	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_INTENTION_LOCK_STATS	FAILS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_LOB_STATS	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_LOB_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_LOB_STATS	READ	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS	INSERT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS	UPDATE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS	DELETE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS	MOVE_UPDATE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS	USEFUL_COMPRESS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS	USELESS_COMPRESS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS	PRE_COMPRESS_SIZE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS	POST_COMPRESS_SIZE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS_EX	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_LOB_STATS_EX	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_LOB_STATS_EX	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_LOB_STATS_EX	SLOB_COUNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS_EX	SLOB_LINK	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS_EX	SLOB_PCT_USED	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS_EX	BLOB_COUNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS_EX	BLOB_FREE_PAGE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_LOB_STATS_EX	BLOB_PCT_USED	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	PARTITION	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	MAX_CONFLICT_LENGTH	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_RIDHASH_CONFLICTS	AVG_CONFLICT_LENGTH	double	NULL	NULL	NULL	NULL	double
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_MMS_RPCLS_STATS	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_MMS_RPCLS_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	ISLOB	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	MIN_SIZE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	MAX_SIZE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	PAGE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	NONFULL_PAGE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	INSERT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	UPDATE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	DELETE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	RECORD_REPLACE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_RPCLS_STATS	PAGE_REPLACE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_MMS_STATS	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_MMS_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_MMS_STATS	ISLOB	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_MMS_STATS	RECORD	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	PAGE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	DIRTY_RECORD	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	QUERY	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	QUERY_HIT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	INSERT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	INSERT_FAIL	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	UPDATE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	UPDATE_MERGE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	DELETE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	RECORD_REPLACE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MMS_STATS	PAGE_REPLACE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+3.0000	information_schema	TNT_NTSE_MUTEX_STATS	FILE	varchar	256	768	utf8	utf8_general_ci	varchar(256)
+NULL	information_schema	TNT_NTSE_MUTEX_STATS	LINE	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_MUTEX_STATS	NAME	varchar	100	300	utf8	utf8_general_ci	varchar(100)
+NULL	information_schema	TNT_NTSE_MUTEX_STATS	INSTANCES	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_MUTEX_STATS	LOCKS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MUTEX_STATS	SPINS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MUTEX_STATS	WAITS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_MUTEX_STATS	WAIT_TIME	bigint	NULL	NULL	NULL	NULL	bigint(8)
+3.0000	information_schema	TNT_NTSE_RWLOCK_STATS	FILE	varchar	256	768	utf8	utf8_general_ci	varchar(256)
+NULL	information_schema	TNT_NTSE_RWLOCK_STATS	LINE	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_RWLOCK_STATS	NAME	varchar	100	300	utf8	utf8_general_ci	varchar(100)
+NULL	information_schema	TNT_NTSE_RWLOCK_STATS	INSTANCES	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_RWLOCK_STATS	READ_LOCKS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_RWLOCK_STATS	WRITE_LOCKS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_RWLOCK_STATS	SPINS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_RWLOCK_STATS	WAITS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_RWLOCK_STATS	WAIT_TIME	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_DEF_EX	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_TABLE_DEF_EX	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_TABLE_DEF_EX	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_TABLE_DEF_EX	TABLE_PART_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_TABLE_DEF_EX	TABLE_PART_SUB_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_TABLE_DEF_EX	SUPPORT_TRX	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_TABLE_DEF_EX	USE_MMS	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_TABLE_DEF_EX	CACHE_UPDATE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_TABLE_DEF_EX	UPDATE_CACHE_TIME	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_TABLE_DEF_EX	COMPRESS_LOBS	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_TABLE_DEF_EX	PCT_FREE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_TABLE_DEF_EX	INCR_SIZE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_TABLE_DEF_EX	INDEX_ONLY	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_TABLE_DEF_EX	CREATE_ARGS	varchar	2000	6000	utf8	utf8_general_ci	varchar(2000)
+NULL	information_schema	TNT_NTSE_TABLE_DEF_EX	ROW_COMPRESS	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_NTSE_TABLE_STATS	TABLE_SCHEMA	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_NTSE_TABLE_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	HEAP_SIZE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	INDEX_SIZE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	SLOB_SIZE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	BLOB_DIR_SIZE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	BLOB_DAT_SIZE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	TBL_IS_LOCKS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	TBL_IX_LOCKS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	TBL_S_LOCKS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	TBL_X_LOCKS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	TBL_SIX_LOCKS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	TBL_LOCK_SPINS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	TBL_LOCK_WAITS	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	TBL_LOCK_WAIT_TIME	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	RLOCK_NONE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	RLOCK_READ	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_NTSE_TABLE_STATS	RLOCK_WRITE	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_HASH_INDEX_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_TNT_HASH_INDEX_STATS	SCHEMA_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_TNT_HASH_INDEX_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_TNT_HASH_INDEX_STATS	HASHINDEX_NO	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_HASH_INDEX_STATS	TOTAL	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_HASH_INDEX_STATS	TRXID_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_HASH_INDEX_STATS	READ_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_HASH_INDEX_STATS	INSERT_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_HASH_INDEX_STATS	UPDATE_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_HASH_INDEX_STATS	REMOVE_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_HASH_INDEX_STATS	DEFRAG_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INDEX_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_TNT_INDEX_STATS	SCHEMA_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_TNT_INDEX_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_TNT_INDEX_STATS	INDEX_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_TNT_INDEX_STATS	SCAN_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INDEX_STATS	SCANROWS_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INDEX_STATS	BACKSCAN_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INDEX_STATS	BACKSCANROWS_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INDEX_STATS	DRS_RETURN_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INDEX_STATS	MIDX_RETURN_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INDEX_STATS	ROWLOCK_CONFLICT_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRXID	bigint	NULL	NULL	NULL	NULL	bigint(8)
+3.0000	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX STATUS	varchar	50	150	utf8	utf8_general_ci	varchar(50)
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_START_TIME	datetime	NULL	NULL	NULL	NULL	datetime
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_EXCUTE_TIME	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_LOCK_CNT	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_IS_READ_ONLY	smallint	NULL	NULL	NULL	NULL	smallint(2)
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_REAL_START_LSN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_BEGIN_LSN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_LAST_LSN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_VERSION_POOL_ID	smallint	NULL	NULL	NULL	NULL	smallint(2)
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_REDO_CNT	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_INNER_TRANSACTION_STATS	TRX_IS_RECOVER_HANG	smallint	NULL	NULL	NULL	NULL	smallint(2)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_TNT_MEMORY_INDEX_STATS	SCHEMA_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_TNT_MEMORY_INDEX_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_TNT_MEMORY_INDEX_STATS	INDEX_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	INSERT_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	DELETE_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	SCAN_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	SCANROWS_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	BACKSCAN_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	BACKSCANROWS_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	SPLIT_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	MERGE_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	REDISTRIBUTE_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	RESTART_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	LATCH_CONFLICT_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	REPAIR_UNDERFLOW_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	REPAIR_OVERFLOW_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	INCREASE_HEIGHT_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	DECREASE_HEIGHT_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	ALLOC_PAGE_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MEMORY_INDEX_STATS	FREE_PAGE_CNT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	TABLE_ID	int	NULL	NULL	NULL	NULL	int(4)
+3.0000	information_schema	TNT_TNT_MHEAP_STATS	SCHEMA_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+3.0000	information_schema	TNT_TNT_MHEAP_STATS	TABLE_NAME	varchar	65	195	utf8	utf8_general_ci	varchar(65)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	TOTAL	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	FREENODE0_SIZE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	FREENODE1_SIZE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	FREENODE2_SIZE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	FREENODE3_SIZE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	AVG_SEARCH_SIZE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	MAX_SEARCH_SIZE	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	INSERT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	UPDATE_FIRST	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	UPDATE_SECORND	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	DELETE_FIRST	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_MHEAP_STATS	DELETE_SECOND	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRXID	bigint	NULL	NULL	NULL	NULL	bigint(8)
+3.0000	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_STATUS	varchar	50	150	utf8	utf8_general_ci	varchar(50)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_START_TIME	datetime	NULL	NULL	NULL	NULL	datetime
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_EXCUTE_TIME	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_WAIT_START_TIME	datetime	NULL	NULL	NULL	NULL	datetime
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_LOCK_CNT	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_IS_READ_ONLY	smallint	NULL	NULL	NULL	NULL	smallint(2)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_REAL_START_LSN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_BEGIN_LSN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_LAST_LSN	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_VERSION_POOL_ID	smallint	NULL	NULL	NULL	NULL	smallint(2)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_REDO_CNT	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_IS_RECOVER_HANG	smallint	NULL	NULL	NULL	NULL	smallint(2)
+NULL	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_LOCK_MEMORY_BYTES	bigint	NULL	NULL	NULL	NULL	bigint(8)
+3.0000	information_schema	TNT_TNT_TRANSACTION_STATS	TRX_SQL_STATEMENT	varchar	1024	3072	utf8	utf8_general_ci	varchar(1024)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	COMMIT_NORMAL	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	COMMIT_INNER	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_NORMAL	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_TIMEOUT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_DEADLOCK	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_DUPLICATE_KEY	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_ROW_TOO_LONG	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_ABORT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	ROLLBACK_NO_MEMORY	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	PARTIAL_ROLLBACK_NORMAL	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	PARTIAL_ROLLBACK_TIMEOUT	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	PARTIAL_ROLLBACK_DEADLOCK	bigint	NULL	NULL	NULL	NULL	bigint(8)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	TRX_TIME_MAX	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	TRX_LOCKCNT_AVG	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	TRX_LOCKCNT_MAX	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	TRX_REDOCNT_AVG	int	NULL	NULL	NULL	NULL	int(4)
+NULL	information_schema	TNT_TNT_TRANSACTION_SYS_STATS	TRX_REDOCNT_MAX	int	NULL	NULL	NULL	NULL	int(4)
 3.0000	information_schema	TokuDB_file_map	dictionary_name	varchar	256	768	utf8	utf8_general_ci	varchar(256)
 3.0000	information_schema	TokuDB_file_map	internal_file_name	varchar	256	768	utf8	utf8_general_ci	varchar(256)
 3.0000	information_schema	TokuDB_fractal_tree_block_map	dictionary_name	varchar	256	768	utf8	utf8_general_ci	varchar(256)
