@@ -142,6 +142,7 @@ Warning	1112	Setting auto_increment variable is not supported
 ******************** SHOW BINLOG EVENTS ********************
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
 master-bin.000001	#	Query	#	#	DROP DATABASE IF EXISTS test_rpl
 master-bin.000001	#	Query	#	#	DROP DATABASE IF EXISTS test_rpl_1
 master-bin.000001	#	Query	#	#	CREATE DATABASE test_rpl_1 CHARACTER SET utf8 COLLATE utf8_general_ci
