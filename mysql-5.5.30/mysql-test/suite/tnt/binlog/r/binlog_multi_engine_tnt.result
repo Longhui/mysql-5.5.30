@@ -10,6 +10,7 @@ UPDATE ti, tn SET e = 4, b = 5 WHERE f = c;
 UPDATE tm, ti SET m = 5, b = 6 WHERE n = c;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tm)
 master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
