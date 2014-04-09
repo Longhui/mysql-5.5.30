@@ -1323,7 +1323,7 @@ tnt-is-trx-connection TRUE
 tnt-keep-dict-on-optimize TRUE
 tnt-log-buf-size 33554432
 tnt-log-file-cnt-hwm 3
-tnt-log-file-size 52428800
+tnt-log-file-size 67108864
 tnt-logdir .
 tnt-max-sessions 1024
 tnt-ntse-buf-distribution ON
