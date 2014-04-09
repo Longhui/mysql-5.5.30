@@ -13,10 +13,10 @@ CREATE TABLE t1(n INT NOT NULL AUTO_INCREMENT PRIMARY KEY);
 INSERT INTO t1 VALUES (1),(2),(3),(4);
 DROP TABLE t1;
 
-let $row1=7;
-let $row2=8;
-let $row3=12;
-let $row4=17;
+let $row1=8;
+let $row2=9;
+let $row3=13;
+let $row4=18;
 
 if($ntse){
     let $ntse_binlog_method=`select @@ntse_binlog_method`;

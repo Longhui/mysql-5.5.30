@@ -6,7 +6,7 @@ FLUSH LOGS;
 call mtr.add_suppression('Got fatal error 1236 from master when reading data from binary log: .*could not find next log');
 include/wait_for_slave_io_to_stop.inc
 Last_IO_Error
-Got fatal error 1236 from master when reading data from binary log: 'could not find next log; the first event 'master-bin.000001' at 4, the last event read from './master-bin.000002' at 237, the last byte read from './master-bin.000002' at 237.'
+Got fatal error 1236 from master when reading data from binary log: 'could not find next log; the first event 'master-bin.000001' at 4, the last event read from './master-bin.000002' at 350, the last byte read from './master-bin.000002' at 350.'
 CREATE TABLE t2(c1 INT);
 FLUSH LOGS;
 CREATE TABLE t3(c1 INT);
