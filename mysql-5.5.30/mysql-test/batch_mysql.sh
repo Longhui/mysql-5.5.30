@@ -25,7 +25,7 @@ echo "jp mysql-test/suite/jp/t(r)......................"
 ./mysql-test-run.pl --suite=jp    --force --big-test --max-test-fail=80  --testcase-timeout=360  --retry=1 $1 | tee -a  log/${day}_${time}.log
 
 echo "large_tests mysql-test/suite/large_tests /t(r)......................"
-./mysql-test-run.pl --suite=large_tests    --force --big-test --max-test-fail=80  --testcase-timeout=360  --retry=1 $1 | tee-a  log/${day}_${time}.log
+./mysql-test-run.pl --suite=large_tests    --force --big-test --max-test-fail=80  --testcase-timeout=360  --retry=1 $1 | tee -a  log/${day}_${time}.log
 
 echo "manual mysql-test/suite/manual/t(r)......................"
 ./mysql-test-run.pl --suite=manual    --force --big-test --max-test-fail=80  --testcase-timeout=360  --retry=1 $1 | tee -a log/${day}_${time}.log
