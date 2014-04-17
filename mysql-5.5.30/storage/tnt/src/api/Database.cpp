@@ -3543,7 +3543,8 @@ void Database::restoreTxnlog(ControlFile *ctrlFile, const char *basedir, const c
 		LogRestorer logRestorer(ctrlFile, (string(basedir) + NTSE_PATH_SEP + Limits::NAME_TXNLOG).c_str());
 		u64 offset = 0;
 		while (offset < size) {
-			uint readSize = min((uint)(size - offset), bufSize);
+			// 由于这里的bufSize一定不会超过uint 范围，因此如下的类型强制转换是安全的
+			uint readSize = (uint)min((size - offset), (u64)bufSize);
 			if ((errNo = backupFile.read(offset,readSize, buf)) != File::E_NO_ERROR)
 				NTSE_THROW(errNo, "read backup file %s failed", backupFile.getPath());
 			logRestorer.sendPages(buf, readSize / LogConfig::LOG_PAGE_SIZE);
