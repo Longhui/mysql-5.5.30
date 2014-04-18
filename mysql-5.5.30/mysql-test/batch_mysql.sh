@@ -33,6 +33,15 @@ echo "manual mysql-test/suite/manual/t(r)......................"
 echo "parts mysql-test/suite/parts/t(r)......................"
 ./mysql-test-run.pl --suite=parts    --force --big-test --max-test-fail=80  --testcase-timeout=360  --retry=1 $1 | tee -a log/${day}_${time}.log
 
+echo "parts mysql-test/suite/innosql/t(r)......................"
+./mysql-test-run.pl --suite=innosql    --force --big-test --max-test-fail=80  --testcase-timeout=360  --retry=1 $1 | tee -a log/${day}_${time}.log
+
+echo "parts mysql-test/suite/federated/t(r)......................"
+./mysql-test-run.pl --suite=federated    --force --big-test --max-test-fail=80  --testcase-timeout=360  --retry=1 $1 | tee -a log/${day}_${time}.log
+
+echo "parts mysql-test/suite/engines/t(r)......................"
+./mysql-test-run.pl --suite=engines    --force --big-test --max-test-fail=80  --testcase-timeout=360  --retry=1 $1 | tee -a log/${day}_${time}.log
+
 echo "perfschema mysql-test/suite/perfschema/t(r)......................"
 ./mysql-test-run.pl --suite=perfschema    --force --big-test --max-test-fail=80  --testcase-timeout=360  --retry=1 $1 | tee -a  log/${day}_${time}.log
 
