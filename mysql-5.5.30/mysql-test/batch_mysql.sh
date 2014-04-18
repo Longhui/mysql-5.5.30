@@ -73,13 +73,13 @@ echo "tokudb.bugs mysql-test/suite/tokudb.bugs/t(r)......................"
 longBit=`getconf LONG_BIT`
 if [ "$longBit" = "64" ]; then
 	echo "tnt......................"
-	./mysql-test-run.pl --suite=tnt/tnt --force --max-test-fail=20 --nowarnings --testcase-timeout=60 --mysqld=--default-storage-engine=tnt $1 | tee log/${day}_${time}.log
+	./mysql-test-run.pl --suite=tnt/tnt --force --max-test-fail=20 --nowarnings --testcase-timeout=60 --mysqld=--default-storage-engine=tnt $1 | tee -a log/${day}_${time}.log
 	./mysql-test-run.pl --suite=tnt/jp --force --max-test-fail=20 --nowarnings --testcase-timeout=60 --mysqld=--default-storage-engine=tnt $1 | tee -a log/${day}_${time}.log
 fi
 
 if [ "$longBit" = "32" ]; then
 	echo "tnt......................"
-	./mysql-test-run.pl --suite=tnt/tnt --force --max-test-fail=20 --nowarnings --testcase-timeout=60 --mysqld=--default-storage-engine=tnt --skip-test=tnt_max_sessions_ $1 | tee log/${day}_${time}.log
+	./mysql-test-run.pl --suite=tnt/tnt --force --max-test-fail=20 --nowarnings --testcase-timeout=60 --mysqld=--default-storage-engine=tnt --skip-test=tnt_max_sessions_ $1 | tee -a log/${day}_${time}.log
 	./mysql-test-run.pl --suite=tnt/jp --force --max-test-fail=20 --nowarnings --testcase-timeout=60 --mysqld=--default-storage-engine=tnt --skip-test=tnt_max_sessions_ $1 | tee -a log/${day}_${time}.log
 fi
 
