@@ -2255,6 +2255,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -2357,6 +2359,8 @@ crn INT -- row number
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.time_zone='SYSTEM'/*!*/;
@@ -2451,6 +2455,8 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -2543,6 +2549,8 @@ BEGIN
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -3882,6 +3890,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -3899,6 +3909,8 @@ c47 VARCHAR(24),
 crn INT -- row number
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -3956,6 +3968,8 @@ BEGIN
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -4031,6 +4045,8 @@ BEGIN
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -4253,6 +4269,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -4271,6 +4289,8 @@ c_1_n INT -- row number
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 CREATE TABLE t2 (
@@ -4280,6 +4300,8 @@ c_2_n INT -- row number
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 CREATE TABLE t3 (
@@ -4288,6 +4310,8 @@ c_3_2 VARCHAR(255),
 c_3_n INT -- row number
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -4346,6 +4370,8 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -4403,6 +4429,8 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -4459,6 +4487,8 @@ BEGIN
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -4642,6 +4672,8 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -4818,6 +4850,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -4835,6 +4869,8 @@ c2 INT,
 c3 VARCHAR(60)
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;

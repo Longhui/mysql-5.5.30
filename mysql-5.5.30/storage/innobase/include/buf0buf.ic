@@ -998,6 +998,7 @@ buf_block_buf_fix_inc_func(
 	ut_ad(mutex_own(&block->mutex));
 
 	block->page.buf_fix_count++;
+	
 }
 
 /*******************************************************************//**

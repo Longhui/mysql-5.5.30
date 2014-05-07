@@ -88,7 +88,8 @@ Created 10/8/1995 Heikki Tuuri
 #include "read0read.h"
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
-#include "fc0dump.h"
+#include "fc0flu.h"
+#include "fc0log.h"
 #ifdef UNIV_LINUX
 #include <sys/types.h>
 #include <sys/syscall.h>
@@ -2088,8 +2089,8 @@ srv_export_innodb_status(void)
 		export_vars.innodb_flash_cache_pages_read = srv_flash_cache_read;
 		export_vars.innodb_flash_cache_pages_write = srv_flash_cache_write;
 		export_vars.innodb_flash_cache_pages_merge_write = srv_flash_cache_merge_write;
-		export_vars.innodb_flash_cache_wait_for_aio = srv_flash_cache_wait_for_aio;
 		export_vars.innodb_flash_cache_aio_read = srv_flash_cache_aio_read;
+		export_vars.innodb_flash_cache_wait_for_aio = srv_flash_cache_wait_aio;
 		export_vars.innodb_flash_cache_pages_migrate = srv_flash_cache_migrate;
 		export_vars.innodb_flash_cache_pages_move = srv_flash_cache_move;
 	}
@@ -3410,11 +3411,11 @@ srv_que_task_enqueue_low(
 }
 
 /*********************************************************************//**
-The flash cache thread controlling the server.
+The flash cache flush thread to flush ssd dirty page to disk.
 @return	a dummy parameter */
 UNIV_INTERN
 os_thread_ret_t
-srv_flash_cache_thread(
+srv_fc_flush_thread(
 /*==============*/
 	void*	arg)	/*!< in: a dummy parameter required by
 			os_thread_create */
@@ -3429,7 +3430,7 @@ srv_flash_cache_thread(
 	ulint cur_time;
 	ulint i;
 	ulint old_activity_count;
-
+	
 	mutex_enter(&kernel_mutex);
 
 	slot = srv_table_reserve_slot(SRV_FLASH_CACHE);
@@ -3437,34 +3438,42 @@ srv_flash_cache_thread(
 
 	mutex_exit(&kernel_mutex);
 
-	while (srv_shutdown_state == SRV_SHUTDOWN_NONE ) {
+	flash_cache_mutex_enter();
+	fc_validate();
+	fc_log_update_commit_status();
+	srv_fc_flush_last_dump = ut_time_ms();
+	flash_cache_mutex_exit();
+
+	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+
+		if (srv_flash_cache_enable_dump) {
+			fc_flush_test_and_dump_blkmeta(srv_fc_flush_last_dump);
+		}
 		
 		old_activity_count = srv_activity_count;
 		buf_get_total_stat(&buf_stat);
 		n_ios_very_old = log_sys->n_log_ios + buf_stat.n_pages_read + buf_stat.n_pages_written;
 
-		for ( i = 0; i < 10; i++ ){
-			
-			while(!srv_flash_cache_enable_write) {
+		for ( i = 0; i < 10; i++ ) {		
+			while(!srv_flash_cache_enable_write) {	
 				if(srv_shutdown_state != SRV_SHUTDOWN_NONE)
 					goto srv_shutdown;
 				os_thread_sleep(1000000);
-				}
-			
+			}
+
 			cur_time = ut_time_ms();
 			n_flush = fc_flush_to_disk(FALSE);
 			cur_time = ut_time_ms() - cur_time;
 
-			if ( n_flush == 0 ){
+			if (n_flush == 0) {
 				srv_flash_cache_thread_op_info = "flash cache thread is idle";
-				os_thread_sleep(ut_min(1000000,(1000-cur_time)*1000));
-			} else if ( n_flush <= PCT_IO(10) ){
+				os_thread_sleep(ut_min(1000000, (1000-cur_time)*1000));
+			} else if (n_flush <= PCT_IO_FC(srv_fc_write_cache_flush_pct)) {
 				srv_flash_cache_thread_op_info = "flusing small flash cache pages";
-				os_thread_sleep(ut_min(1000000,(1000-cur_time)*1000));
-			} 
-			else {
+				os_thread_sleep(ut_min(1000000, (1000-cur_time)*1000));
+			} else {
 				srv_flash_cache_thread_op_info = "flusing full flash cache pages";
-				os_thread_sleep(ut_min(200000,(1000-cur_time)*1000));
+				os_thread_sleep(ut_min(200000, (1000-cur_time)*1000));
 			}
 		
 		}
@@ -3477,50 +3486,62 @@ srv_flash_cache_thread(
 
 			srv_flash_cache_thread_op_info = "flusing full flash cache pages in idle per 10 sec";
 			while(!srv_flash_cache_enable_write) {
+	
 				if(srv_shutdown_state != SRV_SHUTDOWN_NONE)
 					goto srv_shutdown;
 				os_thread_sleep(1000000);
-				}
+			}
+
 			fc_flush_to_disk(TRUE);
 		}		
 
-		while (old_activity_count == srv_activity_count && srv_shutdown_state == SRV_SHUTDOWN_NONE){
+		fc_flush_test_and_flush_log(srv_fc_flush_last_commit);
+
+		while (old_activity_count == srv_activity_count && 
+			srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 			srv_flash_cache_thread_op_info = "flushing full flash cache pages in idle";
 			while(!srv_flash_cache_enable_write) {
+	
 				if(srv_shutdown_state != SRV_SHUTDOWN_NONE)
 					goto srv_shutdown;
 				os_thread_sleep(1000000);
-				}
-			if ( fc_flush_to_disk(TRUE) == 0 )
+			}
+
+			if (fc_flush_to_disk(TRUE) == 0)
 				break;
 		}
+		
+		fc_flush_test_and_flush_log(srv_fc_flush_last_commit);
 
 	}
 
 srv_shutdown:
 	/* waiting for master thread to quit first */
 	while(strcmp(srv_main_thread_op_info,"waiting for server activity")) {
+		os_thread_sleep(1000000);
+	
 		if(srv_flash_cache_enable_write)
 			fc_flush_to_disk(TRUE);
-    }
-    
-    if (!srv_flash_cache_fast_shutdown){
-        ut_print_timestamp(stderr);
-        fprintf(stderr," srv_flash_cache_fasht_shutdown is OFF, flush flash cache blocks to disk.");
-        /* flush all flash cache block to disk */
-        for(;;){
+	}
+
+	if (!srv_flash_cache_fast_shutdown) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr," srv_flash_cache_fasht_shutdown is OFF, flush flash cache blocks to disk.");
+		/* flush all flash cache block to disk */
+		for(;;){
             fc_flush_to_disk(TRUE);
-            fprintf(stderr,"...");
-            if (fc_finish_flush()){
-                fprintf(stderr,"...\n");
+			flash_cache_mutex_enter();			
+           	fprintf(stderr,".%.0f%%.", (fc_get_available() * 100.0) / fc_get_size());
+            if (fc_get_distance() == 0){
+				flash_cache_mutex_exit();
+				fprintf(stderr,"...\n");
                 ut_print_timestamp(stderr);
                 fprintf(stderr," all flash cache blocks have been flushed to disk.\n");
                 break;
-            }
-        }
-    }
-    
-    fc_dump();
+			}
+			flash_cache_mutex_exit();
+		}
+	}
 
 	mutex_enter(&kernel_mutex);
 

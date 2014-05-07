@@ -22,6 +22,8 @@ malloc_callback malloc_callback_func = NULL;
 free_callback free_callback_func = NULL;
 #ifdef __WIN__
 #define malloc_usable_size(ptr)	_msize(ptr)
+#else
+#define malloc_usable_size(ptr) (ptr)
 #endif
 
 void set_malloc_callback(malloc_callback func)

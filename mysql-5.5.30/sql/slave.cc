@@ -143,8 +143,8 @@ typedef enum { SLAVE_THD_IO, SLAVE_THD_SQL} SLAVE_THD_TYPE;
 static int process_io_rotate(Master_info* mi, Rotate_log_event* rev);
 static int process_io_create_file(Master_info* mi, Create_file_log_event* cev);
 static bool wait_for_relay_log_space(Relay_log_info* rli);
-static inline bool io_slave_killed(THD* thd,Master_info* mi);
-static inline bool sql_slave_killed(THD* thd,Relay_log_info* rli);
+static inline bool io_slave_killed(THD* thd, Master_info* mi);
+static inline bool sql_slave_killed(THD* thd, rpl_group_info* rgi);
 static int init_slave_thread(THD* thd, SLAVE_THD_TYPE thd_type);
 static void print_slave_skip_errors(void);
 static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi);
@@ -152,7 +152,7 @@ static int safe_reconnect(THD* thd, MYSQL* mysql, Master_info* mi,
                           bool suppress_warnings);
 static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                              bool reconnect, bool suppress_warnings);
-static Log_event* next_event(Relay_log_info* rli);
+static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size); 
 static int queue_event(Master_info* mi,const char* buf,ulong event_len);
 static int terminate_slave_thread(THD *thd,
                                   mysql_mutex_t *term_lock,
@@ -257,6 +257,12 @@ int init_slave()
 #ifdef HAVE_PSI_INTERFACE
   init_slave_psi_keys();
 #endif
+
+  if (global_rpl_thread_pool.init(opt_slave_parallel_threads))
+  {
+    sql_print_error("Failed to create slave worker threads");
+    return 1;
+  }
 
   /*
     This is called when mysqld starts. Before client connections are
@@ -519,7 +525,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
       thd_proc_info(current_thd, "Flushing relay-log info file.");
     if (flush_relay_log_info(&mi->rli))
       DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
-	
+
     if (mi->rli.info_fd >= 0)
     { 
       if (my_sync(mi->rli.info_fd, MYF(MY_WME)))
@@ -636,7 +642,6 @@ terminate_slave_thread(THD *thd,
 
   while (*slave_running)                        // Should always be true
   {
-    int error;
     DBUG_PRINT("loop", ("killing slave thread"));
 
     mysql_mutex_lock(&thd->LOCK_thd_data);
@@ -658,7 +663,7 @@ terminate_slave_thread(THD *thd,
     */
     struct timespec abstime;
     set_timespec(abstime,2);
-    error= mysql_cond_timedwait(term_cond, term_lock, &abstime);
+    int error= mysql_cond_timedwait(term_cond, term_lock, &abstime);
     DBUG_ASSERT(error == ETIMEDOUT || error == 0);
   }
 
@@ -835,6 +840,7 @@ void end_slave()
     terminate_slave_threads(active_mi,SLAVE_FORCE_ALL);
   }
   mysql_mutex_unlock(&LOCK_active_mi);
+  global_rpl_thread_pool.destory();
   DBUG_VOID_RETURN;
 }
 
@@ -881,14 +887,15 @@ static bool io_slave_killed(THD* thd, Master_info* mi)
    @return TRUE the killed status is recognized, FALSE a possible killed
            status is deferred.
 */
-static bool sql_slave_killed(THD* thd, Relay_log_info* rli)
+static bool sql_slave_killed(THD *thd, rpl_group_info* rgi)
 {
   bool ret= FALSE;
   DBUG_ENTER("sql_slave_killed");
 
+  Relay_log_info *rli= rgi->rli;
   DBUG_ASSERT(rli->sql_thd == thd);
   DBUG_ASSERT(rli->slave_running == 1);// tracking buffer overrun
-  if (abort_loop || thd->killed || rli->abort_slave)
+  if (abort_loop || rli->sql_thd->killed || rli->abort_slave)
   {
     /*
       The transaction should always be binlogged if OPTION_KEEP_LOG is set
@@ -926,9 +933,9 @@ static bool sql_slave_killed(THD* thd, Relay_log_info* rli)
           instead of waiting with @c last_event_start_time the timer.
         */
 
-        if (rli->last_event_start_time == 0)
-          rli->last_event_start_time= my_time(0);
-        ret= difftime(my_time(0), rli->last_event_start_time) <=
+        if (rgi->last_event_start_time == 0)
+          rgi->last_event_start_time= my_time(0);
+        ret= difftime(my_time(0), rgi->last_event_start_time) <=
           SLAVE_WAIT_GROUP_DONE ? FALSE : TRUE;
 
         DBUG_EXECUTE_IF("stop_slave_middle_group", 
@@ -961,7 +968,7 @@ static bool sql_slave_killed(THD* thd, Relay_log_info* rli)
     }
   }
   if (ret)
-    rli->last_event_start_time= 0;
+    rgi->last_event_start_time= 0;
   
   DBUG_RETURN(ret);
 }
@@ -1786,30 +1793,32 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
   @retval TRUE failure
 */
 
-bool show_slave_sql_thread(THD *thd, Master_info* mi)
+bool show_slave_sql_thread(THD *thd)
 {
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
   field_list.push_back(new Item_int("Id", 0, MY_INT32_NUM_DECIMAL_DIGITS));
-  field_list.push_back(new Item_int("Transaction_waiting", 0, MY_INT32_NUM_DECIMAL_DIGITS));
-  field_list.push_back(new Item_int("Transaction_completed", 0, MY_INT32_NUM_DECIMAL_DIGITS));
+  field_list.push_back(new Item_int("Queue event size", 0, MY_INT32_NUM_DECIMAL_DIGITS));
+  field_list.push_back(new Item_int("Queue trans number", 0, MY_INT32_NUM_DECIMAL_DIGITS));
+  field_list.push_back(new Item_int("Executed trans number", 0, MY_INT32_NUM_DECIMAL_DIGITS));
   if (protocol->send_result_set_metadata(&field_list,
-                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
-  {  return TRUE;}
-  
+                   Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+  {  
+    return TRUE; 
+  }
+   
   int i= 0;
-  Transfer_worker **worker= mi->rli.workers;
-  for (i=0 ; i < transfer_slave_thread; i++)
+  int thread_num= global_rpl_thread_pool.thread_num;
+  for (i=0 ; i < thread_num; i++)
   {
-    if (NULL != worker[i])
-    {
-      protocol->prepare_for_resend();
-      protocol->store((ulonglong)i+1);
-      protocol->store((ulonglong)worker[i]->get_trans_number());
-      protocol->store((ulonglong)worker[i]->get_trans_number_complete());
-      if (my_net_write(&thd->net, (uchar*)thd->packet.ptr(), thd->packet.length()))
+    protocol->prepare_for_resend();
+    protocol->store((ulonglong)i);
+    protocol->store((ulonglong)global_rpl_thread_pool.threads[i]->queued_size);
+    protocol->store((ulonglong)global_rpl_thread_pool.threads[i]->trans_num);
+    protocol->store((ulonglong)global_rpl_thread_pool.threads[i]->n_executed_trans);
+     
+    if (my_net_write(&thd->net, (uchar*)thd->packet.ptr(), thd->packet.length()))
        return TRUE;
-    }
   } 
   my_eof(thd);
   return FALSE; 
@@ -2099,7 +2108,7 @@ void set_slave_thread_default_charset(THD* thd, Relay_log_info const *rli)
     the thread.  That the cache has to be invalidated is a secondary
     effect.
    */
-  const_cast<Relay_log_info*>(rli)->cached_charset_invalidate();
+  thd->cached_charset_invalidate();
   DBUG_VOID_RETURN;
 }
 
@@ -2356,893 +2365,6 @@ static int has_temporary_error(THD *thd)
 #endif
   DBUG_RETURN(0);
 }
-/*transfer*/
-void
-transaction_st::add_pk_item(hash_item_t * new_item)
-{
-  hash_item_t *item= (hash_item_t*)my_hash_search(&trans_pk_hash, (const uchar*)new_item->key, new_item->key_len);
-  if(item)
-  {
-    item->times++;
-	delete new_item;
-  }
-  else
-  {
-    new_item->times= 1;
-	my_hash_insert(&trans_pk_hash,(const uchar*) new_item);
-  	}
-}
-
-void 
-transaction_st::print_events()
-{
-  int i;
-  Log_event* next_ev= event_list_head;
-  for(i=0; i<inner_events; i++)
-  {
-    fprintf(stderr, "===%s:%d %p\n", __FILE__, inner_events, next_ev);
-	next_ev= next_ev->next_in_trans;
-  	}
-}
-
-void 
-transaction_st::free_events()
-{
-  int i;
-  Log_event* next_ev= event_list_head;
-  if (0 == next_ev)
-    return;
-  for(i=0; i< inner_events; i++)
-  {
-    next_ev= next_ev->next_in_trans;
-    delete event_list_head;
-    event_list_head= next_ev;
-  }
-  inner_events=0;
-}
-
-void transaction_st::add_event(Log_event * event)
-{
-  event->next_in_trans= NULL;
-  if(inner_events == 0)
-  {
-    event_list_head= event;
-	event_list_tail= event;
-  }
-  else
-  {
-    event_list_tail->next_in_trans= event;
-	event_list_tail= event;
-  }
-  inner_events++;
-}
-
-/*
-  append the memory to a new size that is power of BATCH_BUF_SIZE and not less than need_size
-  return 0 when success, -1 when fail.
-*/
-int my_append_memory(char* &buff, int &buf_curr_max, int content_length, int need_size)
-{
-  buf_curr_max= (need_size / BATCH_BUF_STEP + 1) * BATCH_BUF_STEP;
-  char *swap_buf= (char*)my_malloc(buf_curr_max, MYF(0));
-  if(swap_buf == NULL)
-  	return -1;
-  memcpy(swap_buf, buff, content_length);
-  my_free(buff);
-  buff= swap_buf;
-  return 0;
-}
-
-uchar *
-hash_item_get_key(const uchar *record, size_t *length, my_bool not_used __attribute__((unused)))
-{
-  hash_item_t *entry= (hash_item_t*) record;
-  *length= entry->key_len;
-  return (uchar*) entry->key;
-}
-
-static void
-hash_item_free_entry(hash_item_t *record)
-{
-  delete record;
-}
-
-transaction_st::transaction_st()
-{
-  inner_events= 0;
-  conflict_number= 0;
-  trans_pos= NULL;
-
-  batch_buf_len= 0;
-  batch_curr_max= BATCH_BUF_STEP;
-  batch_buf= (char*) my_malloc(batch_curr_max, MYF(MY_WME));
-
-  (void) my_hash_init(&trans_pk_hash, &my_charset_bin, 256+16, 0, 0,(my_hash_get_key)hash_item_get_key,
-  						(my_hash_free_key) hash_item_free_entry, MYF(0));
-  
-}
-
-transaction_st::~transaction_st()
-{
-  my_free(batch_buf);
-  batch_buf= NULL;
-  my_hash_free(&trans_pk_hash);
-}
-
-int Relay_log_info::rollback_trans_pos(transaction_st * trans)
-{
-  rw_wrlock(&trans_pos_lock);
-  if(trans_number == 0)
-  {
-    return -1;
-	rw_unlock(&trans_pos_lock);
-  }
-  else
-  {
-    if(trans_end == 0)
-	  trans_end= sql_thread * worker_size - 1;
-	else
-	  trans_end--;
-  }
-  trans_number--;
-  trans->trans_pos=NULL;
-  rw_unlock(&trans_pos_lock);
-  return 0;
-}
-
-int 
-Relay_log_info::pop_front_trans_pos()
-{
-  trans_pos_t *last_pos= NULL;
-  rw_wrlock(&trans_pos_lock);
-  while(trans_number && trans_pos[trans_head].done)
-  {
-    last_pos= &trans_pos[trans_head];
-    trans_head= (trans_head+1)%(sql_thread* worker_size);
-    trans_number--;
-  }
-  if(last_pos)
-  {
-    sql_thd->variables.option_bits&= ~OPTION_BEGIN;
-    stmt_done(last_pos->log_pos, last_pos->when, last_pos->relay_log_name, last_pos->relay_log_pos, false);	
-  }
-  rw_unlock(&trans_pos_lock);
-  
-  return 0;
-}
-
-int 
-Relay_log_info::push_back_trans_pos(transaction_st * trans)
-{
-  trans_pos_t *pos;
-  rw_wrlock(&trans_pos_lock);
-  
-  if(trans_number == 0)
-  {
-    trans_end= trans_head;
-  }
-  else if(trans_number >= sql_thread* worker_size)
-  {
-    rw_unlock(&trans_pos_lock);
-    return -1;
-  }
-  else
-  {
-    trans_end= (trans_end + 1)%(sql_thread* worker_size);
-  }
-  pos= &trans_pos[trans_end];
-  trans_number++;
-  pos->log_pos= trans->log_pos;
-  pos->when= trans->when;
-  strmake(pos->relay_log_name, trans->relay_log_name, sizeof(pos->relay_log_name)-1);
-  pos->relay_log_pos= trans->relay_log_pos;
-  pos->done= false;
-  trans->trans_pos=pos;
-  rw_unlock(&trans_pos_lock);
-  return 0;
-}
-
-int 
-execute_single_transaction(THD* thd, Relay_log_info *rli, transaction_st *trans)
-{
-  int ret= 0;
-  Log_event *ev= NULL;
-retry_transaction:
-  ev= trans->event_list_head;
-  while (ev)
-  {
-    rli->sql_thd->server_id = ev->server_id;
-    if (rli->trans_retries > 0)
-    {
-      Rows_log_event *rev= (Rows_log_event *)ev;
-      switch(ev->get_type_code())
-      {
-        case WRITE_ROWS_EVENT:
-        case UPDATE_ROWS_EVENT:
-        case DELETE_ROWS_EVENT:
-            rev->init();
-            break;
-        default:
-            break;
-      }
-    }
-    ret= ev->apply_event(rli);
-    if (ret)
-    {
-      rli->cleanup_context(rli->sql_thd, 1);
-      break;
-    }
-    ev= ev->next_in_trans;
-  }
-  if (ret) 
-  {
-    if(slave_trans_retries)
-    {
-      int UNINIT_VAR(temp_err);
-      if( (temp_err= has_temporary_error(current_thd)) &&
-	  (rli->trans_retries< slave_trans_retries) )
-      {
-        rli->cleanup_context(thd, 1);
-        slave_sleep(thd, min(rli->trans_retries, MAX_SLAVE_RETRY_PAUSE),
-                    sql_slave_killed, rli);
-        mysql_mutex_lock(&rli->data_lock);
-        rli->trans_retries++;
-        rli->retried_trans++;
-        mysql_mutex_unlock(&rli->data_lock);
-        goto retry_transaction;
-      }
-    }
-  }
-  else
-  {
-    rli->trans_retries= 0;
-  }
-  return ret;
-}
-
-int
-Transfer_worker::execute_transcation(transaction_st * trans)
-{
- int res;
-  
- mysql_mutex_lock(&rli->LOCK_trans_fail);
- if (rli->trans_fail)
- {
-   mysql_mutex_unlock(&rli->LOCK_trans_fail);
-   return 1;
- } 
- mysql_mutex_lock(&rli->LOCK_last_committed_id);
- /* 
-    Register us to wait for the previous commit, unless that commit is
-    already finished.
-  */
- if (trans->wait_commit_id > rli->last_committed_id)
-  {
-    trans->commit_orderer.register_wait_for_prior_commit
-		(&trans->wait_commit_trans->commit_orderer);
-  }
- mysql_mutex_unlock(&rli->LOCK_last_committed_id);
- mysql_mutex_unlock(&rli->LOCK_trans_fail);
-
- //DBUG_ASSERT(!thd->wait_for_commit_ptr);
- thd->wait_for_commit_ptr= &trans->commit_orderer;
-  
- res= execute_single_transaction(thd, dummy_rli, trans);
-  /*
-    It is important to not leave us dangling in the wait-for list of another
-    THD. Best would be to ensure that we never register to wait without
-    actually waiting. But it's cheap, and probably more robust, to do an extra
-    check here and remove our wait registration if we somehow ended up never
-    waiting because of error condition or something.
-
-    ToDo: We need to *wait* here, not unregister. Because we must not wake
-    up following transactions until all prior transactions have completed.
-
-    If we do not want to wait, then alternatively we must put the
-	transaction_st * trans into some pending list, where it can be "woken up"
-	asynchroneously when the prior transaction _does_ commit.
-  */
-  trans->commit_orderer.unregister_wait_for_prior_commit();
-  if (res)
-  {
-    trans->commit_orderer.set_trans_fail();
-    mysql_mutex_lock(&rli->LOCK_trans_fail);
-    rli->trans_fail= true;
-    mysql_mutex_unlock(&rli->LOCK_trans_fail);
-  }
-  else
-  {
-   /*
-    Register our commit so that subsequent transactions/event groups will know
-    not to register to wait for us any more.
-
-    We can race here with the next transactions, but that is fine, as long as
-    we check that we do not decrease last_committed_id. If this commit is done,
-    then any prior commits will also have been done and also no longer need
-    waiting for.
-  */
-    mysql_mutex_lock(&rli->LOCK_last_committed_id);
-    if (rli->last_committed_id < trans->own_commit_id)
-  	rli->last_committed_id= trans->own_commit_id;
-    mysql_mutex_unlock(&rli->LOCK_last_committed_id);
-  }
-  /*
-    Now that we have marked in rli->last_committed_id that we have committed,
-    no more waiter can register. So wake up any pending one last time.
-  */
-  trans->commit_orderer.wakeup_subsequent_commits();
-  
-  return res;
-}
-
-int transfer_event_types[] = {TABLE_MAP_EVENT, WRITE_ROWS_EVENT, UPDATE_ROWS_EVENT, DELETE_ROWS_EVENT, QUERY_EVENT, XID_EVENT};
-
-bool event_need_transfer(int ev_type)
-{
-  uint32 i;
-  for (i= 0; i<sizeof(transfer_event_types); i++)
-  {
-    if (ev_type == transfer_event_types[i])
-	  return true;
-  }
-  return false;
-}
-
-void *
-transfer_worker_func(void * arg)
-{
-  Transfer_worker *obj= (Transfer_worker*)arg;
-  DBUG_EXECUTE_IF("transfer_before_run",{ my_sleep(1000);};);
-  obj->run();
-  return NULL;
-}
-
-int 
-Transfer_worker::run()
-{
-  int i;
-  transaction_st *trans= NULL;
-  my_thread_init();
-  thd= new THD;
-  pthread_detach_this_thread();
-  thd->thread_stack= (char*) &i;
-  init_slave_thread(thd, SLAVE_THD_SQL);
-  thd->variables.option_bits |= OPTION_NO_FOREIGN_KEY_CHECKS;
-  thd->variables.dynamic_variables_ptr= NULL;
-  thd->lex->thd= thd;
-  thd->lex->derived_tables= 0;
-  /*
-  mysql_mutex_lock(&LOCK_thread_count);
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
-  */
-  THD_CHECK_SENTRY(thd);
-
-  dummy_rli = new Relay_log_info(FALSE, FALSE);
-  dummy_rli->no_storage= TRUE;
-  dummy_rli->trans_retries= 0;
-  dummy_rli->inited=FALSE;
-  dummy_rli->sql_thd= thd;
-  dummy_rli->relay_log.in_dummy_rli= TRUE;
-  dummy_rli->main_rli= rli;
-  dummy_rli->deferred_events_collecting= rli->deferred_events_collecting;
-  if(dummy_rli->deferred_events_collecting)
-  {
-    dummy_rli->deferred_events= new Deferred_log_events(rli);
-  }
-  thd->slave_thread=true;
-  thd->rli_slave= dummy_rli;
-
-  if (init_thr_lock() || thd->store_globals())
-  {
-    thd->cleanup();
-    delete thd;
-    return -1;
-  }
-  init_ok= TRUE;
-  while (!terminated)
-  {
-   /*thd_proc_info(thd, "waiting for main SQL thread to send event");*/
-    sem_wait(&event_sem);
-    dummy_rli->relay_log.description_event_for_exec= rli->relay_log.description_event_for_exec;
-    dummy_rli->relay_log.description_event_for_queue= rli->relay_log.description_event_for_queue;
-   // thd_proc_info(thd, "processing transaction events");
-   while (1)
-   {
-     rw_wrlock(&trans_list_lock);
-     if (waiting_trans_number <= 0)
-     {
-       rw_unlock(&trans_list_lock);
-       break;
-     }
-     rw_unlock(&trans_list_lock);
-     if (execute_transcation(trans_list[list_head]) == 0)
-     {
-       rw_wrlock(&trans_list_lock);
-       pk_hash_minus(trans_list[list_head]);
-       trans_list[list_head]->trans_pos->done = true;
-       trans_list[list_head]->free_events();
-       delete trans_list[list_head];
-       trans_list[list_head]= NULL;
-
-       list_head= (list_head + 1) % worker_size;
-       waiting_trans_number--;
-       complete_trans_number++;
-       rw_unlock(&trans_list_lock);
-       rli->pop_front_trans_pos();
-     }
-     else
-     {
-     terminated= TRUE;
-     rli->abort_slave= 1;
-     rli->relay_log.signal_update();
-    }
-    if (terminated)
-      break;
-    }
-  }
-  rw_wrlock(&trans_list_lock);
-
-  while (waiting_trans_number > 0)
-  {
-    /*
-      one transaction has executed failly,
-      other transaction waiting should set fail and rollback 
-    */
-    trans= trans_list[list_head];
-    trans->commit_orderer.set_trans_fail();
-    trans->commit_orderer.wakeup_subsequent_commits();
-    trans->free_events();
-    delete trans;
-    trans_list[list_head]= NULL;
-    list_head= (list_head + 1) % worker_size;
-    waiting_trans_number--;
-  }
-  rw_unlock(&trans_list_lock);
-  THD_CHECK_SENTRY(thd);
-  net_end(&thd->net);
-  init_ok= FALSE;
-  delete thd;
-  thd=NULL;
-  my_thread_end();
-  running= FALSE;
-  return 0;
-}
-
-bool 
-Transfer_worker::check_trans_conflict(transaction_st * trans)
-{
-  return FALSE;
-}
-
-int
-Transfer_worker::start()
-{
-  terminated= FALSE;
-  running= TRUE;
-
-  int ret;
-  pthread_t th;
-  ret= pthread_create(&th, NULL, transfer_worker_func, this);
-  pthread_detach(th);
-  return 0;
-}
-
-int 
-Transfer_worker::stop()
-{
-  terminated= TRUE;
-  sem_post(&event_sem);
-  return 0;
-}
-
-int
-Transfer_worker::wait_for_stopped()
-{
-  while (running)
-  {
-     my_sleep(10000);
-  }
-  transaction_st *trans= NULL;
-  while (waiting_trans_number > 0)
-  {
-     trans= trans_list[list_head];
-     trans->free_events();
-     delete trans;
-     trans_list[list_head]= NULL;
-     list_head= (list_head + 1) % worker_size;
-     waiting_trans_number--;
-  }
-  return 0;
-}
-
-int 
-Transfer_worker::push_trans(Relay_log_info *rli, transaction_st * trans)
-{
-  uint64 prev_trans_id, this_trans_id;
-  rw_wrlock(&trans_list_lock);
-
-  if (waiting_trans_number == 0)
-  {
-    list_end= list_head;
-  }
-  else if (waiting_trans_number >= worker_size)
-  {
-    rw_unlock(&trans_list_lock);
-	return -1;
-  }
-  else
-  {
-    list_end= (list_end + 1) % worker_size;
-  }
-  prev_trans_id=rli->last_trans_id;
-  this_trans_id= prev_trans_id + 1;
-
-  trans->rli= rli;
-  trans->commit_orderer.trans_t= trans;
-  trans->own_commit_id= this_trans_id;
-  trans->wait_commit_id= prev_trans_id;
-  trans->wait_commit_trans= rli->last_trans;
-  rli->last_trans= trans;
-  rli->last_trans_id= this_trans_id;
-
-  pk_hash_plus(trans);
-
-  /*fix bug of row_event::do_apply_event() fails in not-main SQL thread,
-    because if event use main thread's thread_stack while applied in not-main
-    SQL thread, which would make check_stack_overrun() fail , then lead open_table() called by 
-    row_event::do_apply_event() fail*/
-  Log_event *ev = trans->event_list_head; 
-  for(int i= 0; i <trans->inner_events; i++)
-  {
-    ev->thd= thd;
-    if (ev == trans->event_list_tail)
-      break;
-    ev= ev->next_in_trans;
-  }
-  trans_list[list_end]=trans;
-  waiting_trans_number++;
-  rw_unlock(&trans_list_lock);
-  sem_post(&event_sem);
-  return 0;
-}
-
-int 
-Transfer_worker::pop_trans(int batch_trans_n)
-{
-  rw_wrlock(&trans_list_lock);
-  int i;
-  for (i=0; i<batch_trans_n; i++)
-  {
-    pk_hash_minus(trans_list[list_head]);
-	list_head= (list_head + 1)%worker_size;
-	waiting_trans_number--;
-  }
-  rw_unlock(&trans_list_lock);
-  return 0;
-}
-
-bool 
-Transfer_worker::check_pk_exist_key(hash_item_t * item)
-{
-  rw_rdlock(&pk_hash_lock);
-  uchar *ret=my_hash_search(&pk_hash, (const uchar*)item->key, item->key_len);
-  rw_unlock(&pk_hash_lock);
-  return ret != NULL;
-}
-
-int
-Transfer_worker::pk_hash_plus(transaction_st * trans)
-{
-  uint32 i;
-  int ret= 0;
-  hash_item_t *inner_item, *trans_item;
-  rw_wrlock(&pk_hash_lock);
-  for(i=0; i<trans->trans_pk_hash.records; i++)
-  {
-    trans_item= (hash_item_t*)my_hash_element(&trans->trans_pk_hash, i);
-	inner_item= (hash_item_t*)my_hash_search(&pk_hash, (const uchar*)trans_item->key, trans_item->key_len);
-	if(inner_item)
-	{
-	  inner_item->times+= trans_item->times;
-	}
-	else
-	{
-	  inner_item= new hash_item_t;
-	  memcpy(inner_item, trans_item, sizeof(hash_item_t));
-	  ret= my_hash_insert(&pk_hash, (const uchar*)inner_item);
-	}
-  }
-  rw_unlock(&pk_hash_lock);
-  return ret;
-}
-
-int 
-Transfer_worker::pk_hash_minus(transaction_st *trans)
-{
-  uint32 i;
-  int ret=0;
-  hash_item_t *inner_item, *trans_item;
-  rw_wrlock(&pk_hash_lock);
-  for(i=0; i<trans->trans_pk_hash.records; i++)  
-  {
-    trans_item= (hash_item_t*)my_hash_element(&trans->trans_pk_hash, i);   
-	inner_item= (hash_item_t*) my_hash_search(&pk_hash, (const uchar*)trans_item->key, trans_item->key_len);
-	if (inner_item)
-	{
-	  inner_item->times-= trans_item->times;
-	  if (inner_item->times <= 0)
-	  {
-	  	my_hash_delete(&pk_hash, (uchar*)inner_item);
-	  }
-	}
-  }
-  rw_unlock(&pk_hash_lock);
-  return ret;
-}
-
-Transfer_worker::Transfer_worker(Relay_log_info *rli)
-:terminated(TRUE),init_ok(FALSE)
-{
-  my_rwlock_init(&trans_list_lock, NULL);
-  my_rwlock_init(&pk_hash_lock, NULL);
-  sem_init(&event_sem, 0, 0);
-  this->rli= rli;
-  my_hash_init(&pk_hash, &my_charset_bin, 256+16, 0, 0, hash_item_get_key, (my_hash_free_key)hash_item_free_entry, MYF(0));
-  thd= NULL;
-  running= FALSE;
-  waiting_trans_number= 0;
-  complete_trans_number= 0;
-  list_head= 0;
-  list_end= 0;
-}
-
-Transfer_worker::~Transfer_worker()
-{
-  my_hash_free(&pk_hash);
-  (void) rwlock_destroy(&trans_list_lock);
-  (void) rwlock_destroy(&pk_hash_lock);
-  delete dummy_rli;
-}
-
-bool
-trans_conflict_with_worker(transaction_st *trans, Transfer_worker *worker)
-{
-  uint32 i;
-  hash_item_t *item;
-  for(i=0; i<trans->trans_pk_hash.records; i++)
-  {
-    item= (hash_item_t*)my_hash_element(&trans->trans_pk_hash, i);
-	if (worker->check_pk_exist_key(item))
-		return TRUE;
-  }
-  return FALSE;
-}
-
-/*
-  Determine which worker thread is suitable for the trans
-  Dispatch the whole transaction to the worker thread
-
-  return value
-  0 dispatch ok;
-  1 don`t need to dispatch
-  2 don`t find any suitable worker
-*/
-int dispatch_transaction(Relay_log_info *rli, transaction_st *trans)
-{
-  if(!trans)
-  	return 1;
-  retry:
-	if(rli->abort_slave)
-	  return 1;
-	uint32 i;
-	int min_worker= 1;
-	int curr_num= 0;
-	int min_num= 100000;
-        bool need_wait= false;
-	uint32 total_num= 0;
-	trans->conflict_number= 0;
-	if(trans->contains_no_pk_row || trans->trans_pk_hash.records == 0)
-	{
-          /*Trans include no_pk rable and with_pk table*/
-          if (trans->trans_pk_hash.records > 0)
-          {
-             for (i=1; i < transfer_slave_thread; i++)
-             {
-               if (rli->workers[i]->terminated || !rli->workers[i]->init_ok)
-                 continue;
-               if (trans_conflict_with_worker(trans, rli->workers[i]))
-               {
-                  need_wait= true;
-                  break;
-               }
-             }
-          }
-          if (need_wait)
-          {
-            my_sleep(10000);
-            goto retry;
-          }
-	  trans->worker_id= 0;
-	}
-	else
-	{
-          assert(trans->trans_pk_hash.records > 0);
-          assert(!trans->contains_no_pk_row);
-	  for (i=0; i < transfer_slave_thread; i++)
-	  {
-	    if (rli->workers[i]->terminated || !rli->workers[i]->init_ok)
-	      continue;
-	    if (trans_conflict_with_worker(trans, rli->workers[i]))
-	    {
-	      trans->conflict_workers[trans->conflict_number]= i;
-	      trans->conflict_number++;
-	    }
-	    curr_num= rli->workers[i]->get_trans_number();
-	    total_num+= curr_num;
-	    if ( (i > 0)&&(curr_num < min_num))
-	    {
-		min_num= curr_num;
-		min_worker= i;
-	    }
-	  }//for
-	  if (trans->conflict_number > 1 || total_num >= transfer_slave_thread * worker_size)
-	  {
-	     my_sleep(10000);
-	     goto retry;
-	  }
-	  else if (trans->conflict_number == 1)
-	  {
-             /*This trans conflict with a Trans include no_pk table running in worker 0,
-               but this trans can't dispatch to worker 0, so wait */
-             if (0 == trans->conflict_workers[0])
-             {
-               my_sleep(10000);
-               goto retry;
-             }
-	     trans->worker_id= trans->conflict_workers[0];
-	  }
-	  else
-	  {
-	     trans->worker_id= min_worker;
-	  }
-        }//else
-	if (!rli->workers[trans->worker_id] ||
-            !rli->workers[trans->worker_id]->init_ok)
-	{
-	  return 2;
-	}
-	int ret;
-	if ((ret= rli->push_back_trans_pos(trans)) != 0)
-	{
-	  my_sleep(10000);
-	  goto retry;
-	}
-	if (rli->workers[trans->worker_id]->push_trans(rli,trans) != 0)
-	{
-	  rli->rollback_trans_pos(trans);
-	  my_sleep(1000);
-	  goto retry;
-	}
-	return 0;
-}
-
-int
-wait_for_all_dml_done(Relay_log_info *rli, bool wait_main_transaction= false)
-{
-  uint32 i;
-  int ret = 0;
-  mysql_rwlock_rdlock(&rli->LOCK_workers);
-  for (i=0; i < transfer_slave_thread; i++)
-  {
-    if (!rli->workers[i]) 
-	  continue;
-    while ( rli->workers[i]->get_trans_number()&&
-		   !rli->workers[i]->terminated )
-    {
-      my_sleep(10000);
-    }
-    if (rli->workers[i]->terminated)
-      ret = 1;
-  }
-  mysql_rwlock_unlock(&rli->LOCK_workers);	
-
-  if (wait_main_transaction)
-  {
-    while (rli->curr_trans)
-    {
-      my_sleep(10000);
-    }
-  }
-return ret;
-}
-
-/* pack trans. return 
-* 0 have not got the whole transaction
-* 1 get the whole transaction, and need to run directly in main SQL_THREAD
-* 2 get the whole transaction, and need to dispatch it to trans_worker
-*/
-int pack_trans(Relay_log_info *rli, Log_event* ev, THD *thd)
-{
-  transaction_st *trans= NULL;
-  bool end_of_transaction= false;
-  int ev_type= ev->get_type_code();
-  Query_log_event *qev= (Query_log_event *)ev;
-  Rows_log_event *rev= (Rows_log_event*) ev;
-  DML_prelocking_strategy prelocking_strategy;
-  uint counter;
-  TABLE_LIST *tables;
-
-  if (ev_type == XID_EVENT)
-  {
-    end_of_transaction= true;
-  }
-  if (ev_type == QUERY_EVENT)
-  {
-    if (strncasecmp(qev->query, "BEGIN", 5) == 0)
-    {
-      rli->curr_trans= new transaction_st;
-      rli->curr_trans->contains_stat= false;
-      rli->curr_trans->contains_no_pk_row= false;
-    }
-    else if (strncasecmp(qev->query, "COMMIT", 6) == 0 || strncasecmp(qev->query, "ROLLBACK", 8) == 0)
-    {
-      end_of_transaction= true;
-    }
-    else
-    {
-     rli->curr_trans->contains_stat= true;
-    }
-  }
-  else if(ev_type == NEW_LOAD_EVENT || ev_type == LOAD_EVENT || ev_type == EXECUTE_LOAD_QUERY_EVENT || ev_type == BEGIN_LOAD_QUERY_EVENT)
-  {
-    rli->curr_trans->contains_stat= true;
-  }
-
-  trans= rli->curr_trans;
-  if (trans)
-  {
-    trans->add_event(ev);
-  }
-  /* a transaction that contains statement will run in the main SQL_THREAD, needn't get pk_hash
-  * We can add other strategy here. such as if a transaction is too large, use the same strategy */
-  if (trans->contains_stat)
-      goto pack_over;
-  switch (ev_type)
-  {
-    case TABLE_MAP_EVENT:
-        ev->apply_event(rli);
-        break;
-    case WRITE_ROWS_EVENT:
-    case UPDATE_ROWS_EVENT:
-    case DELETE_ROWS_EVENT:
-        thd->lex->thd= thd;
-        tables= rli->tables_to_lock;
-        if ((rli->tables_to_lock) &&
-            (rli->tables_to_lock->table ||
-             !open_tables(thd, &tables, &counter, 0, &prelocking_strategy))
-             )
-        {
-          rev->get_pk_value(rli);
-        }
-        if (rev->get_flags(Rows_log_event::STMT_END_F))
-        {
-          const_cast<Relay_log_info*>(rli)->cleanup_context(thd, 0);
-          thd->clear_error();
-        }
-        break;
-    default:
-        break;
-  }
-
-pack_over:
-    if (!end_of_transaction)
-        return 0;
-    if (!opt_enable_transfer || trans->contains_stat)
-        return 1;
-    return 2;
-}
-/*transfer end*/
 
 /**
   Applies the given event and advances the relay log position.
@@ -3270,20 +2392,16 @@ pack_over:
   @retval 2 No error calling ev->apply_event(), but error calling
   ev->update_pos().
 */
-int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
+int apply_event_and_update_pos(Log_event* ev, THD* thd, rpl_group_info* rgi)
 {
   int exec_res= 0;
-
+  Relay_log_info *rli= rgi->rli;
+  
   DBUG_ENTER("apply_event_and_update_pos");
 
   DBUG_PRINT("exec_event",("%s(type_code: %d; server_id: %d)",
                            ev->get_type_str(), ev->get_type_code(),
                            ev->server_id));
-  DBUG_PRINT("info", ("thd->options: %s%s; rli->last_event_start_time: %lu",
-                      FLAGSTR(thd->variables.option_bits, OPTION_NOT_AUTOCOMMIT),
-                      FLAGSTR(thd->variables.option_bits, OPTION_BEGIN),
-                      (ulong) rli->last_event_start_time));
-
   /*
     Execute the event to change the database and update the binary
     log coordinates, but first we set some data that is needed for
@@ -3307,123 +2425,28 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
     log (remember that now the relay log starts with its Format_desc,
     has a Rotate etc).
   */
-
   thd->server_id = ev->server_id; // use the original server id for logging
   thd->set_time();                            // time the query
   thd->lex->current_select= 0;
   if (!ev->when)
     ev->when= my_time(0);
   ev->thd = thd; // because up to this point, ev->thd == 0
-
-  int reason= ev->shall_skip(rli);
+  //how does it display in parallel replication
+  int reason= ev->shall_skip(rgi);
   if (reason == Log_event::EVENT_SKIP_COUNT)
   {
+    DBUG_ASSERT(rli->slave_skip_counter > 0);
     sql_slave_skip_counter= --rli->slave_skip_counter;
   }
   mysql_mutex_unlock(&rli->data_lock);
-
-  /*transfer*/
-
-  bool run_directly= false;
-  bool run_trans_directly= false;
-
-  Log_event_type type_code= ev->get_type_code();
-  transaction_st *trans= rli->curr_trans;
-
-  if (reason == Log_event::EVENT_SKIP_NOT)
+  DBUG_EXECUTE_IF("inject_slave_sql_before_apply_event",
   {
-   if (type_code == FORMAT_DESCRIPTION_EVENT  || type_code == ROTATE_EVENT || type_code == BINLOG_CHECKPOINT_EVENT)
-   {
-     run_directly= true;
-   }
-   else if (!rli->curr_trans)
-   {
-     if (type_code == QUERY_EVENT)
-     {
-       Query_log_event *qev= (Query_log_event *)ev;
-       if (strncasecmp(qev->query, "BEGIN", 5) != 0)
-         run_directly= true;
-     }
-     else
-     {
-       run_directly= true;
-     }
-   }
-   if (run_directly)
-   {
-     exec_res = wait_for_all_dml_done(rli);
-     if (0 == exec_res)
-       exec_res= ev->apply_event(rli);
-     else
-     {
-       if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
-         delete ev;
-       exec_res= 2;
-     }
-   }
-   else
-   {
-      switch (pack_trans(rli, ev, thd))
-      {
-        case 1:
-           exec_res = wait_for_all_dml_done(rli);
-           if (0 == exec_res)
-           {
-             exec_res= execute_single_transaction(thd, rli, rli->curr_trans);
-             run_trans_directly= true;
-           }
-    	   else
-    	   {
-    	     exec_res= 2;
-    	     rli->curr_trans->free_events();
-    	     delete rli->curr_trans;
-    	     rli->curr_trans= NULL;
-    	   }
-           break;
-        case 2:
-           mysql_mutex_lock(&rli->LOCK_trans_fail);
-           if (rli->trans_fail)
-    	   {
-             mysql_mutex_unlock(&rli->LOCK_trans_fail);
-    	     exec_res= 2;
-    	     rli->curr_trans->free_events();
-    	     delete rli->curr_trans;
-    	     rli->curr_trans= NULL;
-             break;
-           }
-           mysql_mutex_unlock(&rli->LOCK_trans_fail);
-           trans->log_pos= ev->log_pos;
-           trans->when= ev->is_artificial_event() ? 0 : ev->when;
-           strmake(trans->relay_log_name, rli->event_relay_log_name, sizeof(trans->relay_log_name)-1);
-           trans->relay_log_pos= rli->future_event_relay_log_pos;
-           if (2 == dispatch_transaction(rli, trans))
-           {
-             exec_res = wait_for_all_dml_done(rli);
-             if (0 == exec_res)
-             { exec_res= execute_single_transaction(thd, rli, trans);
-               run_trans_directly= true;
-             }
-             break;
-           }
-           rli->curr_trans= NULL;
-           break;
-       default:
-           break;
-       }
-    }
-  }
-  else
-  { 
-    run_directly= true;
-    exec_res = wait_for_all_dml_done(rli);
-    if (exec_res)
-    {
-      if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
-        delete ev;
-      exec_res= 2;
-    }
-  }
-/*transfer end*/
+    DBUG_ASSERT(!debug_sync_set_action
+                (thd, STRING_WITH_LEN("now WAIT_FOR continue")));
+    DBUG_SET_INITIAL("-d,inject_slave_sql_before_apply_event");
+  };);
+  if (reason == Log_event::EVENT_SKIP_NOT)
+    exec_res= ev->apply_event(rgi);
 
 #ifndef DBUG_OFF
   /*
@@ -3439,29 +2462,19 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
     // EVENT_SKIP_COUNT
     "skipped because event skip counter was non-zero"
   };
-  DBUG_PRINT("info", ("OPTION_BEGIN: %d; IN_STMT: %d",
+  DBUG_PRINT("info", ("OPTION_BEGIN: %d  IN_STMT: %d  IN_TRANSACTION: %d",
                       test(thd->variables.option_bits & OPTION_BEGIN),
-                      rli->get_flag(Relay_log_info::IN_STMT)));
-  //DBUG_PRINT("skip_event", ("%s event was %s",
-  //                          ev->get_type_str(), explain[reason]));
+                      rli->get_flag(Relay_log_info::IN_STMT),
+                      rli->get_flag(Relay_log_info::IN_TRANSACTION)));
+  DBUG_PRINT("skip_event", ("%s event was %s",
+                            ev->get_type_str(), explain[reason]));
 #endif
 
   DBUG_PRINT("info", ("apply_event error = %d", exec_res));
   if (exec_res == 0)
   {
-    int error= 0;
-    /*
-      #bug INNOSQL-107
-      For SQL thread crash safe, only rli->curr_trans==NULL when run
-      directly can update slave_relay_log_info.
-    */
-    if ((run_directly && !rli->curr_trans) || run_trans_directly)
-    {
-      error=ev->update_pos(rli);
-    }
-    RUN_HOOK(binlog_relay_sql, after_apply_event, (thd, rli));
-
-#ifdef HAVE_purify
+    int error= ev->update_pos(rgi);
+#ifdef HAVE_valgrind
     if (!rli->is_fake)
 #endif
     {
@@ -3496,32 +2509,85 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
       DBUG_RETURN(2);
     }
   }
-
-  /*DBUG_RETURN(exec_res ? 1 : 0);*/
-  int retval;
-  if(exec_res == 0)
-  {
-    if (run_directly)
-      retval= -2;
-    else if (run_trans_directly)
-      retval= -3;
-    else retval=0;
-  }
-  else if(1 == exec_res)
-  {
-    if (run_directly)
-      retval= 2;
-    else if (run_trans_directly)
-      retval= 3;
-    else
-      retval= 1;
-  }
-  else//exec_res==2 means some sub SQL thread has terminated for fails
-  {
-    retval= 4;
-  }
-  DBUG_RETURN(retval);
+  DBUG_RETURN(exec_res ? 1 : 0);
 }
+
+
+/**
+   Keep the relay log transaction state up to date.
+
+   The state reflects how things are after the given event, that has just been
+   read from the relay log, is executed.
+
+   This is only needed to ensure we:
+   - Don't abort the sql driver thread in the middle of an event group.
+   - Don't rotate the io thread in the middle of a statement or transaction.
+     The mechanism is that the io thread, when it needs to rotate the relay
+     log, will wait until the sql driver has read all the cached events
+     and then continue reading events one by one from the master until
+     the sql threads signals that log doesn't have an active group anymore.
+
+     There are two possible cases. We keep them as 2 separate flags mainly
+     to make debugging easier.
+
+     - IN_STMT is set when we have read an event that should be used
+       together with the next event.  This is for example setting a
+       variable that is used when executing the next statement.
+     - IN_TRANSACTION is set when we are inside a BEGIN...COMMIT group
+
+     To test the state one should use the is_in_group() function.
+*/
+
+inline void update_state_of_relay_log(Relay_log_info *rli, Log_event *ev)
+{
+  Log_event_type typ= ev->get_type_code();
+
+  /* check if we are in a multi part event */
+  if (ev->is_part_of_group())
+    rli->set_flag(Relay_log_info::IN_STMT);
+  else if (Log_event::is_group_event(typ))
+  {
+    /*
+      If it was not a is_part_of_group() and not a group event (like
+      rotate) then we can reset the IN_STMT flag.  We have the above
+      if only to allow us to have a rotate element anywhere.
+    */
+    rli->clear_flag(Relay_log_info::IN_STMT);
+  }
+  if ( (typ == GCID_EVENT))
+  {
+    rli->set_flag(Relay_log_info::IN_TRANSACTION);
+  }
+  if (ev->flags & LOG_EVENT_STANDALONE_F)
+  {
+    rli->clear_flag(Relay_log_info::IN_TRANSACTION);
+  }
+
+  /* Check for an event that starts or stops a transaction */
+  if (typ == QUERY_EVENT)
+  {
+    Query_log_event *qev= (Query_log_event*) ev;
+    /*
+      Trivial optimization to avoid the following somewhat expensive
+      checks.
+    */
+    if (qev->q_len <= sizeof("ROLLBACK"))
+    {
+      if (qev->is_begin())
+        rli->set_flag(Relay_log_info::IN_TRANSACTION);
+      if (qev->is_commit() || qev->is_rollback())
+        rli->clear_flag(Relay_log_info::IN_TRANSACTION);
+    }
+  }
+  if (typ == XID_EVENT)
+    rli->clear_flag(Relay_log_info::IN_TRANSACTION);
+
+  DBUG_PRINT("info", ("event: %u  IN_STMT: %d  IN_TRANSACTION: %d",
+                      (uint) typ,
+                      rli->get_flag(Relay_log_info::IN_STMT),
+                      rli->get_flag(Relay_log_info::IN_TRANSACTION)));
+}
+
 
 /**
   Top-level function for executing the next event from the relay log.
@@ -3551,24 +2617,29 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
 
   @retval 1 The event was not applied.
 */
-static int exec_relay_log_event(THD* thd, Relay_log_info* rli)
+static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
+                                 rpl_group_info* serial_rgi)
 {
   DBUG_ENTER("exec_relay_log_event");
-
+  ulong read_retries= 0;
+  ulonglong event_size= 0;
+start:
   /*
      We acquire this mutex since we need it for all operations except
      event execution. But we will release it in places where we will
      wait for something for example inside of next_event().
-   */
-  ulong read_retries= 0;
-start:
+     ???
+     does it need to lock data_lock? 
+     it copy from serial replication
+     ???
+  */
   mysql_mutex_lock(&rli->data_lock);
 
-  Log_event * ev = next_event(rli);
+  Log_event * ev = next_event(serial_rgi, &event_size);
 
   DBUG_ASSERT(rli->sql_thd==thd);
 
-  if (sql_slave_killed(thd,rli))
+  if (sql_slave_killed(thd, serial_rgi))
   {
     mysql_mutex_unlock(&rli->data_lock);
     delete ev;
@@ -3576,7 +2647,7 @@ start:
   }
   if (ev)
   {
-    int event_type= ev->get_type_code();
+    Log_event_type event_type= ev->get_type_code();
     int exec_res;
     /*
       This tests if the position of the beginning of the current event
@@ -3613,62 +2684,32 @@ start:
                         rli->abort_slave= 1;
                         mysql_mutex_unlock(&rli->data_lock);
                         delete ev;
-                        rli->inc_event_relay_log_pos();
+                        serial_rgi->inc_event_relay_log_pos();
                         DBUG_RETURN(0);
                       };);
     }
+    
+    update_state_of_relay_log(rli, ev);
+    
+    if ( opt_slave_parallel_threads > 0 && 
+        rli->slave_skip_counter == 0 )
+      DBUG_RETURN(rli->parallel->do_event(serial_rgi, ev, event_size));
 
-    exec_res= apply_event_and_update_pos(ev, thd, rli);
-    if (exec_res <= 0)
-    {
-      if ( QUERY_EVENT == event_type )
-      {
-        Query_log_event *qev= (Query_log_event *)ev;
-        if (strncasecmp(qev->query, "BEGIN", 5) == 0)
-          thd->variables.option_bits|= OPTION_READ_BEGIN;
-        if (strncasecmp(qev->query, "COMMIT", 6) == 0)
-          thd->variables.option_bits&= ~OPTION_READ_BEGIN;
-        else if (strncasecmp(qev->query, "ROLLBACK", 8) == 0)
-          thd->variables.option_bits&= ~OPTION_READ_BEGIN;
-      }
-      if ( XID_EVENT == event_type)
-      {
-       thd->variables.option_bits&= ~OPTION_READ_BEGIN;
-      }
-    }
-/*transfer*/
-   /*
-    |exec_res|==2, means run_directly
-    |exec_res|==3, means run_trans_directly
-    exec_res== 4, means some sub SQL thread has terminated
-    exec_res > 0, means the original exec_res is 1
-    exec_res <=0, means the orighnal exec_res is 0
-  */
-   if (exec_res == -2 || exec_res == 2)
-  {
-    if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
-    {
-      delete ev;
-    }
-    exec_res= (exec_res > 0);
-  }
-  else if (exec_res == -3 || exec_res == 3)
-  {
-    rli->curr_trans->free_events();
-    delete rli->curr_trans;
-    rli->curr_trans= NULL;
-    exec_res= (exec_res > 0);
-  }	
-/*transfer end*/
+    serial_rgi->future_event_relay_log_pos= rli->future_event_relay_log_pos;
+    serial_rgi->event_relay_log_name= rli->event_relay_log_name;
+    serial_rgi->event_relay_log_pos= rli->event_relay_log_pos;
+    serial_rgi->event_relay_log_pos= rli->event_relay_log_pos;
+    serial_rgi->event_master_log_pos= ev->log_pos;
+    exec_res= apply_event_and_update_pos(ev, thd, serial_rgi);
 
-   /*
-      exec_res==4 means some sub SQL thread has terminated,we need to stop 
-      SQL thread.
+    delete_or_keep_event_post_apply(serial_rgi, event_type, ev);
+
+    /*
       update_log_pos failed: this should not happen, so we don't
       retry.
-   */
-    if (exec_res == 2 || 4 == exec_res)
-      DBUG_RETURN(1);
+    */
+    if (exec_res == 2)
+       DBUG_RETURN(1);
 
     if (slave_trans_retries)
     {
@@ -3680,8 +2721,8 @@ start:
           We were in a transaction which has been rolled back because of a
           temporary error;
           let's seek back to BEGIN log event and retry it all again.
-	  Note, if lock wait timeout (innodb_lock_wait_timeout exceeded)
-	  there is no rollback since 5.0.13 (ref: manual).
+          Note, if lock wait timeout (innodb_lock_wait_timeout exceeded)
+          there is no rollback since 5.0.13 (ref: manual).
           We have to not only seek but also
           a) init_master_info(), to seek back to hot relay log's start for later
           (for when we will come back to this hot log after re-processing the
@@ -3690,7 +2731,7 @@ start:
           init_master_info()).
           b) init_relay_log_pos(), because the BEGIN may be an older relay log.
         */
-        if (rli->trans_retries < slave_trans_retries)
+        if (serial_rgi->trans_retries < slave_trans_retries)
         {
           if (init_master_info(rli->mi, 0, 0, 0, SLAVE_SQL))
             sql_print_error("Failed to initialize the master info structure");
@@ -3703,16 +2744,16 @@ start:
           else
           {
             exec_res= 0;
-            rli->cleanup_context(thd, 1);
+            serial_rgi->cleanup_context(thd, 1);
             /* chance for concurrent connection to get more locks */
-            slave_sleep(thd, min(rli->trans_retries, MAX_SLAVE_RETRY_PAUSE),
-                       sql_slave_killed, rli);
+            slave_sleep(thd, min(serial_rgi->trans_retries, MAX_SLAVE_RETRY_PAUSE),
+                       sql_slave_killed, serial_rgi);
             mysql_mutex_lock(&rli->data_lock); // because of SHOW STATUS
-            rli->trans_retries++;
+            serial_rgi->trans_retries++;
             rli->retried_trans++;
             mysql_mutex_unlock(&rli->data_lock);
             DBUG_PRINT("info", ("Slave retries transaction "
-                                "rli->trans_retries: %lu", rli->trans_retries));
+                                "serial_rgi->trans_retries: %lu", serial_rgi->trans_retries));
           }
         }
         else
@@ -3720,7 +2761,7 @@ start:
                           "in vain, giving up. Consider raising the value of "
                           "the slave_transaction_retries variable.",
                           slave_trans_retries);
-      }
+      }//if (slave_trans_retries)
       else if ((exec_res && !temp_err) ||
                (opt_using_transactions &&
                 rli->group_relay_log_pos == rli->event_relay_log_pos))
@@ -3731,9 +2772,9 @@ start:
           event, the execution will proceed as usual; in the case of a
           non-transient error, the slave will stop with an error.
          */
-        rli->trans_retries= 0; // restart from fresh
+        serial_rgi->trans_retries= 0; // restart from fresh
         DBUG_PRINT("info", ("Resetting retry counter, rli->trans_retries: %lu",
-                            rli->trans_retries));
+                            serial_rgi->trans_retries));
       }
     }
     DBUG_RETURN(exec_res);
@@ -3743,7 +2784,7 @@ start:
   {
     read_retries++;
     my_sleep(read_retries*10000);
-  	goto start;
+      goto start;
   }
   rli->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_READ_FAILURE,
               ER(ER_SLAVE_RELAY_LOG_READ_FAILURE), "\
@@ -4275,6 +3316,73 @@ int check_temp_dir(char* tmp_file)
   DBUG_RETURN(0);
 }
 
+void 
+slave_output_error_info(Relay_log_info *rli, THD *thd)
+{
+  /*
+   retrieve as much info as possible from the thd and, error
+   codes and warnings and print this to the error log as to
+   allow the user to locate the error
+  */
+  uint32 const last_errno= rli->last_error().number;
+  char llbuff[22];
+
+  if (thd->is_error())
+  {
+    char const *const errmsg= thd->stmt_da->message();
+
+    DBUG_PRINT("info",
+               ("thd->stmt_da->sql_errno()=%d; rli->last_error.number=%d",
+               thd->stmt_da->sql_errno(), last_errno));
+    if (last_errno == 0)
+    {
+     /*
+ 	   This function is reporting an error which was not reported
+ 	   while executing exec_relay_log_event().
+ 	 */ 
+       rli->report(ERROR_LEVEL, thd->stmt_da->sql_errno(), "%s", errmsg);
+    }
+    else if (last_errno != thd->stmt_da->sql_errno())
+    {
+      /*
+      * An error was reported while executing exec_relay_log_event()
+      * however the error code differs from what is in the thread.
+      * This function prints out more information to help finding
+      * what caused the problem.
+      */  
+      sql_print_error("Slave (additional info): %s Error_code: %d",
+                            errmsg, thd->stmt_da->sql_errno());
+    }
+   }
+
+   /* Print any warnings issued */
+   List_iterator_fast<MYSQL_ERROR> it(thd->warning_info->warn_list());
+   MYSQL_ERROR *err;
+   /*
+    Added controlled slave thread cancel for replication
+    of user-defined variables.
+   */
+   bool udf_error = false;
+   while ((err= it++))
+   {
+     if (err->get_sql_errno() == ER_CANT_OPEN_LIBRARY)
+       udf_error = true;
+     sql_print_warning("Slave: %s Error_code: %d", err->get_message_text(), err->get_sql_errno());
+   }
+   if (udf_error)
+     sql_print_error("Error loading user-defined library, slave SQL "
+        "thread aborted. Install the missing library, and restart the "
+        "slave SQL thread with \"SLAVE START\". We stopped at log '%s' "
+        "position %s", RPL_LOG_NAME, llstr(rli->group_master_log_pos, 
+        llbuff));
+   else
+     sql_print_error("\
+Error running query, slave SQL thread aborted. Fix the problem, and restart \
+the slave SQL thread with \"SLAVE START\". We stopped at log \
+'%s' position %s", RPL_LOG_NAME, llstr(rli->group_master_log_pos, llbuff));
+
+}
+
 /**
   Slave SQL thread entry point.
 
@@ -4295,6 +3403,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   Relay_log_info* rli = &((Master_info*)arg)->rli;
   const char *errmsg;
+  rpl_group_info *serial_rgi;
 
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
@@ -4308,10 +3417,11 @@ pthread_handler_t handle_slave_sql(void *arg)
   rli->events_till_abort = abort_slave_event_count;
 #endif
 
+  serial_rgi= new rpl_group_info(rli);
   thd = new THD; // note that contructor of THD uses DBUG_ !
   thd->m_sql_info = MYSQL_CREATE_SQL_INFO(thd->charset()->number);
   thd->thread_stack = (char*)&thd; // remember where our stack is
-  rli->sql_thd= thd;
+  serial_rgi->thd= rli->sql_thd= thd;
   thd->lex->all_selects_list= NULL;
   thd->lex->derived_tables= NULL;
   
@@ -4333,42 +3443,17 @@ pthread_handler_t handle_slave_sql(void *arg)
     goto err;
   }
   thd->init_for_queries();
-  thd->rli_slave= rli;
-  if ((rli->deferred_events_collecting= rpl_filter->is_on()))
+  thd->rgi_slave= serial_rgi;
+  if ((serial_rgi->deferred_events_collecting= rpl_filter->is_on()))
   {
-    rli->deferred_events= new Deferred_log_events(rli);
+    serial_rgi->deferred_events= new Deferred_log_events(rli);
   }
-
   thd->temporary_tables = rli->save_temporary_tables; // restore temp tables
   set_thd_in_use_temporary_tables(rli);   // (re)set sql_thd in use for saved temp tables
   mysql_mutex_lock(&LOCK_thread_count);
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);
-  /*members for ordered-commit*/
-  rli->last_committed_id= 0;
-  rli->last_trans_id= 0;
-  rli->last_trans= 0;
-  rli->trans_fail= false;
-
-  rli->trans_number= 0;
-  rli->trans_head= 0;
-  rli->trans_end= 0;
-  memset(&rli->trans_pos, 0, sizeof(rli->trans_pos));
-  my_rwlock_init(&rli->trans_pos_lock, NULL);
-
-  uint32 i;
-  mysql_rwlock_wrlock(&rli->LOCK_workers);
-  if (opt_enable_transfer)
-    transfer_slave_thread= sql_thread_number;
   
-  for (i=0; i < transfer_slave_thread; i++)
-  {
-    rli->workers[i]= new Transfer_worker(rli);
-    rli->workers[i]->start();
-  }
-  mysql_rwlock_unlock(&rli->LOCK_workers);
-  /*transfer end*/
-
   /*
     We are going to set slave_running to 1. Assuming slave I/O thread is
     alive and connected, this is going to make Seconds_Behind_Master be 0
@@ -4392,13 +3477,14 @@ pthread_handler_t handle_slave_sql(void *arg)
     But the master timestamp is reset by RESET SLAVE & CHANGE MASTER.
   */
   rli->clear_error();
+  rli->parallel->reset();
+   
 
   //tell the I/O thread to take relay_log_space_limit into account from now on
   mysql_mutex_lock(&rli->log_space_lock);
   rli->ignore_log_space_limit= 0;
   mysql_mutex_unlock(&rli->log_space_lock);
-  rli->trans_retries= 0; // start from "no error"
-  DBUG_PRINT("info", ("rli->trans_retries: %lu", rli->trans_retries));
+  DBUG_PRINT("info", ("rli->trans_retries: %lu", serial_rgi->trans_retries));
 
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
@@ -4410,6 +3496,11 @@ pthread_handler_t handle_slave_sql(void *arg)
                 "Error initializing relay log position: %s", errmsg);
     goto err;
   }
+  strmake(rli->future_event_master_log_name, rli->group_master_log_name,
+          sizeof(rli->future_event_master_log_name) - 1);
+  strmake(serial_rgi->future_event_master_log_name, rli->group_master_log_name,
+          sizeof(serial_rgi->future_event_master_log_name) - 1);
+ 
 #ifndef DBUG_OFF
   {
     char llbuf1[22], llbuf2[22];
@@ -4480,7 +3571,7 @@ log '%s' at position %s, relay log '%s' position: %s", RPL_LOG_NAME,
   }
   if (rli->until_condition != Relay_log_info::UNTIL_NONE &&
       rli->is_until_satisfied(thd, NULL))
-  {
+ {
     char buf[22];
     sql_print_information("Slave SQL thread stopped because it reached its"
                           " UNTIL position %s", llstr(rli->until_pos(), buf));
@@ -4492,7 +3583,7 @@ log '%s' at position %s, relay log '%s' position: %s", RPL_LOG_NAME,
   /* Read queries from the IO/THREAD until this thread is killed */
   THD_CHECK_SENTRY(thd);
 
-  while (!sql_slave_killed(thd,rli))
+  while (!sql_slave_killed(thd, serial_rgi))
   {
     thd_proc_info(thd, "Reading event from the relay log");
     DBUG_ASSERT(rli->sql_thd == thd);
@@ -4512,113 +3603,29 @@ log '%s' at position %s, relay log '%s' position: %s", RPL_LOG_NAME,
       saved_skip= 0;
     }
     
-    if (exec_relay_log_event(thd,rli))
+    if (exec_relay_log_event(thd, rli, serial_rgi))
     {
       DBUG_PRINT("info", ("exec_relay_log_event() failed"));
       // do not scare the user if SQL thread was simply killed or stopped
-      if (!sql_slave_killed(thd,rli))
+      if (!sql_slave_killed(thd, serial_rgi))
       {
-        /*
-          retrieve as much info as possible from the thd and, error
-          codes and warnings and print this to the error log as to
-          allow the user to locate the error
-        */
-        uint32 const last_errno= rli->last_error().number;
-
-        if (thd->is_error())
-        {
-          char const *const errmsg= thd->stmt_da->message();
-
-          DBUG_PRINT("info",
-                     ("thd->stmt_da->sql_errno()=%d; rli->last_error.number=%d",
-                      thd->stmt_da->sql_errno(), last_errno));
-          if (last_errno == 0)
-          {
-            /*
- 	      This function is reporting an error which was not reported
- 	      while executing exec_relay_log_event().
- 	    */ 
-            rli->report(ERROR_LEVEL, thd->stmt_da->sql_errno(), "%s", errmsg);
-          }
-          else if (last_errno != thd->stmt_da->sql_errno())
-          {
-            /*
-             * An error was reported while executing exec_relay_log_event()
-             * however the error code differs from what is in the thread.
-             * This function prints out more information to help finding
-             * what caused the problem.
-             */  
-            sql_print_error("Slave (additional info): %s Error_code: %d",
-                            errmsg, thd->stmt_da->sql_errno());
-          }
-        }
-
-        /* Print any warnings issued */
-        List_iterator_fast<MYSQL_ERROR> it(thd->warning_info->warn_list());
-        MYSQL_ERROR *err;
-        /*
-          Added controlled slave thread cancel for replication
-          of user-defined variables.
-        */
-        bool udf_error = false;
-        while ((err= it++))
-        {
-          if (err->get_sql_errno() == ER_CANT_OPEN_LIBRARY)
-            udf_error = true;
-          sql_print_warning("Slave: %s Error_code: %d", err->get_message_text(), err->get_sql_errno());
-        }
-        if (udf_error)
-          sql_print_error("Error loading user-defined library, slave SQL "
-            "thread aborted. Install the missing library, and restart the "
-            "slave SQL thread with \"SLAVE START\". We stopped at log '%s' "
-            "position %s", RPL_LOG_NAME, llstr(rli->group_master_log_pos, 
-            llbuff));
-        else
-          sql_print_error("\
-Error running query, slave SQL thread aborted. Fix the problem, and restart \
-the slave SQL thread with \"SLAVE START\". We stopped at log \
-'%s' position %s", RPL_LOG_NAME, llstr(rli->group_master_log_pos, llbuff));
-      }
+         slave_output_error_info(rli, thd);
+	  }
       goto err;
     }
   }
 
+if (opt_slave_parallel_threads > 0)
+    rli->parallel->wait_for_done();
+  
   /* Thread stopped. Print the current replication position to the log */
   sql_print_information("Slave SQL thread exiting, replication stopped in log "
                         "'%s' at position %s",
                         RPL_LOG_NAME, llstr(rli->group_master_log_pos,llbuff));
 
- err:
-    /*transfer*/
-    /*when stop slave, need to wait all SQ thread finish transactions*/
-    wait_for_all_dml_done(rli);
-    for (i= 0; i< transfer_slave_thread; i++)
-    {
-       if (rli->workers[i]){
-	    rli->workers[i]->stop();
-	  }
-    }
-
-    mysql_rwlock_wrlock(&rli->LOCK_workers);
-    for (i=0; i < transfer_slave_thread; i++)
-    {
-      if (rli->workers[i])
-      {
-        rli->workers[i]->wait_for_stopped();
-        delete rli->workers[i];
-        rli->workers[i]= NULL;
-      }
-    }
-    mysql_rwlock_unlock(&rli->LOCK_workers);
-
-    if (rli->curr_trans)
-    {
-      rli->curr_trans->free_events();
-      delete rli->curr_trans;
-      rli->curr_trans= NULL;
-    }
-    /*transfer end*/
-    THD_CHECK_SENTRY(thd);
+err:
+    if (opt_slave_parallel_threads > 0)
+      rli->parallel->wait_for_done();
   /*
     Some events set some playgrounds, which won't be cleared because thread
     stops. Stopping of this thread may not be known to these events ("stop"
@@ -4626,7 +3633,7 @@ the slave SQL thread with \"SLAVE START\". We stopped at log \
     must "proactively" clear playgrounds:
   */
   thd->clear_error();
-  rli->cleanup_context(thd, 1);
+  serial_rgi->cleanup_context(thd, 1);
   /*
     Some extra safety, which should not been needed (normally, event deletion
     should already have done these assignments (each event which sets these
@@ -4650,8 +3657,6 @@ the slave SQL thread with \"SLAVE START\". We stopped at log \
   DBUG_PRINT("info",("Signaling possibly waiting master_pos_wait() functions"));
   mysql_cond_broadcast(&rli->data_cond);
   rli->ignore_log_space_limit= 0; /* don't need any lock */
-  /* we die so won't remember charset - re-update them on next thread start */
-  rli->cached_charset_invalidate();
   rli->save_temporary_tables = thd->temporary_tables;
 
   /*
@@ -4663,11 +3668,12 @@ the slave SQL thread with \"SLAVE START\". We stopped at log \
   net_end(&thd->net); // destructor will not free it, because we are weird
   DBUG_ASSERT(rli->sql_thd == thd);
   THD_CHECK_SENTRY(thd);
-  rli->sql_thd= 0;
+  serial_rgi->thd=rli->sql_thd= 0;
   set_thd_in_use_temporary_tables(rli);  // (re)set sql_thd in use for saved temp tables
   mysql_mutex_lock(&LOCK_thread_count);
   THD_CHECK_SENTRY(thd);
   delete thd;
+  delete serial_rgi;
   mysql_mutex_unlock(&LOCK_thread_count);
  /*
   Note: the order of the broadcast and unlock calls below (first broadcast, then unlock)
@@ -5099,6 +4105,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
 
   switch (buf[EVENT_TYPE_OFFSET]) {
 	/*
+	  @raolh
+	  batch commit
 	  record newest commit position in master binlog
 	*/
   case XID_EVENT:
@@ -5636,7 +4644,7 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
 bool flush_relay_log_info(Relay_log_info* rli)
 {
   DBUG_ENTER("flush_relay_log_info");
-
+//fprintf(stderr, "flush_relay_log_info:%s %lld\n", rli->group_relay_log_name, rli->group_relay_log_pos);
   bool error=rli->flush_info();
   DBUG_RETURN(error);
 }
@@ -5660,8 +4668,8 @@ static IO_CACHE *reopen_relay_log(Relay_log_info *rli, const char **errmsg)
     relay_log_pos       Current log pos
     pending             Number of bytes already processed from the event
   */
-  rli->future_event_relay_log_pos= max(rli->future_event_relay_log_pos, BIN_LOG_HEADER_SIZE);
-  my_b_seek(cur_log,rli->future_event_relay_log_pos);
+  rli->event_relay_log_pos= max(rli->event_relay_log_pos, BIN_LOG_HEADER_SIZE);
+  my_b_seek(cur_log,rli->event_relay_log_pos);
   DBUG_RETURN(cur_log);
 }
 
@@ -5676,13 +4684,15 @@ static IO_CACHE *reopen_relay_log(Relay_log_info *rli, const char **errmsg)
   error is reported through the sql_print_information() or
   sql_print_error() functions.
 */
-static Log_event* next_event(Relay_log_info* rli)
+static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
 {
   Log_event* ev;
+  Relay_log_info *rli= rgi->rli;
   IO_CACHE* cur_log = rli->cur_log;
   mysql_mutex_t *log_lock = rli->relay_log.get_log_lock();
   const char* errmsg=0;
-  THD* thd = rli->sql_thd;
+  ulonglong old_pos= 0;
+  THD* thd = rgi->thd;
   DBUG_ENTER("next_event");
 
   DBUG_ASSERT(thd != 0);
@@ -5701,7 +4711,7 @@ static Log_event* next_event(Relay_log_info* rli)
   */
   mysql_mutex_assert_owner(&rli->data_lock);
 
-  while (!sql_slave_killed(thd,rli))
+  while (!sql_slave_killed(thd, rgi))
   {
     /*
       We can have two kinds of log reading:
@@ -5764,22 +4774,22 @@ static Log_event* next_event(Relay_log_info* rli)
       But if the relay log is created by new_file(): then the solution is:
       MYSQL_BIN_LOG::open() will write the buffered description event.
     */
-
+    old_pos= rli->event_relay_log_pos;
     if ((ev=Log_event::read_log_event(cur_log,0,
                                       rli->relay_log.description_event_for_exec)))
 
     {
-      DBUG_ASSERT(thd==rli->sql_thd);
       /*
         read it while we have a lock, to avoid a mutex lock in
         inc_event_relay_log_pos()
       */
-     rli->future_event_relay_log_pos= my_b_tell(cur_log);
+      rli->future_event_relay_log_pos= my_b_tell(cur_log);
+	  if(0 != event_size)
+	 	*event_size= rli->future_event_relay_log_pos - old_pos;
       if (hot_log)
         mysql_mutex_unlock(log_lock);
       DBUG_RETURN(ev);
     }
-    DBUG_ASSERT(thd==rli->sql_thd);
     if (opt_reckless_slave)                     // For mysql-test
       cur_log->error = 0;
     if (cur_log->error < 0)

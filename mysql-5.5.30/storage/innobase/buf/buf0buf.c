@@ -3555,12 +3555,12 @@ buf_page_io_complete(
 		ulint	read_space_id;
 		byte*	frame;
 
-		if ( fc_is_enabled() && !sync ){
+		if ( fc_is_enabled() && !sync ) {
 
-			/* if page is read by flash cache aync read,
+			/* if page is read by flash cache async read,
 			first should reset state in page and flash cache block. */
-			if (bpage->fc_block){
-				fc_compelete_read(bpage);
+			if (bpage->fc_block) {
+				fc_complete_read(bpage);
 			}
 		}
 
@@ -4824,7 +4824,7 @@ buf_print_io(
 	}
 
 	if (fc_is_enabled()){
-		fc_status(pool_info->page_read_delta,pool_info->n_ra_pages_read,file);
+		fc_status(pool_info->page_read_delta,pool_info->n_ra_pages_read, file);
 	}
 
 	mem_free(pool_info);

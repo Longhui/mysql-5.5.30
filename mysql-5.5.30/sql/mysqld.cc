@@ -524,6 +524,11 @@ ulong rpl_recovery_rank=0;
   in the sp_cache for one connection.
 */
 ulong stored_program_cache_size= 0;
+ulong opt_slave_parallel_max_queued= 131072;
+ulong opt_slave_parallel_threads= 0;
+ulong opt_binlog_commit_wait_count= 0;
+ulong opt_binlog_commit_wait_usec= 0;
+ulong opt_slave_parallel_mode= 1;
 
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
@@ -3068,6 +3073,7 @@ SHOW_VAR com_status_vars[]= {
   {"show_profiles",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_PROFILES]), SHOW_LONG_STATUS},
   {"show_relaylog_events", (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_RELAYLOG_EVENTS]), SHOW_LONG_STATUS},
   {"show_slave_hosts",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_SLAVE_HOSTS]), SHOW_LONG_STATUS},
+  {"show_slave_master_log_pos",(char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_SLAVE_MASTER_LOG_POS]), SHOW_LONG_STATUS},
   {"show_slave_sql_thread",(char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_SLAVE_SQL_THREAD]), SHOW_LONG_STATUS},
   {"show_slave_status",    (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_SLAVE_STAT]), SHOW_LONG_STATUS},
   {"show_sql_status",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_SQL_STATS]), SHOW_LONG_STATUS},
@@ -6173,7 +6179,7 @@ static int show_io_used(THD *thd, SHOW_VAR *var, char *buff)
 static int show_mem_size(THD *thd, SHOW_VAR *var, char *buff)
 {
   var->type = SHOW_CHAR;
-  sprintf(buff,"%u/%u",thd->mem_size,thd->max_mem_size);
+  sprintf(buff,"%lu/%lu",thd->mem_size,thd->max_mem_size);
   var->value = buff;
   return 0;
 }
@@ -6556,9 +6562,11 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff)
 SHOW_VAR status_vars[]= {
   {"Commit_num",               (char*) &num_commits,            SHOW_LONG},
   {"Commit_group_num",         (char*) &num_group_commits,      SHOW_LONG},
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   {"Commit_batch",             (char*) &batch_commit_count,     SHOW_LONG},
-  {"Commit_single",            (char*) &commit_num,		SHOW_LONG},
+  {"Commit_single",            (char*) &commit_num,             SHOW_LONG},
   {"Commit_all",               (char*) &commit_sum,             SHOW_LONG},
+#endif
   {"Aborted_clients",          (char*) &aborted_threads,        SHOW_LONG},
   {"Aborted_connects",         (char*) &aborted_connects,       SHOW_LONG},
   {"Binlog_cache_disk_use",    (char*) &binlog_cache_disk_use,  SHOW_LONG},
@@ -7892,10 +7900,15 @@ PSI_mutex_key key_BINLOG_LOCK_index,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
 PSI_mutex_key key_LOCK_wakeup_ready, 
-			  key_LOCK_group_commit_queue, 
-			  key_LOCK_commit_ordered,
-			  key_LOCK_wait_commit,
-                          key_LOCK_commit_log;
+              key_LOCK_group_commit_queue, 
+              key_LOCK_commit_ordered,
+              key_LOCK_wait_commit,
+              key_LOCK_commit_log;
+
+PSI_mutex_key key_LOCK_rpl_thread, 
+              key_LOCK_rpl_thread_pool, 
+              key_rpl_parallel_thread, 
+              key_LOCK_rpl_parallel;
 
 static PSI_mutex_info all_server_mutexes[]=
 {
@@ -8001,6 +8014,8 @@ PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache;
 PSI_cond_key key_RELAYLOG_update_cond;
 PSI_cond_key key_COND_wakeup_ready,key_COND_wait_commit;
+PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool, key_COND_rpl_parallel, key_COND_group_commit_orderer;
+PSI_cond_key key_COND_group_commit_queue;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -8037,7 +8052,10 @@ static PSI_cond_info all_server_conds[]=
   { &key_user_level_lock_cond, "User_level_lock::cond", 0},
   { &key_COND_thread_count, "COND_thread_count", PSI_FLAG_GLOBAL},
   { &key_COND_thread_cache, "COND_thread_cache", PSI_FLAG_GLOBAL},
-  { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL}
+  { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
+  { &key_COND_rpl_thread, "COND_rpl_thread", 0},
+  { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0},
+  { &key_COND_group_commit_queue, "COND_group_commit_queue", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,

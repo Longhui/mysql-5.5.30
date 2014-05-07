@@ -631,9 +631,9 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
   @see thd_wakeup_subsequent_commits() definition in plugin.h
 **/
 extern "C"
-void thd_wakeup_subsequent_commits(THD *thd)
+void thd_wakeup_subsequent_commits(THD *thd, int wakeup_err)
 {
-  thd->wakeup_subsequent_commits();
+  thd->wakeup_subsequent_commits(wakeup_err);
 }
 
 extern "C"
@@ -788,7 +788,7 @@ bool Drop_table_error_handler::handle_condition(THD *thd,
 THD::THD()
    :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
               /* statement id */ 0),
-   rli_fake(0), rli_slave(NULL),
+   rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    user_time(0), in_sub_stmt(0),
    binlog_unsafe_warning_flags(0),
    binlog_table_maps(0),
@@ -818,6 +818,10 @@ THD::THD()
    main_warning_info(0, false)
 {
   ulong tmp;
+  /*
+   @raolh
+  */
+  cached_charset_invalidate();
 
   mdl_context.init(this);
   /*
@@ -1424,10 +1428,15 @@ THD::~THD()
     delete rli_fake;
     rli_fake= NULL;
   }
+  if (rgi_fake)
+  {
+    delete rgi_fake;
+    rgi_fake = NULL;
+  }
   
   mysql_audit_free_thd(this);
-  if (rli_slave)
-    rli_slave->cleanup_after_session();
+  if (rgi_slave)
+    rgi_slave->cleanup_after_session();
 #endif
   if (m_sql_info != NULL)
   {
@@ -1738,7 +1747,7 @@ void THD::cleanup_after_query()
         which is intended to consume its event (there can be other
         SET statements between them).
     */
-    if ((rli_slave || rli_fake) && is_update_query(lex->sql_command))
+    if ((rgi_slave || rli_fake) && is_update_query(lex->sql_command))
       auto_inc_intervals_forced.empty();
 #endif
   }
@@ -1764,8 +1773,8 @@ void THD::cleanup_after_query()
     delete_dynamic(&lex->mi.repl_ignore_server_ids);
   }
 #ifndef EMBEDDED_LIBRARY
-  if (rli_slave)
-    rli_slave->cleanup_after_query();
+  if (rgi_slave)
+    rgi_slave->cleanup_after_query();
 #endif
 }
 
@@ -1872,6 +1881,32 @@ bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
   return FALSE;
 }
 
+/*
+  @raolh
+*/
+void THD::cached_charset_invalidate()
+{
+  DBUG_ENTER("THD::cached_charset_invalidate");
+
+  /* Full of zeroes means uninitialized. */
+  bzero(cached_charset, sizeof(cached_charset));
+  DBUG_VOID_RETURN;
+}
+
+/*
+  @raolh
+*/
+bool THD::cached_charset_compare(char *charset) const
+{
+  DBUG_ENTER("THD::cached_charset_compare");
+
+  if (memcmp(cached_charset, charset, sizeof(cached_charset)))
+  {
+    memcpy(const_cast<char*>(cached_charset), charset, sizeof(cached_charset));
+    DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
+}
 
 /*
   Update some cache variables when character set changes
@@ -5221,25 +5256,54 @@ THD::signal_wakeup_ready()
   mysql_cond_signal(&COND_wakeup_ready);
 }
 
+void
+wait_for_commit::reinit()
+{
+  subsequent_commits_list= NULL;
+  next_subsequent_commit= NULL;
+  waitee= NULL;
+  opaque_pointer= NULL;
+  wakeup_err= 0;
+  wakeup_subsequent_commits_running= false;
+}
+
+
 wait_for_commit::wait_for_commit()
-: subsequent_commits_list(0), next_subsequent_commit(0), waitee(0),
-  opaque_pointer(0), fail_or_rollback(false), 
-  waiting_for_commit(false), wakeup_subsequent_commits_running(false)
 {
   mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wait_commit, &COND_wait_commit, 0);
+  reinit();
 }
 
-void
-wait_for_commit::set_trans_fail()
+wait_for_commit::~wait_for_commit()
 {
+  /*
+    Since we do a dirty read of the waiting_for_commit flag in
+    wait_for_prior_commit() and in unregister_wait_for_prior_commit(), we need
+    to take extra care before freeing the wait_for_commit object.
+
+    It is possible for the waitee to be pre-empted inside wakeup(), just after
+    it has cleared the waiting_for_commit flag and before it has released the
+    LOCK_wait_commit mutex. And then it is possible for the waiter to find the
+    flag cleared in wait_for_prior_commit() and go finish up things and
+    de-allocate the LOCK_wait_commit and COND_wait_commit objects before the
+    waitee has time to be re-scheduled and finish unlocking the mutex and
+    signalling the condition. This would lead to the waitee accessing no
+    longer valid memory.
+
+    To prevent this, we do an extra lock/unlock of the mutex here before
+    deallocation; this makes certain that any waitee has completed wakeup()
+    first.
+  */
   mysql_mutex_lock(&LOCK_wait_commit);
-  fail_or_rollback= true;
   mysql_mutex_unlock(&LOCK_wait_commit);
+
+  mysql_mutex_destroy(&LOCK_wait_commit);
+  mysql_cond_destroy(&COND_wait_commit);
 }
 
 void
-wait_for_commit::wakeup()
+wait_for_commit::wakeup(int wakeup_err)
 {
   /*
      We signal each waiter on their own condition and mutex (rather than using
@@ -5250,7 +5314,8 @@ wait_for_commit::wakeup()
      be annoying and unnecessary.
   */
   mysql_mutex_lock(&LOCK_wait_commit);
-  waiting_for_commit= false;
+  waitee= NULL;
+  this->wakeup_err= wakeup_err;
   mysql_cond_signal(&COND_wait_commit);
   mysql_mutex_unlock(&LOCK_wait_commit);
 }
@@ -5274,7 +5339,6 @@ wait_for_commit::wakeup()
 void
 wait_for_commit::register_wait_for_prior_commit(wait_for_commit* waitee)
 {
-  waiting_for_commit= true;
   DBUG_ASSERT(!this->waitee/*No prior registration allowed*/);
   this->waitee=waitee;
 
@@ -5285,7 +5349,7 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit* waitee)
     see comments on wakeup_subsequent_commits2() for details.
   */
   if (waitee->wakeup_subsequent_commits_running)
-  	waiting_for_commit= false;
+     waitee= NULL;
   else
   {
     this->next_subsequent_commit= waitee->subsequent_commits_list;
@@ -5294,28 +5358,6 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit* waitee)
   mysql_mutex_unlock(&waitee->LOCK_wait_commit);
 }
 
-#ifdef HAVE_REPLICATION
-void
-wait_for_commit::update_trans_position()
-{
-   Relay_log_info *rli= trans_t->rli;
-   rli->handler->set_sync_period(sync_relayloginfo_period);
-   mysql_mutex_lock(&rli->table_lock); 
-   if (rli->handler->prepare_info_for_write() ||
-       rli->handler->set_info((int) LINES_IN_RELAY_LOG_INFO_WITH_DELAY) ||
-       rli->handler->set_info(trans_t->relay_log_name) ||
-       rli->handler->set_info((ulong) trans_t->relay_log_pos) ||
-       rli->handler->set_info(rli->group_master_log_name) ||
-       rli->handler->set_info((ulong) trans_t->log_pos))
-   {
-     mysql_mutex_unlock(&rli->table_lock);
-     return;
-   }
-   mysql_mutex_unlock(&rli->table_lock);
-   //sql_print_information("update relay table:: %s:%ld",trans_t->relay_log_name, trans_t->relay_log_pos);
-   rli->handler->flush_info(TRUE);
-}
-#endif
 /*
   Wait for commit of another transaction to complete, as already registered with
   register_wait_for_prior_commit(). If the commit already compeleted, returns
@@ -5325,11 +5367,12 @@ bool
 wait_for_commit::wait_for_prior_commit2()
 {
   mysql_mutex_lock(&LOCK_wait_commit);
-  while (waiting_for_commit)
+  while (waitee)
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
   mysql_mutex_unlock(&LOCK_wait_commit);
   waitee= NULL;
-  return fail_or_rollback;
+
+  return wakeup_err;
 }
 
 /*
@@ -5370,7 +5413,7 @@ wait_for_commit::wait_for_prior_commit2()
 */
 
 void 
-wait_for_commit::wakeup_subsequent_commits2()
+wait_for_commit::wakeup_subsequent_commits2(int wakeup_err)
 {
   wait_for_commit *waiter;
 
@@ -5387,9 +5430,7 @@ wait_for_commit::wakeup_subsequent_commits2()
    */
    wait_for_commit *next= waiter->next_subsequent_commit;
   /*If this trans fails or rollback, we must make subsequent trans rollback*/
-   if (fail_or_rollback)
-     waiter->set_trans_fail();
-   waiter->wakeup();
+   waiter->wakeup(wakeup_err);
    waiter= next;
   }
   mysql_mutex_lock(&LOCK_wait_commit);
@@ -5402,7 +5443,7 @@ void
 wait_for_commit::unregister_wait_for_prior_commit2()
 {
   mysql_mutex_lock(&LOCK_wait_commit);
-  if (waiting_for_commit)
+  if (waitee)
   {
     wait_for_commit *loc_waitee= this->waitee;
 	wait_for_commit **next_ptr_ptr, *cur;
@@ -5417,7 +5458,7 @@ wait_for_commit::unregister_wait_for_prior_commit2()
 	    See comments on wakeup_subsequent_commits2() for more details.
 	  */
 	  mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
-	  while (waiting_for_commit)
+	  while (waitee)
 	  	mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
 	}
 	else
@@ -5433,7 +5474,7 @@ wait_for_commit::unregister_wait_for_prior_commit2()
 	    }
 		next_ptr_ptr= &cur->next_subsequent_commit;
 	  }
-	  waiting_for_commit= false;
+          waitee= NULL;
 	  mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
 	}
   }
@@ -5472,6 +5513,34 @@ bool Discrete_intervals_list::append(Discrete_interval *new_interval)
 }
 
 #endif /* !defined(MYSQL_CLIENT) */
+
+#ifdef HAVE_REPLICATION
+void THD::update_relay_table()
+{
+  if (rgi_slave)
+  {
+//fprintf(stderr, "update_relay_table %s: %lld \n", rgi_slave->event_relay_log_name,
+//    rgi_slave->future_event_relay_log_pos);
+
+    Relay_log_info *rli= rgi_slave->rli; 
+    rli->handler->set_sync_period(sync_relayloginfo_period);
+    mysql_mutex_lock(&rli->table_lock); 
+    if (rli->handler->prepare_info_for_write() ||
+        rli->handler->set_info((int) LINES_IN_RELAY_LOG_INFO_WITH_DELAY) ||
+        rli->handler->set_info(rgi_slave->event_relay_log_name) ||
+        rli->handler->set_info((ulong)rgi_slave->future_event_relay_log_pos) ||
+        rli->handler->set_info(rgi_slave->future_event_master_log_name) ||
+        rli->handler->set_info((ulong)rgi_slave->event_master_log_pos))
+    {
+      mysql_mutex_unlock(&rli->table_lock);
+      return;
+    }
+    mysql_mutex_unlock(&rli->table_lock);
+    rli->handler->flush_info(TRUE);
+    rgi_slave->is_updated= true;
+  }
+}
+#endif
 
 void THD::set_user_connect(USER_CONN *uc)
 {

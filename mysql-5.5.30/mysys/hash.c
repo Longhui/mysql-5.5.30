@@ -361,7 +361,7 @@ static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
 }
 
 
-	/* Write a hash-key to the hash-index */
+/* Write a hash-key to the hash-index */
 
 my_bool my_hash_insert(HASH *info, const uchar *record)
 {

@@ -264,6 +264,7 @@ struct sql_ex_info
 #define HEARTBEAT_HEADER_LEN   0
 #define TABLE_METADATA_HEADER_LEN Table_metadata_binary_format::DH_FIXED_LENGTH
 #define BINLOG_CHECKPOINT_HEADER_LEN 4
+#define GCID_HEADER_LEN        0
 /* 
   Max number of possible extra bytes in a replication event compared to a
   packet (i.e. a query) sent from client to master;
@@ -511,6 +512,8 @@ struct sql_ex_info
 */
 #define LOG_EVENT_RELAY_LOG_F 0x40
 
+#define LOG_EVENT_STANDALONE_F 0x80
+
 /**
   @def OPTIONS_WRITTEN_TO_BIN_LOG
 
@@ -618,6 +621,9 @@ enum Log_event_type
   */
 
   FLASHBACK_EVENT = 60,
+  
+  /*globa transaction id that used in parallel replication*/
+  GCID_EVENT = 70,
 
   ENUM_END_EVENT /* end marker */
 };
@@ -640,9 +646,9 @@ class String;
 class MYSQL_BIN_LOG;
 class THD;
 #endif
-
 class Format_description_log_event;
 class Relay_log_info;
+struct rpl_group_info;
 class Table_metadata_log_event;
 
 #ifdef MYSQL_CLIENT
@@ -1165,9 +1171,9 @@ public:
 
      @see do_apply_event
    */
-  int apply_event(Relay_log_info const *rli)
+  int apply_event(rpl_group_info *rgi)
   {
-    return do_apply_event(rli);
+    return do_apply_event(rgi);
   }
 
 
@@ -1179,9 +1185,9 @@ public:
 
      @see do_update_pos
    */
-  int update_pos(Relay_log_info *rli)
+  int update_pos(rpl_group_info *rgi)
   {
-    return do_update_pos(rli);
+    return do_update_pos(rgi);
   }
 
   /**
@@ -1190,10 +1196,62 @@ public:
 
      @see do_shall_skip
    */
-  enum_skip_reason shall_skip(Relay_log_info *rli)
+  enum_skip_reason shall_skip(rpl_group_info *rgi)
   {
-    return do_shall_skip(rli);
+    return do_shall_skip(rgi);
   }
+
+/*
+   Check if an event is non-final part of a stand-alone event group,
+   such as Intvar_log_event (such events should be processed as part
+   of the following event group, not individually).
+   See also is_part_of_group()
+ */
+ static bool is_part_of_group(enum Log_event_type ev_type)
+ {
+   switch (ev_type)
+   {
+   case GCID_EVENT:
+   case INTVAR_EVENT:
+   case RAND_EVENT:
+   case USER_VAR_EVENT:
+   case TABLE_MAP_EVENT:
+	 return true;
+   case DELETE_ROWS_EVENT:
+   case UPDATE_ROWS_EVENT:
+   case WRITE_ROWS_EVENT:
+   /*
+	 ToDo: also check for non-final Rows_log_event (though such events
+	 are usually in a BEGIN-COMMIT group).
+   */
+   default:
+	 return false;
+   }
+ }
+/*
+  Same as above, but works on the object. In addition this is true for all
+  rows event except the last one.
+*/
+virtual bool is_part_of_group() { return 0; }
+
+static bool is_group_event(enum Log_event_type ev_type)
+{
+  switch (ev_type)
+  {
+    case START_EVENT_V3:
+    case STOP_EVENT:
+    case ROTATE_EVENT:
+    case SLAVE_EVENT:
+    case FORMAT_DESCRIPTION_EVENT:
+    case INCIDENT_EVENT:
+    case HEARTBEAT_LOG_EVENT:
+    case BINLOG_CHECKPOINT_EVENT:
+      return false;
+
+    default:
+      return true;
+  }
+}
 
 protected:
 
@@ -1207,14 +1265,14 @@ protected:
 
      A typical usage is:
      @code
-     enum_skip_reason do_shall_skip(Relay_log_info *rli) {
-       return continue_group(rli);
+     enum_skip_reason do_shall_skip(rpl_group_info *rgi) {
+       return continue_group(rgi);
      }
      @endcode
 
      @return Skip reason
    */
-  enum_skip_reason continue_group(Relay_log_info *rli);
+  enum_skip_reason continue_group(rpl_group_info *rgi);
 
   /**
     Primitive to apply an event to the database.
@@ -1226,12 +1284,12 @@ protected:
 
     @see Format_description_log_event::do_apply_event()
 
-    @param rli Pointer to relay log info structure
+    @param rgi Pointer to relay log info structure
 
     @retval 0     Event applied successfully
     @retval errno Error code if event application failed
   */
-  virtual int do_apply_event(Relay_log_info const *rli)
+  virtual int do_apply_event(rpl_group_info *rgi)
   {
     return 0;                /* Default implementation does nothing */
   }
@@ -1253,14 +1311,14 @@ protected:
      - Update the group log position to refer to the position just
        after the event <em>if the event is last in a group</em>
 
-     @param rli Pointer to relay log info structure
+     @param rgi Pointer to relay log info structure
 
      @retval 0     Coordinates changed successfully
      @retval errno Error code if advancing failed (usually just
                    1). Observe that handler errors are returned by the
                    do_apply_event() function, and not by this one.
    */
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual int do_update_pos(rpl_group_info *rgi);
 
 
   /**
@@ -1271,10 +1329,10 @@ protected:
      if either:
 
      - the server id of the event is the same as the server id of the
-       server and <code>rli->replicate_same_server_id</code> is true,
+       server and <code>rgi->replicate_same_server_id</code> is true,
        or
 
-     - if <code>rli->slave_skip_counter</code> is greater than zero.
+     - if <code>rgi->slave_skip_counter</code> is greater than zero.
 
      @see do_apply_event
      @see do_update_pos
@@ -1292,8 +1350,9 @@ protected:
      The event shall be skipped because the slave skip counter was
      non-zero. The caller shall decrease the counter by one.
    */
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
+
 };
 
 
@@ -1785,13 +1844,13 @@ public:
 
 public:        /* !!! Public in this patch to allow old usage */
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
-  virtual int do_apply_event(Relay_log_info const *rli);
-  virtual int do_update_pos(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
+  virtual int do_apply_event(rpl_group_info *rgi);
+  virtual int do_update_pos(rpl_group_info *rgi);
 
-  int do_apply_event(Relay_log_info const *rli,
-                       const char *query_arg,
-                       uint32 q_len_arg);
+  int do_apply_event(rpl_group_info *rgi,
+                     const char *query_arg,
+                     uint32 q_len_arg);
 #endif /* HAVE_REPLICATION */
   /*
     If true, the event always be applied by slave SQL thread or be printed by
@@ -1815,6 +1874,10 @@ public:        /* !!! Public in this patch to allow old usage */
       !strncasecmp(query, "SAVEPOINT", 9) ||
       !strncasecmp(query, "ROLLBACK", 8);
   }
+bool is_begin()    { return !strncmp(query, "BEGIN", 5); }
+bool is_commit()   { return !strncmp(query, "COMMIT", 6); }
+bool is_rollback() { return !strncmp(query, "ROLLBACK", 8); }
+
 };
 
 
@@ -1882,7 +1945,7 @@ public:
   uint16 master_port;
 
 #ifdef MYSQL_SERVER
-  Slave_log_event(THD* thd_arg, Relay_log_info* rli);
+  Slave_log_event(THD* thd_arg, rpl_group_info* rgi);
   void pack_info(Protocol* protocol);
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -1901,7 +1964,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const* rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
 #endif
 };
 
@@ -2214,12 +2277,12 @@ public:
 
 public:        /* !!! Public in this patch to allow old usage */
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const* rli)
+  virtual int do_apply_event(rpl_group_info *rgi)
   {
-    return do_apply_event(thd->slave_net,rli,0);
+    return do_apply_event(thd->slave_net,rgi,0);
   }
 
-  int do_apply_event(NET *net, Relay_log_info const *rli,
+  int do_apply_event(NET *net, rpl_group_info *rgi,
                      bool use_rli_only_for_errors);
 #endif
 };
@@ -2300,8 +2363,8 @@ public:
 
 protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info*)
+  virtual int do_apply_event(rpl_group_info *rgi);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info*)
   {
     /*
       Events from ourself should be skipped, but they should not
@@ -2388,9 +2451,9 @@ public:
 
 protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
-  virtual int do_update_pos(Relay_log_info *rli);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
+  virtual int do_update_pos(rpl_group_info *rgi);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2464,12 +2527,13 @@ public:
   bool write(IO_CACHE* file);
 #endif
   bool is_valid() const { return 1; }
+  bool is_part_of_group() { return 1; }
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
-  virtual int do_update_pos(Relay_log_info *rli);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
+  virtual int do_update_pos(rpl_group_info *rgi);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2544,12 +2608,49 @@ class Rand_log_event: public Log_event
   bool write(IO_CACHE* file);
 #endif
   bool is_valid() const { return 1; }
+  bool is_part_of_group() { return 1; }
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
-  virtual int do_update_pos(Relay_log_info *rli);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
+  virtual int do_update_pos(rpl_group_info *rgi);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
+#endif
+};
+
+
+/*use for parallel replication based on group commit*/
+class Gcid_log_event : public Log_event
+{
+public:
+  ulonglong group_commit_id;
+
+  Gcid_log_event(const char* buf, uint event_len,  
+                 const Format_description_log_event *description_event);
+
+  Log_event_type get_type_code() { return GCID_EVENT; }
+  int get_data_size() { return sizeof(group_commit_id); }
+  bool is_valid() const { return 1; }
+#ifdef MYSQL_SERVER
+  Gcid_log_event(THD *thd_arg, uint64 id) : Log_event(thd_arg, 0 , TRUE), 
+   group_commit_id(id){}
+  static int get_event_size() {return LOG_EVENT_HEADER_LEN + sizeof(group_commit_id);}
+  bool write(IO_CACHE* file);
+#ifdef HAVE_REPLICATION
+  void pack_info(Protocol* protocol);
+#endif /* HAVE_REPLICATION */
+#else
+  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+#endif
+
+private:
+#ifdef HAVE_REPLICATION
+  int do_apply_event(rpl_group_info *rgi)
+  {
+   return 0;
+  };
+  int do_update_pos(rpl_group_info *rgi){return 0;};
+  enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2569,9 +2670,17 @@ class Xid_log_event: public Log_event
 {
  public:
    my_xid xid;
+   ulonglong master_log_offset;
+   uint master_log_file_len;
+   char* master_log_file;
 
 #ifdef MYSQL_SERVER
-  Xid_log_event(THD* thd_arg, my_xid x): Log_event(thd_arg, 0, TRUE), xid(x) {}
+  Xid_log_event(THD* thd_arg, my_xid x): Log_event(thd_arg, 0, TRUE), 
+  xid(x),
+  master_log_offset(0),
+  master_log_file_len(0),
+  master_log_file(0)
+  {}
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
@@ -2579,9 +2688,9 @@ class Xid_log_event: public Log_event
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
-  Xid_log_event(const char* buf,
+  Xid_log_event(const char* buf, uint event_len,  
                 const Format_description_log_event *description_event);
-  ~Xid_log_event() {}
+  ~Xid_log_event();
   Log_event_type get_type_code() { return XID_EVENT;}
   int get_data_size() { return sizeof(xid); }
 #ifdef MYSQL_SERVER
@@ -2591,8 +2700,8 @@ class Xid_log_event: public Log_event
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
-  enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
+  enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2649,12 +2758,13 @@ public:
   void set_deferred() { deferred= true; }
 #endif
   bool is_valid() const { return name != 0; }
-
+  bool is_part_of_group() { return 1; }
+  
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
-  virtual int do_update_pos(Relay_log_info *rli);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
+  virtual int do_update_pos(rpl_group_info *rgi);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2687,8 +2797,8 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_update_pos(Relay_log_info *rli);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli)
+  virtual int do_update_pos(rpl_group_info *rgi);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi)
   {
     /*
       Events from ourself should be skipped, but they should not
@@ -2789,8 +2899,8 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_update_pos(Relay_log_info *rli);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual int do_update_pos(rpl_group_info *rgi);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -2893,7 +3003,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
 #endif
 };
 
@@ -2948,7 +3058,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
 #endif
 };
 
@@ -2989,7 +3099,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
 #endif
 };
 
@@ -3029,7 +3139,7 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
 #endif
 };
 
@@ -3062,7 +3172,7 @@ public:
   Log_event_type get_type_code() { return BEGIN_LOAD_QUERY_EVENT; }
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
 
@@ -3128,10 +3238,9 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
 #endif
 };
-
 
 #ifdef MYSQL_CLIENT
 /**
@@ -3540,7 +3649,7 @@ public:
 
   virtual Log_event_type get_type_code() { return TABLE_MAP_EVENT; }
   virtual bool is_valid() const { return m_memory != NULL; /* we check malloc */ }
-
+  virtual bool is_part_of_group() { return 1; }
   virtual int get_data_size() { return (uint) m_data_size; } 
 #ifdef MYSQL_SERVER
   virtual int save_field_metadata();
@@ -3563,9 +3672,9 @@ public:
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
-  virtual int do_update_pos(Relay_log_info *rli);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
+  virtual int do_update_pos(rpl_group_info *rgi);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 
 #ifdef MYSQL_SERVER
@@ -3757,12 +3866,12 @@ public:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  enum_skip_reason do_shall_skip(Relay_log_info *rli)
+  enum_skip_reason do_shall_skip(rpl_group_info *rgi)
   {
-    return continue_group(rli);
+    return continue_group(rgi);
   }
 
-  int do_update_pos(Relay_log_info *rli);
+  int do_update_pos(rpl_group_info *rgi);
 
   void pack_info(Protocol *protocol);
 #endif
@@ -3878,6 +3987,7 @@ public:
   void set_flags(flag_set flags_arg) { m_flags |= flags_arg; }
   void clear_flags(flag_set flags_arg) { m_flags &= ~flags_arg; }
   flag_set get_flags(flag_set flags_arg) const { return m_flags & flags_arg; }
+  void get_pk_value(rpl_group_info *rgi);
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual void pack_info(Protocol *protocol);
@@ -3927,10 +4037,10 @@ public:
     return m_rows_buf && m_cols.bitmap;
   }
 
-  /*transfer*/
-  void get_pk_value(Relay_log_info *rli);
-  /*transfer end*/
-
+  bool is_part_of_group() { return get_flags(STMT_END_F) != 0; }
+  
+  ulong get_table_id(){return m_table_id;}
+  
   uint     m_row_count;         /* The number of rows added to the event */
 
 protected:
@@ -3984,35 +4094,35 @@ protected:
 
   /* helper functions */
 
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
   const uchar *m_curr_row;     /* Start of the row being processed */
   const uchar *m_curr_row_end; /* One-after the end of the current row */
   uchar    *m_key;      /* Buffer to keep key value during searches */
 
-  int find_row(const Relay_log_info *const);
-  int write_row(const Relay_log_info *const, const bool);
+  int find_row(rpl_group_info *);
+  int write_row(rpl_group_info *, const bool);
 
   // Unpack the current row into m_table->record[0]
-  int unpack_current_row(const Relay_log_info *const rli)
+  int unpack_current_row(rpl_group_info *rgi)
   {
     DBUG_ASSERT(m_table);
 
     ASSERT_OR_RETURN_ERROR(m_curr_row < m_rows_end, HA_ERR_CORRUPT_EVENT);
-    int const result= ::unpack_row(rli, m_table, m_width, m_curr_row, &m_cols,
-                                   &m_curr_row_end, &m_master_reclength);
+    int const result= ::unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
+                                 &m_curr_row_end, &m_master_reclength);
     if (m_curr_row_end > m_rows_end)
       my_error(ER_SLAVE_CORRUPT_EVENT, MYF(0));
     ASSERT_OR_RETURN_ERROR(m_curr_row_end <= m_rows_end, HA_ERR_CORRUPT_EVENT);
     return result;
-  }
+  } 
 #endif
 
 private:
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
-  virtual int do_update_pos(Relay_log_info *rli);
-  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
+  virtual int do_update_pos(rpl_group_info *rgi);
+  virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 
   /*
     Primitive to prepare for a sequence of row executions.
@@ -4063,7 +4173,7 @@ private:
       0 if execution succeeded, 1 if execution failed.
       
   */
-  virtual int do_exec_row(const Relay_log_info *const rli) = 0;
+  virtual int do_exec_row(rpl_group_info *rgi) = 0;
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
 
   friend class Old_rows_log_event;
@@ -4119,7 +4229,7 @@ private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(const Relay_log_info *const);
+  virtual int do_exec_row(rpl_group_info *);
 #endif
 };
 
@@ -4193,7 +4303,7 @@ protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(const Relay_log_info *const);
+  virtual int do_exec_row(rpl_group_info *);
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
 };
 
@@ -4258,7 +4368,7 @@ protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
-  virtual int do_exec_row(const Relay_log_info *const);
+  virtual int do_exec_row(rpl_group_info *rgi);
 #endif
 };
 
@@ -4340,7 +4450,7 @@ public:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_apply_event(rpl_group_info *rgi);
 #endif
 
   virtual bool write_data_header(IO_CACHE *file);

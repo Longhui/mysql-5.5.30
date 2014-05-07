@@ -4464,10 +4464,10 @@ fil_io(
 		   && !recv_no_ibuf_operations
 		   && ibuf_page(space_id, zip_size, block_offset, NULL)) {
 		mode = OS_AIO_IBUF;
-	} else if ( using_ibuf_aio ){
+	} else if (using_ibuf_aio) {
 		ut_ad(type == OS_FILE_READ);
 		mode = OS_AIO_IBUF;
-	} else if ( is_fc_aio ){
+	} else if (is_fc_aio) {
 		mode = OS_AIO_FLASH_CACHE_WRITE;
 	} else {
 		mode = OS_AIO_NORMAL;

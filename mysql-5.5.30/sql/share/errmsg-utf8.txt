@@ -6540,6 +6540,9 @@ ER_RPL_INFO_DATA_TOO_LONG
 ER_CANT_LOCK_RPL_INFO_TABLE 
   eng "You can't use locks with rpl info tables."
 
+ER_CHANGE_SLAVE_PARALLEL_THREADS_ACTIVE 
+  eng "Cannot change @@slave_parallel_threads while another change is in progress" 
+
 #
 #  End of 5.5 error messages.
 #

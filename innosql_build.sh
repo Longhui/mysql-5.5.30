@@ -3,6 +3,7 @@ cxx=g++
 build_type=RelWithDebInfo
 build_dir=build
 package=0
+with_tokudb=1
 jemalloc_src=$PWD/jemalloc
 ft_index_src=$PWD/ft-index
 mysql_src=$PWD/mysql-5.5.30
@@ -113,9 +114,9 @@ function build_mysql_server()
     pushd bld
     if [ $package -eq 1 ]
     then
-      cmake .. -DBUILD_CONFIG=mysql_release -DCMAKE_BUILD_TYPE=$build_type -DWITH_EMBEDDED_SERVER=0 -DTOKU_JEMALLOC_LIBRARY="-Wl,--whole-archive $jemalloc_lib/libjemalloc.a -Wl,-no-whole-archive"
+      cmake .. -DBUILD_CONFIG=mysql_release -DWITH_TOKUDB=1 -DCMAKE_BUILD_TYPE=$build_type -DWITH_EMBEDDED_SERVER=0 -DTOKU_JEMALLOC_LIBRARY="-Wl,--whole-archive $jemalloc_lib/libjemalloc.a -Wl,-no-whole-archive"
     else
-      cmake .. -DCMAKE_INSTALL_PREFIX=$mysql_prefix -DBUILD_CONFIG=mysql_release -DCMAKE_BUILD_TYPE=$build_type -DWITH_EMBEDDED_SERVER=0 -DTOKU_JEMALLOC_LIBRARY="-Wl,--whole-archive $jemalloc_lib/libjemalloc.a -Wl,-no-whole-archive"
+      cmake .. -DCMAKE_INSTALL_PREFIX=$mysql_prefix -DWITH_TOKUDB=1 -DBUILD_CONFIG=mysql_release -DCMAKE_BUILD_TYPE=$build_type -DWITH_EMBEDDED_SERVER=0 -DTOKU_JEMALLOC_LIBRARY="-Wl,--whole-archive $jemalloc_lib/libjemalloc.a -Wl,-no-whole-archive"
     fi
     if [ $? != 0 ]
     then
@@ -169,7 +170,41 @@ function make_release_package()
   fi
 }
 
-build_jemalloc
-build_fractal_tree
-build_mysql_server
-make_release_package
+function build_mysql_server_without_tokudb()
+{
+  if [ -d $mysl_src ]
+  then
+    pushd $mysql_src
+    if [ ! -d bld ]
+    then
+      mkdir bld
+      pushd bld
+      if [ $package -eq 1 ]
+      then
+        cmake .. -DBUILD_CONFIG=mysql_release -DCMAKE_BUILD_TYPE=$build_type -DWITH_EMBEDDED_SERVER=0
+        make package -j$makejobs
+        cp -f *.tar.gz $build_dir
+      else
+        cmake .. -DCMAKE_INSTALL_PREFIX=$mysql_prefix -DBUILD_CONFIG=mysql_release -DCMAKE_BUILD_TYPE=$build_type -DWITH_EMBEDDED_SERVER=0
+        make install -j$makejobs
+      fi
+      popd
+    fi
+    popd
+  else
+    echo "mysql source not exist"
+    exit 1
+  fi
+}
+
+if [ $with_tokudb -eq 1 ]
+then
+  echo "build mysql with tokudb"
+  build_jemalloc
+  build_fractal_tree
+  build_mysql_server
+  make_release_package
+else
+  echo "build mysql without tokudb"
+  build_mysql_server_without_tokudb 
+fi

@@ -49,7 +49,7 @@ while ($ddl_cases >= 1)
   #
   if (`select @@binlog_format = 'STATEMENT' || @@binlog_format = 'MIXED'`)
   {
-    let $commit_event_row_number= 3;
+    let $commit_event_row_number= 4;
   }
   #
   # In RBR mode, the commit event is usually the fourth event in the binary log:
@@ -62,7 +62,7 @@ while ($ddl_cases >= 1)
   #
   if (`select @@binlog_format = 'ROW'`)
   {
-    let $commit_event_row_number= 4;
+    let $commit_event_row_number= 5;
   }
   #
   # In NDB (RBR and MIXED modes), the commit event is usually the seventh event
@@ -274,7 +274,7 @@ while ($ddl_cases >= 1)
     #
     if (`select @@binlog_format = 'ROW' && '$engine' != 'NDB'`)
     {
-      let $commit_event_row_number= 5;
+      let $commit_event_row_number= 6;
     }
   }
   if ($ddl_cases == 22)
@@ -375,7 +375,7 @@ while ($ddl_cases >= 1)
     #
     if (`select @@binlog_format = 'STATEMENT' || @@binlog_format = 'MIXED'` )
     {
-      let $commit_event_row_number= 4;
+      let $commit_event_row_number= 5;
     }
     #
     # In NDB (RBR mode), the commit event is the sixth event
@@ -425,7 +425,7 @@ while ($ddl_cases >= 1)
     #
     if (`select @@binlog_format = 'MIXED'`)
     {
-      let $commit_event_row_number= 4;
+      let $commit_event_row_number= 5;
     }
     #
     # In NDB (RBR and MIXED modes), the commit event is the sixth event
@@ -457,7 +457,7 @@ while ($ddl_cases >= 1)
     #
     if (`select @@binlog_format = 'MIXED'`)
     {
-      let $commit_event_row_number= 4;
+      let $commit_event_row_number= 5;
     }
     #
     # In NDB (RBR and MIXED modes), the commit event is the sixth event
@@ -500,7 +500,7 @@ while ($ddl_cases >= 1)
     #
     if (`select @@binlog_format = 'STATEMENT'`)
     {
-      let $commit_event_row_number= 4;
+      let $commit_event_row_number= 5;
     }
     # In MIXED mode, the changes are logged as rows and we have what follows:
     #
@@ -512,7 +512,7 @@ while ($ddl_cases >= 1)
     #
     if (`select @@binlog_format = 'MIXED' || @@binlog_format = 'ROW'`)
     {
-      let $commit_event_row_number= 5;
+      let $commit_event_row_number= 6;
     }
     #
     # In NDB (RBR and MIXED modes), the commit event is the sixth event
@@ -623,6 +623,7 @@ while ($ddl_cases >= 1)
     --eval COMMIT
   }
   let $event_commit= query_get_value("SHOW BINLOG EVENTS FROM $first_binlog_position", Info, $commit_event_row_number);
+  echo $ddl_cases;
   if (`SELECT SUBSTRING("$event_commit",1,6) != "COMMIT"`)
   {
     if ($ok == yes)

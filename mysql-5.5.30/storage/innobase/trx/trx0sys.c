@@ -1653,7 +1653,7 @@ trx_sys_close(void)
 	trx_purge_sys_close();
 
 	mutex_enter(&kernel_mutex);
-
+	
 	/* Free the double write data structures. */
 	ut_a(trx_doublewrite != NULL);
 	ut_free(trx_doublewrite->write_buf_unaligned);

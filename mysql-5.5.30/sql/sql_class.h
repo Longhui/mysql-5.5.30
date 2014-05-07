@@ -39,10 +39,11 @@
 #include "violite.h"              /* vio_is_connected */
 #include "thr_lock.h"             /* thr_lock_type, THR_LOCK_DATA,
                                      THR_LOCK_INFO */
-
+#include "rpl_parallel.h"
 
 class Reprepare_observer;
 class Relay_log_info;
+struct rpl_group_info;
 
 class Query_log_event;
 class Load_log_event;
@@ -1423,7 +1424,6 @@ private:
   */
   MDL_ticket *m_mdl_blocks_commits_lock;
 };
-class transaction_st;
 /*
   Class to facilitate the commit of one transactions waiting for the commit of
   another transaction to complete first.
@@ -1463,7 +1463,7 @@ struct wait_for_commit
   mysql_mutex_t LOCK_wait_commit;
   mysql_cond_t COND_wait_commit;
   /*the transaction own this struct*/
-  transaction_st *trans_t;
+  trans_t *trans;
   /* List of threads that did register_wait_for_prior_commit() on us. */
   wait_for_commit *subsequent_commits_list;
   /* Link field for entries in subsequent_commits_list. */
@@ -1480,12 +1480,6 @@ struct wait_for_commit
   */
   void *opaque_pointer;
   /*
-    The waiting_for_commit flag is cleared when a waiter has been woken
-    up. The COND_wait_commit condition is signalled when this has been
-    cleared.
-  */
-  bool waiting_for_commit;
-  /*
     Flag set when wakeup_subsequent_commits_running() is active, see commonts
     on that function for details.
   */
@@ -1493,11 +1487,9 @@ struct wait_for_commit
  /*
    Flag set when this trans failed or need to rollback
  */
-  bool fail_or_rollback;
+  bool wakeup_err;
 
-  void update_trans_position();
   void register_wait_for_prior_commit(wait_for_commit *waitee);
-  void set_trans_fail();
   bool wait_for_prior_commit()
   {
 	/*
@@ -1505,13 +1497,13 @@ struct wait_for_commit
 	   where no wakeup is registered, or a registered wait was already signalled.
 	*/
     bool rev= false;
-    if (waiting_for_commit)
+    if (waitee)
       rev= wait_for_prior_commit2();
     else
-      rev= fail_or_rollback;
+      rev= wakeup_err;
     return rev;
   }
-  void wakeup_subsequent_commits()
+  void wakeup_subsequent_commits(int wakeup_err)
   {
    /*
      Do the check inline, so only the wakeup case takes the cost of a function
@@ -1526,20 +1518,22 @@ struct wait_for_commit
       prevent a waiter from arriving just after releasing the lock.
    */
    if (subsequent_commits_list)
-   	  wakeup_subsequent_commits2();
+   	  wakeup_subsequent_commits2(wakeup_err);
   }
   void unregister_wait_for_prior_commit()
   {
-    if (waiting_for_commit)
-		unregister_wait_for_prior_commit2();
+    if (waitee)
+      unregister_wait_for_prior_commit2();
   }
 
-  void wakeup();
+  void wakeup(int wakeup_err);
   bool wait_for_prior_commit2();
-  void wakeup_subsequent_commits2();
+  void wakeup_subsequent_commits2(int wakeup_err);
   void unregister_wait_for_prior_commit2();
 
   wait_for_commit();
+  ~wait_for_commit();
+  void reinit();
 };
 
 
@@ -1572,9 +1566,23 @@ public:
 
   /* Used to execute base64 coded binlog events in MySQL server */
   Relay_log_info* rli_fake;
+  rpl_group_info* rgi_fake;
   /* Slave applier execution context */
-  Relay_log_info* rli_slave;
-
+  rpl_group_info* rgi_slave;
+  /*
+    @raolh
+  */ 
+  char cached_charset[6];
+  /*
+    @raolh
+    Last charset (6 bytes) seen by slave SQL thread is cached here; it helps
+    the thread save 3 get_charset() per Query_log_event if the charset is not
+    changing from event to event (common situation).
+    When the 6 bytes are equal to 0 is used to mean "cache is invalidated".
+  */
+  void cached_charset_invalidate();
+  bool cached_charset_compare(char *charset) const;
+ 
   void reset_for_next_command();
   /*
     Constant for THD::where initialization in the beginning of every query.
@@ -3060,21 +3068,15 @@ public:
     return rev;
   }
 
-  void update_trans_position()
-  {
-    if (wait_for_commit_ptr)
-    {  
-      DBUG_EXECUTE_IF("crash_before_update_rli_table", DBUG_SUICIDE(););
-      wait_for_commit_ptr->update_trans_position();
-      DBUG_EXECUTE_IF("crash_after_update_rli_table", DBUG_SUICIDE(););
-    }
-  }
+#ifdef HAVE_REPLICATION
+  void update_relay_table();
+#endif
 
-  void wakeup_subsequent_commits()
+  void wakeup_subsequent_commits(int wakeup_err)
   {
     if (wait_for_commit_ptr)
     {
-      wait_for_commit_ptr->wakeup_subsequent_commits();
+      wait_for_commit_ptr->wakeup_subsequent_commits(wakeup_err);
       DBUG_EXECUTE_IF("crash_after_wakeup_subsequent", DBUG_SUICIDE(););
     }
   }

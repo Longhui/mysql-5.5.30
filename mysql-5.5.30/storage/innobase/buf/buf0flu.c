@@ -753,7 +753,7 @@ buf_flush_buffered_writes(void)
 	
 	if (WRITE_BACK == srv_flash_cache_write_mode && fc_is_enabled() && srv_flash_cache_enable_write){
 		/* Write doublewrite buffer data to flash cache */
-		fc_write_doublewrite_to_flash_cache(trx_doublewrite);
+		fc_write(trx_doublewrite);
 		goto leave;
 	}
 	/* not flash cache WRITE_BACK mode, or flash_cache_enable_write is turned off */
@@ -892,7 +892,7 @@ flush:
 	fil_flush(TRX_SYS_SPACE);
 	
 	if (fc_is_enabled())  /* means not WRITE_BACK mode, or it's WRITE_BACK mode, but enable_write is turned off*/
-		fc_remove_pages_in_dwb(trx_doublewrite);		
+		fc_block_remove_from_hash(trx_doublewrite);
 	
 	/* We know that the writes have been flushed to disk now
 	and in recovery we will find them in the doublewrite buffer

@@ -23,12 +23,14 @@
 #include "sql_class.h"                   /* THD */
 #include "rpl_info_handler.h"
 #include "mysql.h"
-#include <semaphore.h>
+#include "log_event.h"
 
 struct RPL_TABLE_LIST;
 class Master_info;
 extern uint sql_slave_skip_counter;
 static const int LINES_IN_RELAY_LOG_INFO_WITH_DELAY= 4;
+struct rpl_group_info;
+struct trans_t;
 
 /****************************************************************************
 
@@ -55,122 +57,6 @@ static const int LINES_IN_RELAY_LOG_INFO_WITH_DELAY= 4;
   To clean up, call end_relay_log_info()
 
 *****************************************************************************/
-/*transfer*/
-#define SLAVE_THREAD_MIN 2
-#define SLAVE_THREAD_MAX 64
-#define SLAVE_THREAD 16
-
-#define BATCH_BUF_STEP (1024*100)
-
-typedef struct st_hash_item
-{
-  int times;
-  int key_len;
-  char key[1024+2*NAME_CHAR_LEN+2];
-} hash_item_t;
-
-struct trans_pos_t
-{
-  my_off_t log_pos;
-  time_t when;
-  char relay_log_name[FN_REFLEN];
-  my_off_t relay_log_pos;
-  bool done;
-};
-
-class transaction_st
-{
-public:
-  int worker_id;
-  int batch_buf_len;
-  char *batch_buf;
-  int batch_curr_max;
-  int inner_events;
-  Log_event *event_list_head;
-  Log_event *event_list_tail;
-  bool contains_stat;
-  bool contains_no_pk_row;
-  HASH trans_pk_hash;
-  void add_pk_item(hash_item_t *new_item);
-  void add_event(Log_event *event);
-  void print_events();
-  void free_events();
-  int conflict_workers[SLAVE_THREAD_MAX];
-  int conflict_number;
-  my_off_t log_pos;
-  time_t when;
-  char relay_log_name[FN_REFLEN];
-  my_off_t relay_log_pos;
-  trans_pos_t *trans_pos;
-  Relay_log_info *rli;
-
-  /* This is used to keep transaction commit order. */
-  wait_for_commit commit_orderer;
-
-  /*
-    This is the ID (Relay_log_info::last_trans_id) of the previous transaction,
-    that we want to wait for before committing ourselves (if ordered commits
-	are enforced).
-  */
-  uint64 wait_commit_id;
-  /*
-    This is the transaction whose commit we want to wait for
-    Only valid if Relay_log_info::last_committed_id < wait_commit_id.
-  */
-  transaction_st *wait_commit_trans;
-  /*
-    This is our own transaction id, which we should update
-    Relay_log_info::last_committed_id to once we commit.
-  */
-  uint64 own_commit_id;
-
-  transaction_st();
-  ~transaction_st();
-};
-
-#define worker_size 100
-
-class Transfer_worker
-{
-public:
-  Transfer_worker(Relay_log_info *rli);
-  ~Transfer_worker();
-  int run();
-  int start();
-  int stop();
-  int wait_for_stopped();
-  int push_trans(Relay_log_info *rli, transaction_st *trans);
-  int pop_trans(int batch_trans_n);
-  int remove_trans(transaction_st *trans);
-  bool check_trans_conflict(transaction_st *trans);
-  int execute_transcation(transaction_st *trans);
-  int prepare_verbose_event(char *temp_buf);
-  int inline get_trans_number(){return waiting_trans_number;};
-  int inline get_trans_number_complete(){return complete_trans_number;};
-  bool check_pk_exist_key(hash_item_t *item);
-  int pk_hash_plus(transaction_st *trans);
-  int pk_hash_minus(transaction_st *trans);
-
-public:
-  bool terminated;
-  bool init_ok;
-private:
-  transaction_st *trans_list[worker_size];
-  int waiting_trans_number;
-  int complete_trans_number;
-  int list_head, list_end;
-  rw_lock_t trans_list_lock;
-  HASH pk_hash;
-  rw_lock_t pk_hash_lock;
-  Relay_log_info *rli;
-  Relay_log_info *dummy_rli;
-  bool running;
-  sem_t event_sem;
-
-  THD *thd;
-};
-/*transfer end*/
-
 class Relay_log_info : public Slave_reporting_capability
 {
 public:
@@ -179,13 +65,27 @@ public:
    */
   enum enum_state_flag {
     /** The replication thread is inside a statement */
-    IN_STMT,
+    IN_STMT= 0,
 
+    IN_TRANSACTION= 1,
     /** Flag counter.  Should always be last */
     STATE_FLAGS_COUNT
   };
+  /*
+    storage such information in a tranction-supported table
+    (mysql.slave_relay_log_info)
+    
+    relay_log_name
+    relay_log_pos
+    master_log_name
+    master_log_pos
+  */
   my_bool enable_rli_table; 
+  /*
+    interface of rli_table (mysql.slave_relay_log_info)
+  */
   Rpl_info_handler *handler;
+  
   /*
     If flag set, then rli does not store its state in any info file.
     This is the case only when we execute BINLOG SQL commands inside
@@ -297,46 +197,15 @@ public:
   char event_relay_log_name[FN_REFLEN];
   ulonglong event_relay_log_pos;
   ulonglong future_event_relay_log_pos;
-
-  /*transfer*/
-  Relay_log_info *main_rli;
-  bool getting_pk_value;
-  transaction_st *curr_trans;
-
-  mysql_rwlock_t LOCK_workers;
-  Transfer_worker *workers[SLAVE_THREAD_MAX];
-
-  trans_pos_t trans_pos[SLAVE_THREAD_MAX *worker_size];
-  int trans_number, trans_head, trans_end;
-  rw_lock_t trans_pos_lock;
-  int sql_thread;
-
-  int push_back_trans_pos(transaction_st *trans);
-  int rollback_trans_pos(transaction_st *trans);
-  int pop_front_trans_pos();
-  /* Running counter for assigning IDs to event groups/transactions. */
-  uint64 last_trans_id;
-  /* The transaction_st corresponding to last_trans_id. */
-  transaction_st *last_trans;
   /*
-    The ID of the last transaction/event group that was committed/applied.
-    This is used to decide if the next transaction should wait for the
-    previous one to commit (to avoid trying to wait for a commit that already
-    took place)
+    The master log name for current event. Only used in parallel replication.
   */
-  uint64 last_committed_id;
-  /* Mutex protecting access to last_committed_id. */
-  mysql_mutex_t LOCK_last_committed_id;
-  /*If there is a trans execute fails, this is set true*/
-  bool trans_fail;
-  /* Mutex protecting access to trans_fail. */
-  mysql_mutex_t LOCK_trans_fail;
-  /*transfer end*/
+  char future_event_master_log_name[FN_REFLEN];
+
 
 #ifdef HAVE_purify
   bool is_fake; /* Mark that this is a fake relay log info structure */
 #endif
-
   /* 
      Original log name and position of the group we're currently executing
      (whose coordinates are group_relay_log_name/pos in the relay log)
@@ -345,8 +214,11 @@ public:
      beginning of the group.
   */
   char group_master_log_name[FN_REFLEN];
-  char tmp_group_master_log_name[FN_REFLEN];
   volatile my_off_t group_master_log_pos;
+  /*
+    Only used in batch commit replication
+  */
+  char tmp_group_master_log_name[FN_REFLEN];
 
   /*
     Handling of the relay_log_space_limit optional constraint.
@@ -363,6 +235,7 @@ public:
     disk space.
    */
   bool sql_force_rotate_relay;
+  time_t last_master_timestamp;
 
   /*
     When it commits, InnoDB internally stores the master log position it has
@@ -370,24 +243,39 @@ public:
     committing event (the COMMIT query event, or the event if in autocommit
     mode).
   */
+  /*
+    It seems them are unuseful
+  */
 #if MYSQL_VERSION_ID < 40100
   ulonglong future_master_log_pos;
 #else
   ulonglong future_group_master_log_pos;
 #endif
-
-  time_t last_master_timestamp;
-
-  size_t get_number_info_rli_fields();
+  /*
+    @raolh
+    Read relay log info from mysql.slave_relay_log_info or binlog
+    There are two method to achieve SQL Thread Crash-safe
+    1, storage relay log infomation in a Innodb table.
+    2, storqge relay log information in the binlog, extractly in a
+    Xid_log event.
+    The first method is used when slave set log_update_slave=ON, The 
+    second is opposite
+  */
   bool read_table_info();
+  
+  /*
+    @raolh
+    Only used in batch commit replication
+  */
   bool write_table_trans();
-  bool write_file_info();
-  bool write_table_event(ulonglong log_pos);
+  size_t get_number_info_rli_fields();
+  bool reach_relay_log_end(my_off_t log_pos);
 
+  bool write_file_info();
   bool read_file_info(const char* info_fname);
   void clear_until_condition();
   bool flush_info();
-  bool reach_relay_log_end(my_off_t log_pos);
+  
   /*
     Needed for problems when slave stops and we want to restart it
     skipping one or more events in the master log that have caused
@@ -398,6 +286,12 @@ public:
   volatile ulong slave_run_id;		/* Incremented on slave start */
   mysql_mutex_t log_space_lock;
   mysql_cond_t log_space_cond;
+  /*
+    THD for the main sql thread, the one that starts threads to process
+    slave requests. If there is only one thread, then this THD is also
+    used for SQL processing.
+    A kill sent to this THD will kill the replication.
+  */
   THD * sql_thd;
 #ifndef DBUG_OFF
   int events_till_abort;
@@ -440,16 +334,13 @@ public:
     UNTIL_LOG_NAMES_CMP_EQUAL= 0, UNTIL_LOG_NAMES_CMP_GREATER= 1
   } until_log_names_cmp_result;
 
-  char cached_charset[6];
   /*
-    trans_retries varies between 0 to slave_transaction_retries and counts how
-    many times the slave has retried the present transaction; gets reset to 0
-    when the transaction finally succeeds. retried_trans is a cumulative
-    counter: how many times the slave has retried a transaction (any) since
-    slave started.
+    retried_trans is a cumulative counter: how many times the
+    slave has retried a transaction (any) since slave started.
   */
-  ulong trans_retries, retried_trans;
+  ulong retried_trans;
 
+  rpl_parallel* parallel;
   /*
     If the end of the hot relay log is made of master's events ignored by the
     slave I/O thread, these two keep track of the coords (in the master's
@@ -525,13 +416,8 @@ public:
   inline const char* get_event_relay_log_name() { return event_relay_log_name; }
   inline ulonglong get_event_relay_log_pos() { return event_relay_log_pos; }
   
-  inline void inc_event_relay_log_pos()
-  {
-    event_relay_log_pos= future_event_relay_log_pos;
-  }
-
-  void inc_group_relay_log_pos(ulonglong log_pos,
-			       bool skip_lock=0, char *relay_log_name=NULL, ulonglong relay_log_pos=0);
+  void inc_group_relay_log_pos(ulonglong log_pos, rpl_group_info *rgi,
+                               bool skip_lock);
 
   int wait_for_pos(THD* thd, String* log_name, longlong log_pos, 
 		   longlong timeout);
@@ -544,83 +430,7 @@ public:
     return ((until_condition == UNTIL_MASTER_POS) ? group_master_log_pos :
 	    group_relay_log_pos);
   }
-
-  RPL_TABLE_LIST *tables_to_lock;           /* RBR: Tables to lock  */
-  uint tables_to_lock_count;        /* RBR: Count of tables to lock */
-  table_mapping m_table_map;      /* RBR: Mapping table-id to table */
-
-  bool get_table_data(TABLE *table_arg, table_def **tabledef_var, TABLE **conv_table_var) const
-  {
-    DBUG_ASSERT(tabledef_var && conv_table_var);
-    for (TABLE_LIST *ptr= tables_to_lock ; ptr != NULL ; ptr= ptr->next_global)
-      if (ptr->table == table_arg)
-      {
-        *tabledef_var= &static_cast<RPL_TABLE_LIST*>(ptr)->m_tabledef;
-        *conv_table_var= static_cast<RPL_TABLE_LIST*>(ptr)->m_conv_table;
-        DBUG_PRINT("debug", ("Fetching table data for table %s.%s:"
-                             " tabledef: %p, conv_table: %p",
-                             table_arg->s->db.str, table_arg->s->table_name.str,
-                             *tabledef_var, *conv_table_var));
-        return true;
-      }
-    return false;
-  }
-
-  /*
-    Last charset (6 bytes) seen by slave SQL thread is cached here; it helps
-    the thread save 3 get_charset() per Query_log_event if the charset is not
-    changing from event to event (common situation).
-    When the 6 bytes are equal to 0 is used to mean "cache is invalidated".
-  */
-  void cached_charset_invalidate();
-  bool cached_charset_compare(char *charset) const;
-
-  void cleanup_context(THD *, bool);
-  void slave_close_thread_tables(THD *);
-  void clear_tables_to_lock();
-
-  /*
-    Used to defer stopping the SQL thread to give it a chance
-    to finish up the current group of events.
-    The timestamp is set and reset in @c sql_slave_killed().
-  */
-  time_t last_event_start_time;
-
-  /*
-    A container to hold on Intvar-, Rand-, Uservar- log-events in case
-    the slave is configured with table filtering rules.
-    The withhold events are executed when their parent Query destiny is
-    determined for execution as well.
-  */
-  Deferred_log_events *deferred_events;
-
-  /*
-    State of the container: true stands for IRU events gathering, 
-    false does for execution, either deferred or direct.
-  */
-  bool deferred_events_collecting;
-
-  /* 
-     Returns true if the argument event resides in the containter;
-     more specifically, the checking is done against the last added event.
-  */
-  bool is_deferred_event(Log_event * ev)
-  {
-    return deferred_events_collecting ? deferred_events->is_last(ev) : false;
-  };
-  /* The general cleanup that slave applier may need at the end of query. */
-  inline void cleanup_after_query()
-  {
-    if (deferred_events)
-      deferred_events->rewind();
-  };
-  /* The general cleanup that slave applier may need at the end of session. */
-  void cleanup_after_session()
-  {
-    if (deferred_events)
-      delete deferred_events;
-  };
-   
+  
   /**
     Helper function to do after statement completion.
 
@@ -639,8 +449,23 @@ public:
     time stamp is recorded in the relay log info and used to compute
     the <code>Seconds_behind_master</code> field.
   */
-  void stmt_done(my_off_t event_log_pos, time_t event_creation_time, char *relay_log_name=NULL,
-                 ulonglong relay_log_pos=0, bool update_table= true);
+  void stmt_done(my_off_t event_log_pos, 
+                 time_t event_creation_time,
+                 rpl_group_info *rgi);
+
+  /**
+     Is the replication inside a group?
+
+     Replication is inside a group if either:
+     - The OPTION_BEGIN flag is set, meaning we're inside a transaction
+     - The RLI_IN_STMT flag is set, meaning we're inside a statement
+
+     @retval true Replication thread is currently inside a group
+     @retval false Replication thread is currently not inside a group
+   */
+  bool is_in_group() const {
+    return (m_flags & (1UL << IN_STMT | 1UL << IN_TRANSACTION));
+  }
 
   /**
      Set the value of a replication state flag.
@@ -674,69 +499,232 @@ public:
     m_flags &= ~(1UL << flag);
   }
 
-  /**
-     Is the replication inside a group?
-
-     Replication is inside a group if either:
-     - The OPTION_BEGIN flag is set, meaning we're inside a transaction
-     - The RLI_IN_STMT flag is set, meaning we're inside a statement
-
-     @retval true Replication thread is currently inside a group
-     @retval false Replication thread is currently not inside a group
-   */
-  bool is_in_group() const {
-    return (sql_thd->variables.option_bits & OPTION_BEGIN) ||
-      (m_flags & (1UL << IN_STMT));
-  }
-
-  time_t get_row_stmt_start_timestamp()
-  {
-    return row_stmt_start_timestamp;
-  }
-
-  time_t set_row_stmt_start_timestamp()
-  {
-    if (row_stmt_start_timestamp == 0)
-      row_stmt_start_timestamp= my_time(0);
-
-    return row_stmt_start_timestamp;
-  }
-
-  void reset_row_stmt_start_timestamp()
-  {
-    row_stmt_start_timestamp= 0;
-  }
-
-  void set_long_find_row_note_printed()
-  {
-    long_find_row_note_printed= true;
-  }
-
-  void unset_long_find_row_note_printed()
-  {
-    long_find_row_note_printed= false;
-  }
-
-  bool is_long_find_row_note_printed()
-  {
-    return long_find_row_note_printed;
-  }
-
 private:
-
+  /*
+    Holds the state of the data in the relay log.
+    We need this to ensure that we are not in the middle of a
+    statement or inside BEGIN ... COMMIT when should rotate the
+    relay log.
+  */
   uint32 m_flags;
 
+};
+
+/*
+  @raolh
+  One transaction has a rpl_group_info struct used 
+  in parallel replication.
+*/
+struct rpl_group_info
+{
+public:
+  rpl_group_info *next;
+  THD *thd;
+  Relay_log_info *rli;
+
+  /*
+    The sub_id gives the binlog order
+  */
+  uint64 sub_id;
+  
+  /*
+    This is used to keep transaction commit order.
+    We will signal this when we commit, and can register it to wait for the
+    commit_orderer of the previous commit to signal us.
+  */
+  wait_for_commit commit_orderer;
+  /*
+    If non-zero, the sub_id of a prior event group whose commit we have to wait
+    for before committing ourselves. Then wait_commit_group_info points to the
+    event group to wait for.
+
+    Before using this, rpl_parallel_entry::last_committed_sub_id should be
+    compared against wait_commit_sub_id. Only if last_committed_sub_id is
+    smaller than wait_commit_sub_id must the wait be done (otherwise the
+    waited-for transaction is already committed, so we would otherwise wait
+    for the wrong commit).
+  */
+  uint64 wait_commit_sub_id;
+  rpl_group_info *wait_commit_group_info;
+  /*
+    If non-zero, the event group must wait for this sub_id to be committed
+    before the execution of the event group is allowed to start.
+
+    (When we execute in parallel the transactions that group committed
+    together on the master, we still need to wait for any prior transactions
+    to have commtted).
+  */
+  uint64 wait_start_sub_id;
+  
+  /*
+    These are used in parallel replication based on Row-format binlog 
+  */
+  trans_t *trans;
+  bool getting_pk_value;
+
+  /*
+    State of the container: true stands for IRU events gathering, 
+    false does for execution, either deferred or direct.
+  */
+  bool deferred_events_collecting;
+  /*
+    A container to hold on Intvar-, Rand-, Uservar- log-events in case
+    the slave is configured with table filtering rules.
+    The withhold events are executed when their parent Query destiny is
+    determined for execution as well.
+  */
+  Deferred_log_events *deferred_events;
+
+  /*
+    Used to defer stopping the SQL thread to give it a chance
+    to finish up the current group of events.
+    The timestamp is set and reset in @c sql_slave_killed().
+  */
+  time_t last_event_start_time;
+  
+  RPL_TABLE_LIST *tables_to_lock;    /* RBR: Tables to lock  */
+  uint tables_to_lock_count;        /* RBR: Count of tables to lock */
+  table_mapping m_table_map;      /* RBR: Mapping table-id to table */
+  mysql_mutex_t sleep_lock;
+  mysql_cond_t sleep_cond;
+
+  /*
+    trans_retries varies between 0 to slave_transaction_retries and counts how
+    many times the slave has retried the present transaction; gets reset to 0
+    when the transaction finally succeeds.
+  */
+  ulong trans_retries;
+
+  char *event_relay_log_name;
+  char event_relay_log_name_buf[FN_REFLEN];
+  ulonglong event_relay_log_pos;
+  ulonglong future_event_relay_log_pos;
+  /*
+    The master log name for current event. Only used in parallel replication.
+  */
+  char future_event_master_log_name[FN_REFLEN];
+  ulonglong event_master_log_pos;
+
+  bool is_parallel_exec;
+  bool is_error;
+  bool is_updated;
+  /*
+	Set true when we signalled that we reach the commit phase. Used to avoid
+	 counting one event group twice.
+  */
+  bool did_mark_start_commit;
+  group_commit_orderer *gco;
+  
+private:
   /*
     Runtime state for printing a note when slave is taking
     too long while processing a row event.
-   */
+  */
   time_t row_stmt_start_timestamp;
   bool long_find_row_note_printed;
-};
+  
+public:
+  rpl_group_info(Relay_log_info *rli_);
+  ~rpl_group_info();
 
+  void reinit(Relay_log_info *rli);
+  void mark_start_commit();
+  void mark_start_commit_no_lock();
+  
+  /*
+    Returns true if the argument event resides in the containter;
+    more specifically, the checking is done against the last added event.
+  */
+  bool is_deferred_event(Log_event * ev)
+  {
+    return deferred_events_collecting ? deferred_events->is_last(ev) : false;
+  };
+  
+  /* 
+    The general cleanup that slave applier may need at the end of query. 
+  */
+  inline void cleanup_after_query()
+  {
+    if (deferred_events)
+      deferred_events->rewind();
+  };
+
+  /* 
+    The general cleanup that slave applier may need at the end of session. 
+  */
+  void cleanup_after_session()
+  {
+    if (deferred_events)
+    {
+      delete deferred_events;
+      deferred_events= NULL;
+    }
+  };
+  
+  bool get_table_data(TABLE *table_arg, table_def **tabledef_var, TABLE **conv_table_var) const
+  {
+    DBUG_ASSERT(tabledef_var && conv_table_var);
+    for (TABLE_LIST *ptr= tables_to_lock ; ptr != NULL ; ptr= ptr->next_global)
+      if (ptr->table == table_arg)
+      {
+        *tabledef_var= &static_cast<RPL_TABLE_LIST*>(ptr)->m_tabledef;
+        *conv_table_var= static_cast<RPL_TABLE_LIST*>(ptr)->m_conv_table;
+        DBUG_PRINT("debug", ("Fetching table data for table %s.%s:"
+                             " tabledef: %p, conv_table: %p",
+                             table_arg->s->db.str, table_arg->s->table_name.str,
+                             *tabledef_var, *conv_table_var));
+        return true;
+      }
+    return false;
+  }
+  
+  void cleanup_context(THD *, bool);
+  void slave_close_thread_tables(THD *);
+  void clear_tables_to_lock();
+  
+  time_t get_row_stmt_start_timestamp()
+  {
+	return row_stmt_start_timestamp;
+  }
+  
+  time_t set_row_stmt_start_timestamp()
+  {
+	if (row_stmt_start_timestamp == 0)
+	  row_stmt_start_timestamp= my_time(0);
+  
+	return row_stmt_start_timestamp;
+  }
+  
+  void reset_row_stmt_start_timestamp()
+  {
+	row_stmt_start_timestamp= 0;
+  }
+  
+  void set_long_find_row_note_printed()
+  {
+	long_find_row_note_printed= true;
+  }
+  
+  void unset_long_find_row_note_printed()
+  {
+	long_find_row_note_printed= false;
+  }
+  
+  bool is_long_find_row_note_printed()
+  {
+   return long_find_row_note_printed;
+  }
+
+  inline void inc_event_relay_log_pos()
+  {
+    if (!is_parallel_exec)
+      rli->event_relay_log_pos= future_event_relay_log_pos;
+  }
+
+};
 
 // Defined in rpl_rli.cc
 int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
-
-
+void delete_or_keep_event_post_apply(rpl_group_info *rgi,
+                                     Log_event_type typ, Log_event *ev);
 #endif /* RPL_RLI_H */

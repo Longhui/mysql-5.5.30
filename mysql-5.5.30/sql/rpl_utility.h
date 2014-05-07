@@ -28,6 +28,7 @@
 #include "mysql_com.h"
 
 class Relay_log_info;
+struct rpl_group_info;
 class Log_event;
 
 /**
@@ -178,7 +179,7 @@ public:
     @retval 0  if the table definition is compatible with @c table
   */
 #ifndef MYSQL_CLIENT
-  bool compatible_with(THD *thd, Relay_log_info *rli, TABLE *table,
+  bool compatible_with(THD *thd, rpl_group_info *rgi, TABLE *table,
                       TABLE **conv_table_var) const;
 
   /**
@@ -274,7 +275,7 @@ public:
   /* queue for exection at Query-log-event time prior the Query */
   int add(Log_event *ev);
   bool is_empty();
-  bool execute(Relay_log_info *rli);
+  bool execute(rpl_group_info *rli);
   void rewind();
   bool is_last(Log_event *ev) { return ev == last_added; };
 };

@@ -6963,9 +6963,13 @@ copy_table:
     }
     else
     {
+      /*
       struct timeval tick_time;
       gettimeofday(&tick_time, 0);
       snprintf(new_name_buff, sizeof(new_name_buff), "%s_%lu", FLASHBACK_TBL_PREFIX, tick_time.tv_sec*1000000+tick_time.tv_usec);
+      */
+      ulonglong micro_time = my_micro_time();
+      snprintf(new_name_buff, sizeof(new_name_buff), "%s_%llu", FLASHBACK_TBL_PREFIX, micro_time);
 
       int len= snprintf(thd->flashback_stmt, sizeof(thd->flashback_stmt), "%c%s.%s:RENAME TABLE `%s`.`%s` TO `%s`.`%s`", '\2', db, new_name, FLASHBACK_DB, new_name_buff, db, new_name);
 

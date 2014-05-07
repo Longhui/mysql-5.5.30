@@ -598,7 +598,8 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
     struct timespec abstime;
     int wait_result;
     const char *old_msg= 0;
-
+    
+    set_timespec(start_ts, 0);
 
     /* Acquire the mutex. */
     lock();
@@ -667,7 +668,6 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
                                 kWho, wait_file_name_, (unsigned long)wait_file_pos_);
       }
 
-      set_timespec(start_ts, 0);
       /* Calcuate the waiting period. */
 #ifdef __WIN__
       abstime.tv.i64 = start_ts.tv.i64 + (__int64)wait_timeout_ * TIME_THOUSAND * 10;

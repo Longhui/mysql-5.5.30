@@ -26,7 +26,9 @@ INSERT INTO t2 VALUES (3,3), (4,4);
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT, b INT)
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
@@ -59,7 +61,9 @@ UPDATE t1 SET a=99 WHERE a = 0;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F

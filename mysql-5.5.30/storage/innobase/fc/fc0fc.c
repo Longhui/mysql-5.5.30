@@ -1,11 +1,15 @@
 /**************************************************//**
 @file fc/fc0fc.c
-Flash Cache for InnoDB
+Flash Cache(L2 Cache) for InnoDB
 
 Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
 *******************************************************/
 
 #include "fc0fc.h"
+
+#ifdef UNIV_NONINL
+#include "fc0fc.ic"
+#endif
 
 #include "ut0ut.h"
 #include "os0file.h"
@@ -13,14 +17,20 @@ Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
 #include "srv0srv.h"
 #include "log0recv.h"
 #include "ibuf0ibuf.h"
-#include "fc0dump.h"
 #include "fc0recv.h"
+#include "fc0fill.h"
+#include "fc0flu.h"
+#include "fc0warmup.h"
+#include "fc0backup.h"
 #include "srv0start.h"
 #include "fsp0types.h"
+#include "fc0quicklz.h"
 
 
-/* flash cache size */
+/* flash cache size, with n byte */
 UNIV_INTERN ulint	srv_flash_cache_size = ULINT_MAX; 
+/* flash cache block size, with n byte */
+UNIV_INTERN ulint	srv_flash_cache_block_size = 4096; 
 /* flash cache file */
 UNIV_INTERN char*	srv_flash_cache_file = NULL;
 /* flash cache warmup table when startup */
@@ -30,46 +40,58 @@ UNIV_INTERN char*	srv_flash_cache_warmup_file = NULL;
 /* read number of page per operation in recovery and warmup */
 UNIV_INTERN ulint	srv_flash_cache_pages_per_read = 512;
 /* flash cache write cache percentage */
-UNIV_INTERN ulong	srv_flash_cache_write_cache_pct = 30;
+UNIV_INTERN ulong	srv_flash_cache_write_cache_pct = 80;
 /* flash cache do full IO percentage */
 UNIV_INTERN ulong	srv_flash_cache_do_full_io_pct = 90;
+/* flush that many pct of dirty pages of  io capacity when doing full io flush */
+UNIV_INTERN ulong	srv_fc_full_flush_pct = 100;
+/* flush that many pct of dirty pages of  io capacity when doing write cache flush */
+UNIV_INTERN ulong	srv_fc_write_cache_flush_pct = 10;
 /* flash cache block move limit */
-UNIV_INTERN ulong	srv_flash_cache_move_limit = 90;
+UNIV_INTERN ulong	srv_flash_cache_move_limit = 50;
 /* whether enable flash cache block move */
 UNIV_INTERN my_bool	srv_flash_cache_enable_move = TRUE;
 /* whether enable flash cache safest recovery */
 UNIV_INTERN my_bool	srv_flash_cache_safest_recovery = FALSE;
 /* whether enable flash cache block migrate */
 UNIV_INTERN my_bool	srv_flash_cache_enable_migrate = TRUE;
+/* whether enable flash cache block dump */
+UNIV_INTERN my_bool	srv_flash_cache_enable_dump = FALSE;
 /* use flash cache device as raw */
 UNIV_INTERN my_bool	srv_flash_cache_is_raw = FALSE;
 /* adaptive flush for flash cache */
 UNIV_INTERN my_bool srv_flash_cache_adaptive_flushing = FALSE;
 /* flash cache io capacity */
-UNIV_INTERN ulong srv_fc_io_capacity = 500;
+UNIV_INTERN ulong 	srv_fc_io_capacity = 10000;
 /* doublewrite buffer flush to flash cache or behave as default */
-UNIV_INTERN my_bool  srv_flash_cache_enable_write = TRUE;
+UNIV_INTERN my_bool srv_flash_cache_enable_write = TRUE;
 /* When 'innodb_flash_cache_enable_write' is first set to FALSE and then 
      'innodb_flash_cache_backup' is set to TRUE, begin flash backup. */
-UNIV_INTERN my_bool  srv_flash_cache_backuping = FALSE;
+UNIV_INTERN my_bool srv_flash_cache_backuping = FALSE;
 /* which directory to store  ib_fc_file, must including the terminating '/' */
-UNIV_INTERN char*  srv_flash_cache_backup_dir = NULL;
+UNIV_INTERN char*  	srv_flash_cache_backup_dir = NULL;
 /* whetert use fc_LRU_move_optimization '/' */
-UNIV_INTERN my_bool  srv_flash_cache_lru_move_batch =TRUE;
-
+UNIV_INTERN my_bool srv_flash_cache_lru_move_batch =FALSE;
 /* write-back: WRITE_BACK, write-through: WRITE_THROUGH*/
-UNIV_INTERN ulong  srv_flash_cache_write_mode = WRITE_BACK;
-
+UNIV_INTERN ulong  	srv_flash_cache_write_mode = WRITE_BACK;
 /* whether use fast shutdown when MySQL is close */
 UNIV_INTERN my_bool srv_flash_cache_fast_shutdown = TRUE;
+/* whether use quicklz or zlib to compress the uncompress InnoDB data page */
+UNIV_INTERN my_bool srv_flash_cache_enable_compress = TRUE;
+/* quicklz or zlib use to compress the uncompress InnoDB data page */
+UNIV_INTERN ulint 	srv_flash_cache_compress_algorithm = FC_BLOCK_COMPRESS_QUICKLZ;
+
+/* whether use malloc or buf_block_alloc to buffer the compress InnoDB data page */
+UNIV_INTERN my_bool srv_flash_cache_decompress_use_malloc = FALSE;
+
 
 /** flash cache status */
 /* pages reads from flash cache */
 UNIV_INTERN ulint	srv_flash_cache_read = 0;
 /* pages async read from flash cache */
 UNIV_INTERN ulint	srv_flash_cache_aio_read = 0;
-/* pages async read wait */
-UNIV_INTERN ulint	srv_flash_cache_wait_for_aio = 0;
+/* pages async read from flash cache */
+UNIV_INTERN ulint	srv_flash_cache_wait_aio = 0;
 /* pages write to doublewrite from flash cache */
 UNIV_INTERN ulint	srv_flash_cache_write = 0;
 /* pages flush to disk from flash cache */
@@ -86,12 +108,23 @@ UNIV_INTERN ulint	srv_flash_cache_read_detail[FIL_PAGE_TYPE_ZBLOB2+1];
 UNIV_INTERN ulint	srv_flash_cache_write_detail[FIL_PAGE_TYPE_ZBLOB2+1];
 /* flush detail info */
 UNIV_INTERN ulint	srv_flash_cache_flush_detail[FIL_PAGE_TYPE_ZBLOB2+1];
-/* used flash cache block */
+/* used flash cache block count */
 UNIV_INTERN ulint	srv_flash_cache_used = 0;
+/* used flash cache block count if not compressed by L2 Cache */
+UNIV_INTERN ulint	srv_flash_cache_used_nocompress = 0;
+/* dirty flash cache block count*/
+UNIV_INTERN ulint	srv_flash_cache_dirty = 0;
+/* internal compress count */
+UNIV_INTERN ulint 	srv_flash_cache_compress = 0;
+/* internal decompress count */
+UNIV_INTERN ulint 	srv_flash_cache_decompress = 0;
+/* internal pack count if need compress*/
+UNIV_INTERN ulint 	srv_flash_cache_compress_pack = 0;
+
 /* flash cache log file name */
-UNIV_INTERN const char srv_flash_cache_log_file_name[16] = "flash_cache.log";
+UNIV_INTERN const char 	srv_flash_cache_log_file_name[16] = "flash_cache.log";
 /* flash cache thread info */
-UNIV_INTERN const char*	srv_flash_cache_thread_op_info = "";
+UNIV_INTERN const char* srv_flash_cache_thread_op_info = "";
 
 /* whether flash cache has warmuped from dump file */
 UNIV_INTERN my_bool srv_flash_cache_load_from_dump_file = FALSE;
@@ -99,9 +132,6 @@ UNIV_INTERN my_bool srv_flash_cache_load_from_dump_file = FALSE;
 
 /* flash cache structure */
 UNIV_INTERN fc_t* fc = NULL;
-
-#define FLASH_CACHE_MOVE_HIGH_LIMIT (1.0*srv_flash_cache_move_limit*fc_get_size()/100)
-#define FLASH_CACHE_MOVE_LOW_LIMIT (1.0*(100-srv_flash_cache_move_limit)*fc_get_size()/100)
 
 typedef struct flash_cache_stat_struct flash_cache_stat_t;
 struct flash_cache_stat_struct{
@@ -126,264 +156,562 @@ UNIV_INTERN flash_cache_stat_t flash_cache_stat;
 Initialize flash cache struct.*/
 UNIV_INTERN
 void
-fc_create(
+fc_create(void)
 /*=========*/
-)
 {
-	ulong i ;
+	ulong i;
+	ulint fc_size;
+	ulint blk_size;
+	fc_block_t* tmp_block;
+#ifdef UNIV_FLASH_CACHE_TRACE
+	char debug_filename[OS_FILE_MAX_PATH];
+#endif
 
+	switch (srv_flash_cache_block_size) {
+	case 1024:
+	case 2048:
+	case 4096:
+	case 8192:
+	case 16384:
+		break;
+	default:
+		ut_print_timestamp(stderr);
+		fprintf(stderr," InnoDB: L2 Cache: the block size value is wrong, please reset it.\n");
+		ut_error;	
+	}
+	
 	fc = (fc_t*)ut_malloc(sizeof(fc_t));
 
-	if ( fc == NULL ){
+	if (fc == NULL) {
 		ut_print_timestamp(stderr);
-		fprintf(stderr," InnoDB: Can not allocate memory for flash cache.\n");
+		fprintf(stderr," InnoDB: Can not allocate memory for L2 Cache.\n");
 		ut_error;
 	}
 
+	memset(fc, '0', sizeof(fc_t));
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+	ut_snprintf(debug_filename, sizeof(debug_filename),
+		"%s/%s", srv_data_home, "flash_cache_debug.txt");
+	srv_normalize_path_for_win(debug_filename);
+	fc->f_debug = fopen(debug_filename, "w");
+	if (fc->f_debug == NULL) {
+		fprintf(stderr," InnoDB: L2 Cache: cannot open '%s' for writing: %s.\n",
+			debug_filename, strerror(errno));
+	}
+
+#endif
+
+	fc->is_finding_block = 0;
+#ifdef UNIV_FLASH_CACHE_FOR_RECOVERY_SAFE
+	fc->is_doing_doublewrite = 0;
+#endif
 	fc->write_off = 0;
 	fc->flush_off = 0;
-	fc->size = srv_flash_cache_size >> UNIV_PAGE_SIZE_SHIFT ; 
-	fc->hash_table = hash_create(2 * fc->size);
-
 	fc->write_round = 0;
 	fc->flush_round = 0;
-	fc->read_buf_unalign = (byte*)ut_malloc((srv_fc_io_capacity+1)*UNIV_PAGE_SIZE);
-	fc->read_buf = (byte*)ut_align(fc->read_buf_unalign,UNIV_PAGE_SIZE);
 
-	mutex_create(PFS_NOT_INSTRUMENTED,
-		&fc->mutex, SYNC_DOUBLEWRITE);
-	mutex_create(PFS_NOT_INSTRUMENTED,
-		&fc->hash_mutex, SYNC_DOUBLEWRITE);
+	fc->block_size = srv_flash_cache_block_size >> KILO_BYTE_SHIFT;
+	fc->size = srv_flash_cache_size >> KILO_BYTE_SHIFT; 
+	fc->size = fc->size / fc->block_size;
 
-	fc->block = (fc_block_t*)ut_malloc(sizeof(fc_block_t)*fc->size);
+	/* create hash table with twice more flash cache block numbers */
+	fc->hash_table = hash_create(fc->size * 2);
 
-	for(i=0;i<fc->size;i++){
-		fc->block[i].fil_offset = i;
-		fc->block[i].hash = NULL;
-		fc->block[i].space = 0;
-		fc->block[i].offset = 0;
-		fc->block[i].state = BLOCK_NOT_USED;
-		fc->block[i].is_aio_reading = FALSE;
+	mutex_create(PFS_NOT_INSTRUMENTED, &fc->mutex, SYNC_DOUBLEWRITE);
+	rw_lock_create(PFS_NOT_INSTRUMENTED, &fc->hash_rwlock, SYNC_DOUBLEWRITE);
+	mutex_create(PFS_NOT_INSTRUMENTED, &fc->mm_mutex, SYNC_DOUBLEWRITE);
+
+	fc_size = fc_get_size();
+	fc->block = (fc_block_t*)ut_malloc(sizeof(fc_block_t) * fc_size);
+#ifdef UNIV_FLASH_CACHE_TRACE
+	ut_print_timestamp(stderr);
+	fprintf(stderr, " L2 Cache size: %luMB, the block metasize: %luKB, mutex_t: %luB \n", 
+		(ulong)(srv_flash_cache_size / 1024 / 1024), (ulong)(sizeof(fc_block_t) * fc_size / 1024),
+		sizeof(mutex_t));
+#endif
+	memset(fc->block, '0', sizeof(fc_block_t) * fc_size);
+	
+	blk_size = fc_get_block_size();
+	tmp_block = fc->block;	
+	for (i=0; i < fc_size; i++) {
+		fc_block_init(tmp_block, i);
+		tmp_block++;
 	}
 
-	/* move & migrate optimization */
-	fc->move_migrate_n_pages = 2 * FSP_EXTENT_SIZE;
-	fc->move_migrate_blocks = (fc_block_t*) ut_malloc(sizeof(fc_block_t) * fc->move_migrate_n_pages);
-	fc->move_migrate_un_aligned_pages = (byte*) ut_malloc((fc->move_migrate_n_pages + 1)* UNIV_PAGE_SIZE);
-	fc->move_migrate_pages = (byte*) ut_align(fc->move_migrate_un_aligned_pages, UNIV_PAGE_SIZE);
-	fc->move_migrate_next_write_pos = 0;
-	
-	for(i=0; i<fc->move_migrate_n_pages; i++){
-		fc->move_migrate_blocks[i].fil_offset = fc->size + i;  /* when lookuped in hash table,  used for distinguish*/
-		fc->move_migrate_blocks[i].hash = NULL;
-		fc->move_migrate_blocks[i].space = 0;
-		fc->move_migrate_blocks[i].offset = 0;
-		fc->move_migrate_blocks[i].state = BLOCK_NOT_USED;
-		fc->move_migrate_blocks[i].is_aio_reading = FALSE; /* when page is in fc->move_migrate_n_pages, read 
-															   is just an operation of coping, so this filed will always be FALSE */
+	fc->wait_space_event = os_event_create(NULL);
+	os_event_set(fc->wait_space_event);
+
+#ifdef UNIV_FLASH_CACHE_FOR_RECOVERY_SAFE
+	fc->wait_doublewrite_event = os_event_create(NULL);
+	os_event_set(fc->wait_doublewrite_event);
+#endif
+
+	/* for dirty page flush */
+	fc->flush_buf = (fc_buf_t*)ut_malloc(sizeof(fc_buf_t));
+
+	/* we malloc flush_compress_read_buf only when the enable_compress is work */
+	if (srv_flash_cache_enable_compress == TRUE) {
+		fc->flush_zip_read_buf_unalign = (byte*)ut_malloc(2 * UNIV_PAGE_SIZE);
+		fc->flush_zip_read_buf =
+				(byte*)ut_align(fc->flush_zip_read_buf_unalign, UNIV_PAGE_SIZE);
+#ifdef UNIV_FLASH_CACHE_TRACE
+		ut_print_timestamp(stderr);
+		fprintf(stderr, "fc_qlz_state_compress: %luB \n", sizeof(fc_qlz_state_compress));
+#endif
+		fc->dw_zip_state = ut_malloc(sizeof(fc_qlz_state_compress));
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+		ut_print_timestamp(stderr);
+		fprintf(stderr, "fc_qlz_state_decompress: %luB \n", sizeof(fc_qlz_state_decompress));
+#endif
+		fc->flush_dezip_state = ut_malloc(sizeof(fc_qlz_state_decompress));
+		fc->recv_dezip_state = ut_malloc(sizeof(fc_qlz_state_decompress));
 	}
+
+	/* 
+	 * we use srv_io_capacity to init the flush_buf size, each flush operation can flush no more
+	 * than this blocks.
+	 */
+	fc->flush_buf->unalign = (byte*)ut_malloc((srv_io_capacity + 1) * UNIV_PAGE_SIZE);
+	fc->flush_buf->buf = (byte*)ut_align(fc->flush_buf->unalign, UNIV_PAGE_SIZE);
+	memset(fc->flush_buf->buf, '0', srv_io_capacity * UNIV_PAGE_SIZE);
+	fc->flush_buf->size = srv_io_capacity * PAGE_SIZE_KB / blk_size; 
+	fc->flush_buf->free_pos = 0;
+
+    /*
+     * each compressed page need UNIZ_PAGE_SIZE + 400B
+     * max pages flush to doublewrite currently is 128
+     * so we need 4*FSP_EXTENT_SIZE for page to be compressed
+     */
+	fc->dw_zip_buf_unalign = (byte*)ut_malloc((4 * FSP_EXTENT_SIZE + 1) * UNIV_PAGE_SIZE);
+	fc->dw_zip_buf =  (byte*)ut_align(fc->dw_zip_buf_unalign, UNIV_PAGE_SIZE);
+	memset(fc->dw_zip_buf, '0',  4 * FSP_EXTENT_SIZE * UNIV_PAGE_SIZE);
+
+	fc->dw_pages = (fc_page_info_t*) ut_malloc(sizeof(fc_page_info_t) * 2 * FSP_EXTENT_SIZE);
+	memset(fc->dw_pages, '0', sizeof(fc_page_info_t) * 2 * FSP_EXTENT_SIZE);
+
+	/* move & migrate optimization. the code below should better modify if the mm_batch is not open */
+	if (srv_flash_cache_lru_move_batch) {
+		fc->mm_buf = (fc_buf_t*)ut_malloc(sizeof(fc_buf_t));
+		fc->mm_buf->unalign = (byte*)ut_malloc(FC_MOVE_MIGRATE_BUF_SIZE * KILO_BYTE + 2 * UNIV_PAGE_SIZE);
+		fc->mm_buf->buf = (byte*) ut_align(fc->mm_buf->unalign, UNIV_PAGE_SIZE);
+		memset(fc->mm_buf->buf, '0', FC_MOVE_MIGRATE_BUF_SIZE * KILO_BYTE);
+		fc->mm_buf->size = FC_MOVE_MIGRATE_BUF_SIZE / blk_size;
+		fc->mm_buf->free_pos = 0;
 	
+		fc->mm_zip_buf_unalign = (byte*)ut_malloc(3 * UNIV_PAGE_SIZE);
+		fc->mm_zip_buf =  (byte*)ut_align(fc->mm_zip_buf_unalign, UNIV_PAGE_SIZE);
+		memset(fc->mm_zip_buf, '0',  2 * UNIV_PAGE_SIZE);
+
+		fc->mm_blocks = (fc_block_t*) ut_malloc(sizeof(fc_block_t) * fc->mm_buf->size);
+		memset(fc->mm_blocks, '0', sizeof(fc_block_t) * fc->mm_buf->size);
+	
+		tmp_block = fc->mm_blocks;	
+		for (i=0; i < fc->mm_buf->size; i++) {
+			fc_block_init(tmp_block, (i + fc_size));
+			tmp_block++;
+		}
+	}
+
 }
 
 /**************************************************************//**
 Start flash cache.*/
 UNIV_INTERN
 void
-fc_start(
+fc_start(void)
 /*=========*/
-)
 {
 	ut_ad(srv_flash_cache_size > 0);
 
 	fc_create();
 	fc_log_create();
 
-	if ( access("flash_cache.warmup",F_OK ) != -1 ){  
-
+	if (access("flash_cache.warmup",F_OK ) != -1) {
+		/* the code handle this, is at other place */
 	} else {
-		if ( srv_flash_cache_load_from_dump_file == FALSE ){
-			/* warmup flash cache use file flash_cache.dump. */
+		if (srv_flash_cache_load_from_dump_file == FALSE) {
+			/* warmup L2 Cache use file flash_cache.dump. */
 			fc_load();
 		}
-		if ( srv_flash_cache_load_from_dump_file == FALSE ){
+		if (srv_flash_cache_load_from_dump_file == FALSE) {
 			/*
-            * if we run here, it means we need scan flash cache file
-            * to recovery the flash cache block.
-            */
+             * if we run here, it means we need scan L2 Cache file
+             * to recovery the flash cache block.
+             */
             fil_load_single_table_tablespaces();
 			fc_recv();
 		}
-		if ( recv_needed_recovery ){
+		if (recv_needed_recovery) {
             /*
-			* Note: if in redo log recovery, we flush flash cache block to disk
-			* in this step to avoid recovery occupy flash cache block
-			* that do not flush to disk
-			*/
-			os_thread_create(&srv_flash_cache_thread, NULL, NULL);
+			 * Note: if in redo log recovery, 
+             * new dirty page may be written to L2 cache
+             * so we start flush thread to assure 
+             * that new dirty page can be written to L2 cache
+             * TODO: maybe we can start a new recovery_flush_thread 
+             * and close it when recovery finishing
+			 */
+			os_thread_create(&srv_fc_flush_thread, NULL, NULL);
 		}
 	}
 
-	/* flash cache has started. if is load, commit log */
-	if (fc_log->first_use == FALSE) {
-		flash_cache_mutex_enter();
-		fc_log_update(FALSE);
-		fc_log->write_offset_bck = 0XFFFFFFFFUL;
-		fc_log_commit();
-		flash_cache_mutex_exit();
+	/* L2 Cache has started. we should set fc_log been_shutdown FALSE, and commit log */
+	fc_log_update_commit_status();	
+	if (srv_flash_cache_enable_dump == FALSE) {
+		fc_log_reset_dump_stat();
 	}
-
+		
+	fc_log_update(TRUE, FLASH_CACHE_LOG_WRITE);		
+	fc_log_commit();
 
 }
-/**************************************************************//**
-Free flash cache struct.*/
+
+/******************************************************************//**
+Dump blocks from L2 Cache to file*/
 UNIV_INTERN
 void
-fc_destroy(
-/*=========*/
-)
+fc_dump(void)
+/*==================*/
 {
-	ut_free(fc->read_buf_unalign);
-	ut_free(fc->block);
-	hash_table_free(fc->hash_table);
-	mutex_free(&fc->hash_mutex);
-	mutex_free(&fc->mutex);
+
+	char	full_filename[OS_FILE_MAX_PATH];
+	char	tmp_filename[OS_FILE_MAX_PATH];
+	FILE*	f;
+	ulint	i;
+	int		ret;
+	ulint 	fc_size;
+	fc_block_t* b;
+
+	ut_snprintf(full_filename, sizeof(full_filename),
+		"%s/%s", srv_data_home, "flash_cache.dump");
+	srv_normalize_path_for_win(full_filename);
+
+	ut_snprintf(tmp_filename, sizeof(tmp_filename),
+		"%s.incomplete", full_filename);
+	srv_normalize_path_for_win(tmp_filename);
+
+	f = fopen(tmp_filename, "w");
+	if (f == NULL) {
+		fprintf(stderr," InnoDB: Cannot open '%s' for writing: %s.\n", tmp_filename, strerror(errno));
+		return;
+	}
+
+	fc_size = fc_get_size();
+	/* dump L2 Cache block info */
+	for (i = 0; i < fc_size; i++) {
+		b = &fc->block[i];
+		if ((b->state != BLOCK_NOT_USED) 
+			&& (b->state != BLOCK_BEEN_ATTACHED)) {
+			/* only dump block with state BLOCK_READ_CACHE, BLOCK_FLUSHED or BLOCK_READ_FOR_FLUSH */
+			
+			ret = fprintf(f, "%lu,%lu,%lu,%lu,%lu,%lu\n",
+				(unsigned long)b->space,
+				(unsigned long)b->offset,
+				(unsigned long)b->fil_offset,
+				(unsigned long)b->state,
+				(unsigned long)b->size,
+				(unsigned long)b->zip_size);
+			
+			if (ret < 0) {
+				fclose(f);
+				fprintf(stderr, " InnoDB: Cannot write to '%s': %s.\n", tmp_filename, strerror(errno));
+				/* leave tmp_filename to exist */
+				return;
+			}
+		}
+	}
+	
+	ret = fclose(f);
+	if (ret != 0) {
+		fprintf(stderr, " InnoDB: Cannot close '%s': %s.\n", tmp_filename, strerror(errno));
+		return;
+	}
+	
+	ret = unlink(full_filename);
+	if (ret != 0 && errno != ENOENT) {
+		fprintf(stderr, " InnoDB: Cannot delete '%s': %s.\n", full_filename, strerror(errno));
+		/* leave tmp_filename to exist */
+		return;
+	}
+	
+	ret = rename(tmp_filename, full_filename);
+	if (ret != 0) {
+		fprintf(stderr, " InnoDB: Cannot rename '%s' to '%s': %s.\n",
+			tmp_filename, full_filename, strerror(errno));
+		/* leave tmp_filename to exist */
+		return;
+	}
+
+	ut_print_timestamp(stderr);
+	fprintf(stderr, " InnoDB: L2 Cache dump completed.\n");
+}
+
+/**************************************************************//**
+Free L2 Cache struct.*/
+UNIV_INTERN
+void
+fc_destroy(void)
+/*=========*/
+{
+	ulong i;
+	ulint fc_size;
+	fc_block_t* tmp_block;
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+	ulint ret = fclose(fc->f_debug);
+	if (ret != 0) {
+		fprintf(stderr, " InnoDB: Cannot close dubeg file: %s. %s:%d\n", 
+                        strerror(errno),
+                        __FILE__,
+                        __LINE__);
+	}
+#endif
+	
+	fc_dump();
+	fc_log_update(FALSE, FLASH_CACHE_LOG_UPDATE_SHUTDOWN);
+	fc_log_commit();
+	
+	ut_free(fc->flush_buf->unalign);
+	ut_free(fc->flush_buf);
+
+	if (srv_flash_cache_enable_compress == TRUE) {
+		ut_free(fc->flush_zip_read_buf_unalign);
+
+		/* we free this buf when finish recovery */
+		//ut_free(fc->recv_dezip_buf_unalign);
+
+		ut_free(fc->dw_zip_state);
+
+		ut_free(fc->flush_dezip_state);
+		ut_free(fc->recv_dezip_state);
+	}
+
+	ut_free(fc->dw_zip_buf_unalign);
+	ut_free(fc->dw_pages);
 
 	/* move & migrate optimization */
-	ut_free(fc->move_migrate_blocks);
-	ut_free(fc->move_migrate_un_aligned_pages);
-	/* move & migrate optimization */
+	if (srv_flash_cache_lru_move_batch) {
+		ut_free(fc->mm_buf->unalign);
+	
+		tmp_block = fc->mm_blocks;
+		for (i = 0; i < fc->mm_buf->size; i++) {
+			mutex_free(&tmp_block->mutex);
+			tmp_block++;
+		}
+	
+		ut_free(fc->mm_buf);	
+		ut_free(fc->mm_blocks);
+		ut_free(fc->mm_zip_buf_unalign);
+
+	}
+
+	fc_size = fc_get_size();
+
+	tmp_block = fc->block;
+	for (i = 0; i < fc_size; i++) {
+		mutex_free(&tmp_block->mutex);
+		tmp_block++;
+	}
+	
+	ut_free(fc->block);
+	hash_table_free(fc->hash_table);
+	
+	rw_lock_free(&fc->hash_rwlock);
+	mutex_free(&fc->mutex);
+	mutex_free(&fc->mm_mutex);
+
+	os_event_free(fc->wait_space_event);
+	
+#ifdef UNIV_FLASH_CACHE_FOR_RECOVERY_SAFE
+	os_event_free(fc->wait_doublewrite_event);
+#endif
 	
 	ut_free(fc);
 }
 
-/*for use of fc_block_sort */
-static 
-int 
-fc_page_cmp_ascending(const void* p1, const void* p2)
-{	
-	const fc_block_t* p_fc_block_1 = *((fc_block_t**) p1);	
-	const fc_block_t* p_fc_block_2 = *((fc_block_t**) p2);
-	
-	if(p_fc_block_1->space < p_fc_block_2->space)	
-		return -1;	
-	if(p_fc_block_1->space > p_fc_block_2->space)	
-		return 1;		
-	if(p_fc_block_1->offset < p_fc_block_2->offset)	
-		return -1;		
-	if(p_fc_block_1->offset > p_fc_block_2->offset)	
-		return 1;		
-	return 0;	
-}
-
-static 
-int 
-fc_page_cmp_descending(const void* p1, const void* p2)
-{	
-	const fc_block_t* p_fc_block_1 = *((fc_block_t**) p1);	
-	const fc_block_t* p_fc_block_2 = *((fc_block_t**) p2);
-	
-	if(p_fc_block_1->space > p_fc_block_2->space)	
-		return -1;	
-	if(p_fc_block_1->space < p_fc_block_2->space)	
-		return 1;		
-	if(p_fc_block_1->offset > p_fc_block_2->offset)	
-		return -1;		
-	if(p_fc_block_1->offset < p_fc_block_2->offset)	
-		return 1;		
-	return 0;	
-}
-
-
-void fc_block_sort(fc_block_t** base, ulint len, ulint type)
-{
-	ut_a(base);
-	ut_a(len);
-	ut_a(ASCENDING == type || DESCENDING == type);
-	if(ASCENDING == type)
-		qsort(base, len, sizeof(fc_block_t*), fc_page_cmp_ascending);
-	else
-		qsort(base, len, sizeof(fc_block_t*), fc_page_cmp_descending);
-}
-
-
-
-/**************************************************************//**
-Check whether flash cache is enable.*/
-UNIV_INTERN
-my_bool
-fc_is_enabled(
-/*=========*/
-)
-{
-	if ( srv_flash_cache_size > 0 )
-		return TRUE;
-	ut_ad(srv_flash_cache_size == 0);
-	return FALSE;
-}
-
-/**************************************************************//**
-Get flash cache size
-@return number of flash cache blocks*/
-UNIV_INTERN
-ulint
-fc_get_size(
-/*=========*/
-)
-{
-	ut_ad(fc != NULL);
-	return fc->size;
-}
-
-/**************************************************************//**
-Set flash cache size. */
+/******************************************************************//**
+Load L2 Cache from dump file */
 UNIV_INTERN
 void
-fc_set_size(
-/*=========*/
-	ulint size	/*!< in: flash cache size */
-)
+fc_load(void)
+/*==================*/
 {
-	ut_ad(fc != NULL);
-	fc->size = size;
+	char	full_filename[OS_FILE_MAX_PATH];
+	ulint	i;
+	FILE*	f;
+	ulint	dump_n;
+	int		fscanf_ret;
+	ulint	space_id = 0;
+	ulint	page_no = 0;
+	ulint	fil_offset = 0;
+	ulint	state = 0;
+	ulint 	size = 0;
+	ulint 	compress_size = 0;
+	ulint 	version_count;
+	fc_block_t* b;
+
+	ut_snprintf(full_filename, sizeof(full_filename),
+		"%s/%s", srv_data_home, "flash_cache.dump");
+	srv_normalize_path_for_win(full_filename);
+
+	f = fopen(full_filename, "r");
+	if (f == NULL) {
+		if (fc_log->first_use) {
+			/* no recovery is needed */
+			srv_flash_cache_load_from_dump_file = TRUE;
+			/* prevent error output below */
+			return ;
+		}
+
+		ut_print_timestamp(stderr);
+		fprintf(stderr, " InnoDB: Cannot open '%s' for reading: %s.\n",
+			full_filename, strerror(errno));
+		fprintf(stderr, "InnoDB: L2 Cache did not shutdown correctly,"
+			"scan L2 Cache file %s to recover.\n", srv_flash_cache_file);
+		return;
+	}
+
+	/* 
+	 * the flash_cache.dump file exist, it mean that the enable_dump is enabled when load,
+	 * or L2 Cache shutdown correctly. if the dump file is too old, just skip and do recovery
+	 */
+	if (fc_log->been_shutdown == FALSE && srv_flash_cache_enable_dump 
+		&& (fc_log->current_stat->write_round >= (fc_log->dump_stat->write_round + 1))
+		&& (fc_log->current_stat->write_offset >= fc_log->dump_stat->write_offset)) {
+		return;
+	}
+
+	dump_n = 0;
+
+	if (fc_log->log_verison == 0) {
+		version_count = 4;		
+		while (fscanf(f, "%lu,%lu,%lu,%lu", 
+			&space_id, &page_no, &fil_offset, &state) == version_count) {
+			dump_n++;
+		}
+
+	} else {
+		version_count = 6;
+		while (fscanf(f, "%lu,%lu,%lu,%lu,%lu,%lu",
+			&space_id, &page_no, &fil_offset, &state, &size, &compress_size) == version_count) {
+			dump_n++;
+		}	
+	}
+	
+
+	if (!feof(f)) {
+		/* fscanf() returned != version_count */
+		const char*	what;
+		if (ferror(f)) {
+			what = "reading";
+		} else {
+			what = "parsing";
+		}
+		fclose(f);
+		fprintf(stderr, " InnoDB: Error %s '%s', unable to load buffer pool (stage 1).\n",
+			what, full_filename);
+		return;
+	}
+
+	rewind(f);
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+	ut_print_timestamp(stderr);
+	fprintf(stderr, "InnoDB: L2 Cache loading %d L2 Cache blocks from dump file.\n", (int)dump_n);
+#endif
+
+	for (i = 0; i < dump_n; i++) {
+		if (fc_log->log_verison == 0) {
+			fscanf_ret = fscanf(f, "%lu,%lu,%lu,%lu", 
+				&space_id, &page_no, &fil_offset, &state);
+			size = 1;
+		} else {
+			fscanf_ret = fscanf(f, "%lu,%lu,%lu,%lu,%lu,%lu",
+				&space_id, &page_no, &fil_offset, &state, &size, &compress_size);
+		}
+		
+		if (fscanf_ret != version_count) {
+			if (feof(f)) {
+				break;
+			}
+			fclose(f);
+			fprintf(stderr," InnoDB: Error parsing '%s', unable "
+				"to load buffer pool (stage 2).\n", full_filename);
+			return;
+		}
+
+		if (space_id > ULINT32_MASK || page_no > ULINT32_MASK) {
+			fclose(f);
+			/* error found, we should not continue */
+			ut_error;
+		}
+
+		ut_a(state != BLOCK_NOT_USED);
+		ut_a(state != BLOCK_BEEN_ATTACHED);		
+		
+		b = &fc->block[fil_offset];
+		b->offset = page_no;
+		b->space = space_id;
+		b->state = state;
+		b->size = size;
+		b->zip_size = compress_size;
+
+		fc_block_attach(FALSE, b);
+		
+		/* insert to hash table */
+		fc_block_insert_into_hash(b);
+
+		srv_flash_cache_used += fc_block_get_data_size(b);
+		srv_flash_cache_used_nocompress += fc_block_get_orig_size(b);		
+
+		if (state == BLOCK_READY_FOR_FLUSH) {
+			srv_flash_cache_dirty += fc_block_get_data_size(b);
+		}
+	}
+
+	fclose(f);
+
+	if (srv_flash_cache_enable_dump == FALSE) {
+		ut_a(os_file_delete(full_filename));
+	}
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+	ut_print_timestamp(stderr);
+	fprintf(stderr," InnoDB:L2 Cache load block metadata from dump file completed.\n");
+#endif
+
+	/*
+	 * when the write/flush_offset/round_dump info is equal with
+	 * write/flush_offset/round, it means that the L2 Cache shutdown correctly
+	 * no need to do recovery job
+	 */
+	flash_cache_log_mutex_enter();
+	if (fc_log->been_shutdown == TRUE) {
+		srv_flash_cache_load_from_dump_file = TRUE;		
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+		ut_print_timestamp(stderr);
+		fprintf(stderr," InnoDB: L2 Cache shutdown correctly, no need to do recovery.\n");
+#endif
+	}
+	flash_cache_log_mutex_exit();	
+
 }
 
 /********************************************************************//**
 Flush a batch of writes to the datafiles that have already been
-written by the OS. */
-static
+written by the L2 Cache. */
+UNIV_INTERN
 void
-fc_flush_sync_datafiles(void)
-/*==========================*/
-{
-	/* Wake possible simulated aio thread to actually post the
-	writes to the operating system */
-	os_aio_simulated_wake_handler_threads();
-
-	/* Wait that all async writes to tablespaces have been posted to
-	the OS */
-	os_aio_wait_until_no_pending_writes();
-
-	/* Now we flush the data to disk (for example, with fsync) */
-	fil_flush_file_spaces(FIL_TABLESPACE);
-
-	return;
-}
-
-/********************************************************************//**
-Flush a batch of writes to the datafiles that have already been
-written by the flash cache. */
-static
-void
-fc_sync_datafiles(
+fc_sync_fcfile(void)
 /*===========================*/
-)
 {
 	/* Wake possible simulated aio thread to actually post the
 	writes to the operating system */
 	os_aio_simulated_wake_handler_threads();
 
-	/* Wait that all async writes to tablespaces have been posted to
-	the OS */
+	/* Wait that all async writes to tablespaces have been posted to the OS */
 	os_aio_wait_until_no_pending_fc_writes();
 
 	/* Now we flush the data to disk (for example, with fsync) */
@@ -391,841 +719,492 @@ fc_sync_datafiles(
 }
 
 /********************************************************************//**
-Write double write buffer to flash cache file at start offset.
-@return: count of async read flash cache block*/
-ulint
-fc_write_doublewrite_to_flash_cache_start(
+Flush a doublewrite block to flashcache block.
+@return:NULL*/
+static
+void
+fc_sync_hash_table(
 /*===========================*/
-	trx_doublewrite_t* trx_doublewrite,	/*!< in: doublewrite structure */
-	ulint start_off	/*!< in: flash cache write position */
-)
+	trx_doublewrite_t* trx_dw, 	/*!< in: doublewrite structure */
+	ulint pos) 				/*!< in: the doublewrite buffer index */
 {
-	ulint i;
-	ulint off;
-	buf_block_t* block;
-	fc_block_t* b;
-	fc_block_t* b2;
 	ulint page_type;
-	ulint aio_wait=0;
-	ulint ret;
-#ifdef UNIV_FLASH_DEBUG
-    ulint zip_size = 0;
-#endif
-    
+	ulint wf_size;
+	fc_block_t* wf_block = NULL;
+
 	ut_ad(mutex_own(&fc->mutex));
 
-	for(i = 0; i < trx_doublewrite->first_free; i++){
-		block = (buf_block_t*)trx_doublewrite->buf_block_arr[i];
+	wf_block = &(fc->block[fc->write_off]);
 
-		if (!block->page.zip.data){
-			if (UNIV_UNLIKELY(memcmp(block->frame + (FIL_PAGE_LSN + 4),
-						 block->frame
-						 + (UNIV_PAGE_SIZE
-							- FIL_PAGE_END_LSN_OLD_CHKSUM + 4),
-						 4))) {
-				ut_print_timestamp(stderr);
-				fprintf(stderr,
-					"  InnoDB: ERROR: The page to be written"
-					" seems corrupt!\n"
-					"InnoDB: The lsn fields do not match!"
-					" Noticed in the buffer pool\n"
-					"InnoDB: after posting and flushing"
-					" the doublewrite buffer.\n"
-					"InnoDB: Page buf fix count %lu,"
-					" io fix %lu, state %lu\n",
-					(ulong)block->page.buf_fix_count,
-					(ulong)buf_block_get_io_fix(block),
-					(ulong)buf_block_get_state(block));
-			}
-		}
+	/*at this time the wf_block could not be in hash table.*/
+	ut_a(wf_block->state == BLOCK_NOT_USED);
 
-next:
-		off = (start_off + i + aio_wait) % fc_get_size();
+	wf_size = fc_block_get_data_size(wf_block);
 
-		b = &fc->block[off];
+	/* insert the wf_block into hash table and set block statement */
+	fc_block_insert_into_hash(wf_block);
+	wf_block->io_fix |= IO_FIX_DOUBLEWRITE;
+	wf_block->state = BLOCK_READY_FOR_FLUSH;
 
-		flash_cache_hash_mutex_enter(b->space,b->offset);
-		if ( b->is_aio_reading ){
-			srv_flash_cache_wait_for_aio++;
-			aio_wait++;
-			flash_cache_hash_mutex_exit(b->space,b->offset);
-			goto next;
-		}
+	/* inc the fc status counts */
+	srv_flash_cache_dirty += wf_size;
+	srv_flash_cache_used += wf_size;
+	srv_flash_cache_used_nocompress += fc_block_get_orig_size(wf_block);
+	srv_flash_cache_write++;
 
-		if ( b->state != BLOCK_NOT_USED ){
-			ut_a( b->state != BLOCK_READY_FOR_FLUSH );
-			/* alread used, remove it from the hash table */
-			HASH_DELETE(fc_block_t,hash,fc->hash_table,
-				buf_page_address_fold(b->space, b->offset),b);
-			b->state = BLOCK_NOT_USED;
-			srv_flash_cache_used = srv_flash_cache_used - 1;
-#ifdef UNIV_FLASH_DEBUG
-			ut_print_timestamp(stderr);
-			fprintf(stderr,"	InnoDB: write - %lu, %lu.\n",b->space,b->offset);
-#endif
-		}
-		flash_cache_hash_mutex_exit(b->space,b->offset);
-
-		flash_cache_hash_mutex_enter(block->page.space,block->page.offset);
-		/* following we do not need mutex to protect because bpage is in the buffer pool */
-        page_type = fil_page_get_type(trx_doublewrite->write_buf + i*UNIV_PAGE_SIZE);
-		if ( page_type == FIL_PAGE_INDEX ){
-			page_type = 1;
-		}
-		srv_flash_cache_write_detail[page_type]++;
-		b->space = block->page.space;
-		b->offset = block->page.offset;
-		b->state = BLOCK_READY_FOR_FLUSH;
-
-		/* search the same space offset in hash table */
-		HASH_SEARCH(hash,fc->hash_table,
-			buf_page_address_fold(block->page.space,block->page.offset),
-			fc_block_t*,b2,
-			ut_ad(1),
-			block->page.space == b2->space && block->page.offset == b2->offset);
-
-		if ( b2 ){
-			ut_a( b2->state != BLOCK_NOT_USED );
-			ut_a( b2->is_aio_reading == FALSE );
-			b2->state = BLOCK_NOT_USED;
-			/* alread used, remove it from the hash table */
-			HASH_DELETE(fc_block_t,hash,fc->hash_table,
-				buf_page_address_fold(b2->space, b2->offset),
-				b2);
-			//srv_flash_cache_merge_write++;
-			if(b2->fil_offset < fc->size)
-				srv_flash_cache_used = srv_flash_cache_used - 1;
-#ifdef UNIV_FLASH_DEBUG
-		ut_print_timestamp(stderr);
-		fprintf(stderr,"	InnoDB: write - %lu, %lu.\n",b2->space,b2->offset);
-#endif
-		}
-
-		/* insert to hash table */
-		HASH_INSERT(fc_block_t,hash,fc->hash_table,
-			buf_page_address_fold(b->space, b->offset),
-			b);
-		srv_flash_cache_used = srv_flash_cache_used + 1;
-		flash_cache_hash_mutex_exit(block->page.space,block->page.offset);
-
-#ifdef UNIV_FLASH_DEBUG
-		ut_print_timestamp(stderr);
-		fprintf(stderr,"	InnoDB: write + %lu, %lu.\n",b->space,b->offset);
-
-        zip_size = fil_space_get_zip_size(block->page.space);
-        if (zip_size){
-            if(buf_page_is_corrupted(trx_doublewrite->write_buf + i*UNIV_PAGE_SIZE,zip_size)){
-                buf_page_print(trx_doublewrite->write_buf + i*UNIV_PAGE_SIZE, zip_size);
-                ut_error;
-            }
-        }
-#endif
-		/* write to flash cache */
-		ret = fil_io(OS_FILE_WRITE,FALSE,FLASH_CACHE_SPACE,0,off,0,UNIV_PAGE_SIZE,trx_doublewrite->write_buf + i*UNIV_PAGE_SIZE,NULL);
-
-		if ( ret != DB_SUCCESS ){
-			ut_print_timestamp(stderr);
-			fprintf(stderr," InnoDB Error: fail to aio write. Page offset is:%lu.\n",off);
-		}
+	/* get page type from doublewrite buffer */
+    page_type = fil_page_get_type(trx_dw->write_buf + pos * UNIV_PAGE_SIZE);
+	if (page_type == FIL_PAGE_INDEX) {
+		page_type = 1;
 	}
-
-	fc_sync_datafiles();
-
-	return aio_wait;
+	srv_flash_cache_write_detail[page_type]++;
 }
 
 /********************************************************************//**
-Flush double write buffer to flash cache block.
-@return: count of async read flash cache block*/
-ulint
-fc_write_doublewrite_to_flash_cache(
+Calc and store each block compressed size or zip size if no need compress
+by L2 Cache, and calc the block size need by each page in doublewrite buffer
+@return: NULL */
+static
+void
+fc_write_compress_and_calc_size(
 /*===========================*/
-	trx_doublewrite_t* trx_doublewrite	/*!< in: doublewrite structure */
-)
+	trx_doublewrite_t* trx_dw)	/*!< in: doublewrite structure */
 {
-	ulint start_off = 0;
-	ulint aio_wait = 0;
-	ulint i = 0;
-	ibool retry = FALSE;
+	ulint i;
+	ulint blk_size = fc_get_block_size();
+	ulint need_compress;
 
-	ut_ad(!mutex_own(&fc->mutex));
+	byte* compress_data = NULL;
+    ulint zip_size;
+	ulint blk_real_size; /*n KB*/
+	
+	buf_block_t* dw_block = NULL;
+	buf_page_t* dw_page = NULL;
+	fc_page_info_t* page_info = NULL;
 
-total_retry:
-	flash_cache_mutex_enter();
-	if (retry == FALSE){
-		srv_flash_cache_write += trx_doublewrite->first_free;
-	}
-	start_off = fc->write_off;
-	if ( fc->write_round == fc->flush_round ){
-		/* in the same round */
-		if (fc->write_off + trx_doublewrite->first_free < fc_get_size()){
-			aio_wait = fc_write_doublewrite_to_flash_cache_start(trx_doublewrite,start_off);
-			fc->write_off = fc->write_off +  trx_doublewrite->first_free + aio_wait;  
-			if ( fc->write_off >= fc_get_size() ){
-				fc->write_off = fc->write_off % fc->size;
-				fc->write_round = fc->write_round + 1;
+	for (i = 0; i < trx_dw->first_free; i++) {
+		zip_size = 0;
+		blk_real_size = 0;
+		dw_page = trx_dw->buf_block_arr[i];
+		dw_block = (buf_block_t*)dw_page;
+		need_compress = fc_block_need_compress(dw_page);
+		
+		if (need_compress == TRUE) {
+      ulint cp_size;
+			compress_data = fc->dw_zip_buf + i * FC_ZIP_COMPRESS_BUF_SIZE;
+			cp_size = fc_block_do_compress(TRUE, dw_page, compress_data);
+	
+			cp_size = cp_size + FC_ZIP_PAGE_META_SIZE;
+			if (cp_size >= (UNIV_PAGE_SIZE - fc_get_block_size() * KILO_BYTE)) {
+				need_compress = FALSE;
+			} else {
+				blk_real_size = fc_block_compress_align(cp_size) * fc_get_block_size();
 			}
 		}
-		else {
-			ulint len1;
-			ulint len2;
-
-			len1 = fc_get_size() - fc->write_off;
-			len2 = trx_doublewrite->first_free - len1;
-
-			if ( len2 > fc->flush_off ){ 
-				ut_print_timestamp(stderr);
-				fprintf(stderr,
-				" InnoDB: No space for write cache, waiting(retry1). flash cache write offset: %lu, flush offset %lu.\n",
-				fc->write_off,
-				fc->flush_off);
-				flash_cache_mutex_exit();
-				os_thread_sleep(1000000);
-				retry = TRUE;
-				goto total_retry;
-			}
-			aio_wait = fc_write_doublewrite_to_flash_cache_start(trx_doublewrite,start_off);
-			fc->write_off = len2 + aio_wait;
-			fc->write_round = fc->write_round + 1;
+	
+		if (need_compress == FALSE) {
+			zip_size = fil_space_get_zip_size(dw_block->page.space);
+			blk_real_size = fc_calc_block_size(zip_size);
 		}
-	}
-	else{
+	
+		page_info = &(fc->dw_pages[i]);
 			
-		ut_ad(fc->flush_round + 1 == fc->write_round);
-		ut_ad(fc->flush_off >= fc->write_off );
-
-		if ( fc->write_off + trx_doublewrite->first_free >= fc->flush_off ){
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				"  InnoDB WARNING: No space for write cache, waiting(retry). flash cache write offset: %lu, flush offset %lu.\n",
-				fc->write_off,
-				fc->flush_off);
-				flash_cache_mutex_exit();
-				os_thread_sleep(1000000);
-				retry = TRUE;
-				goto total_retry;
+		page_info->space = dw_page->space;
+		page_info->offset = dw_page->offset;
+	
+		if (need_compress == TRUE) {
+			page_info->zip_size = blk_real_size / blk_size;
+			page_info->size = PAGE_SIZE_KB / blk_size;
+		} else {
+			page_info->zip_size = 0;
+			page_info->size = blk_real_size / blk_size;
 		}
-		aio_wait = fc_write_doublewrite_to_flash_cache_start(trx_doublewrite,start_off); 
-		fc->write_off = fc->write_off + trx_doublewrite->first_free + aio_wait; 
+	
+#ifdef UNIV_FLASH_CACHE_TRACE
+		if (zip_size == 0) {
+			if (fc_dw_page_corrupted(dw_block)) {
+				ut_error;
+			}
+		} else {
+			if (buf_page_is_corrupted(trx_dw->write_buf + i * UNIV_PAGE_SIZE, zip_size)) {
+				buf_page_print(trx_dw->write_buf + i * UNIV_PAGE_SIZE,
+						zip_size, BUF_PAGE_PRINT_NO_CRASH);
+				ut_error;
+			}
+		}
+#endif
+			
 	}
-	fc_log_update(FALSE);
-	fc_log_commit();
+
+}
+
+/********************************************************************//**
+Find cache blocks for store the doublewrite buffer data
+set this block with BLOCK_READ_FOR_WRITE, remove old block from hash table
+and insert new block into hash table
+@return: NULL */
+static
+void
+fc_write_find_block_and_sync_hash(
+/*===========================*/
+	trx_doublewrite_t* trx_dw)	/*!< in: doublewrite structure */
+{
+	ulint i;
+	ulint data_size;	
+	
+	fc_block_t* old_block;	
+	fc_block_t* wf_block;
+	buf_page_t* dw_page;
+	fc_page_info_t* page_info;
+	
+	for (i = 0; i < trx_dw->first_free; i++) {
+		page_info = NULL;
+		page_info = &(fc->dw_pages[i]);
+		ut_a(page_info);
+		
+		/* find fc block(s) and write the buf_block into the block(s) */
+		rw_lock_x_lock(&fc->hash_rwlock);
+		old_block = NULL;
+		old_block = fc_block_search_in_hash(page_info->space, page_info->offset);
+
+		if (old_block != NULL) {
+      ulint old_size;
+			/* first remove the old block, can seal with a function*/
+			flash_block_mutex_enter(old_block->fil_offset);	
+			ut_a((old_block->space == page_info->space)
+				&& (old_block->offset == page_info->offset));
+		
+			ut_a(old_block->state != BLOCK_NOT_USED);
+			ut_a((old_block->io_fix & IO_FIX_READ) == IO_FIX_NO_IO);
+
+			old_size = fc_block_get_data_size(old_block);
+
+			if (old_block->state == BLOCK_READY_FOR_FLUSH) {
+				srv_flash_cache_merge_write++;
+				srv_flash_cache_dirty -= old_size;
+			}
+
+			fc_block_delete_from_hash(old_block);
+			
+			if (old_block->fil_offset < fc_get_size()) {
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+				fc_print_used();
+#endif
+				srv_flash_cache_used -= old_size;
+				srv_flash_cache_used_nocompress -= fc_block_get_orig_size(old_block);
+			}
+
+			fc_block_detach(FALSE, old_block);	
+			flash_block_mutex_exit(old_block->fil_offset);	
+		}
+
+		if (page_info->zip_size > 0) {
+			data_size = page_info->zip_size;
+		} else {
+			data_size = page_info->size;
+		}
+
+		ut_a(data_size);
+		
+		wf_block = NULL;
+		wf_block = fc_block_find_replaceable(TRUE, data_size);
+
+		ut_a(wf_block != NULL);
+
+		/* the block mutex will release when io compelete, so flush thread will not do wrong flush */
+		flash_block_mutex_enter(wf_block->fil_offset);
+		ut_a(fc_block_get_data_size(wf_block) == data_size);
+		page_info->fil_offset = wf_block->fil_offset;
+		wf_block->space = page_info->space;
+		wf_block->offset = page_info->offset;
+
+		wf_block->size = page_info->size;
+		wf_block->zip_size = page_info->zip_size;
+
+		fc_sync_hash_table(trx_dw, i);
+
+		dw_page = trx_dw->buf_block_arr[i];
+		ut_a(dw_page->fc_block == NULL);
+		dw_page->fc_block = wf_block;
+		
+		/* so InnoDB read operation can into L2 Cache*/
+		rw_lock_x_unlock(&fc->hash_rwlock);
+				
+		/* ok, we haved insert a dw_block into hash table. inc write_off */
+		fc_inc_write_off(data_size);
+		srv_fc_flush_should_commit_log_write += data_size;
+	}
+
+}
+
+/********************************************************************//**
+Add the block to buf_page_t, and launch the write io
+@return: NULL */
+static
+void
+fc_write_launch_io(
+/*===========================*/
+	trx_doublewrite_t* trx_dw)	/*!< in: doublewrite structure */
+{
+	ulint i;
+	ulint ret;
+	ulint block_offset, byte_offset;
+	ulint blk_size_byte = fc_get_block_size_byte();
+	ulint page_size; /*n Byte*/
+ 
+	byte* compress_data = NULL;
+
+	fc_block_t* wf_block = NULL;
+	buf_page_t* dw_page = NULL;
+	fc_page_info_t* page_info = NULL;
+	
+	for (i = 0; i < trx_dw->first_free; i++) {
+		page_info = &(fc->dw_pages[i]);	
+		compress_data = fc->dw_zip_buf + i * FC_ZIP_COMPRESS_BUF_SIZE;
+		dw_page = trx_dw->buf_block_arr[i];
+		wf_block = dw_page->fc_block;
+		ut_a(wf_block != NULL);
+		ut_a(wf_block->space == page_info->space);
+		ut_a(wf_block->offset == page_info->offset);
+		ut_a(wf_block->fil_offset == page_info->fil_offset);		
+		
+		if (page_info->zip_size > 0) {
+			page_size = page_info->zip_size * blk_size_byte;
+			
+			/* this function should rewrite with no page data copy */
+			fc_block_pack_compress(wf_block, compress_data);
+		} else {
+			page_size = page_info->size * blk_size_byte;
+		} 
+
+		fc_io_offset(wf_block->fil_offset, &block_offset, &byte_offset);
+				
+		if (page_info->zip_size > 0) {
+#ifdef UNIV_FLASH_CACHE_TRACE
+			fc_block_compress_check(compress_data, wf_block);	
+#endif
+			ret = fil_io(OS_FILE_WRITE, FALSE, FLASH_CACHE_SPACE, 0,
+					block_offset, byte_offset, page_size,
+					compress_data, NULL);
+		} else {
+			ret = fil_io(OS_FILE_WRITE, FALSE, FLASH_CACHE_SPACE, 0,
+					block_offset, byte_offset, page_size,
+					trx_dw->write_buf + i * UNIV_PAGE_SIZE, NULL);
+		}
+
+		if (ret != DB_SUCCESS) {
+			ut_print_timestamp(stderr);
+			fprintf(stderr," InnoDB Error: L2 Cache fail to launch aio. page(%lu, %lu) in %lu.\n", 
+				(ulong)wf_block->space, (ulong)wf_block->offset, (ulong)wf_block->fil_offset);
+		}
+				
+	}
+
+}
+
+/********************************************************************//**
+Add the block to buf_page_t, and launch the write io
+@return: NULL */
+static
+void
+fc_write_complete_io(
+/*===========================*/
+	trx_doublewrite_t* trx_dw)	/*!< in: doublewrite structure */
+{
+	ulint i;
+	
+	fc_block_t* wf_block = NULL;
+	buf_page_t* dw_page = NULL;
+
+	for (i = 0; i < trx_dw->first_free; i++) {
+		dw_page = trx_dw->buf_block_arr[i];
+		wf_block = dw_page->fc_block;
+		ut_a(wf_block != NULL);
+		dw_page->fc_block = NULL;
+		ut_a(wf_block->io_fix & IO_FIX_DOUBLEWRITE);
+		wf_block->io_fix &= ~IO_FIX_DOUBLEWRITE;
+		flash_block_mutex_exit(wf_block->fil_offset);
+		buf_page_io_complete(dw_page, TRUE);	
+	}
+}
+
+/********************************************************************//**
+Flush double write buffer to L2 Cache block.no io will read or write the ssd block which
+is writed from doublewriter buffer. as io will hit the buf pool or
+doublewriter until the function exit
+@return: count of async read L2 Cache block */
+UNIV_INTERN
+void
+fc_write(
+/*===========================*/
+	trx_doublewrite_t* trx_dw)	/*!< in: doublewrite structure */
+{
+#ifdef UNIV_FLASH_CACHE_TRACE	
+	ulint skip_count; 
+	ulint old_write_off;
+	ulint old_write_round;
+#endif	 
+
+	memset(fc->dw_pages, '0', sizeof(fc_page_info_t) * 2 * FSP_EXTENT_SIZE);
+
+	/* 
+	 * step 1: calc and store each block compressed size or zip size if no need compress
+	 * by L2 Cache, and calc the block size need by each page in doublewrite buffer
+	 */
+	fc_write_compress_and_calc_size(trx_dw);
+
+	/* 
+	 * step 2: find cache blocks for store the doublewrite buffer data
+	 * set this block with BLOCK_READ_FOR_WRITE, remove old block from hash table
+	 * and insert new block into hash table
+	 */
+retry:
+
+	/* get fc mutex, so move/migrate can`t go on */
+	flash_cache_mutex_enter();
+
+	if (fc_get_available() <= FC_LEAST_AVIABLE_BLOCK_FOR_RECV) {
+		fc_wait_for_space();	/* this function will release fc mutex*/		
+		goto retry;
+	}
+
+	if (fc->is_finding_block == 1) {
+
+		flash_cache_mutex_exit();
+		goto retry;
+	}
+
+#ifdef UNIV_FLASH_CACHE_TRACE	 
+	old_write_off = fc->write_off;
+	old_write_round = fc->write_round;
+#endif
+
+	/* set  is_doing_doublewrite = 1, so move/migrate should not commit the writeoff until doublewrite fsynced */
+#ifdef UNIV_FLASH_CACHE_FOR_RECOVERY_SAFE
+	fc->is_doing_doublewrite = 1;
+#endif
+
+	fc_write_find_block_and_sync_hash(trx_dw);
+
+	/* 
+	 * we should check if 
+	 * write some blocks into ssd and  update the log, we should release the mutex
+	 * after all the async io is launched
+	 */	
+#ifdef UNIV_FLASH_CACHE_TRACE	 
+	if (old_write_round == fc->write_round) {
+		skip_count = fc->write_off - old_write_off;
+	} else {
+		skip_count = fc->write_off + fc_get_size() - old_write_off;
+	}
+
+	if (skip_count >= FC_FIND_BLOCK_SKIP_COUNT) {
+		flash_cache_log_mutex_enter();
+		fc_log->blk_find_skip = skip_count;
+		fc_log_commit_for_skip_block();
+		flash_cache_log_mutex_exit();
+
+		fprintf(fc->f_debug, "doublewrite skip %lu blocks, need commit log\n", (ulong)skip_count);
+	}
+#endif
+
+	/* 
+	 * it is not safe to release fc mutex this time, as lru move may get the mutex and
+	 * write some blocks into ssd and  update the log, we should release the mutex
+	 * after all the async io is launched. so make sure is_doing_doublewrite = 1
+	 */
+
+	/*  now flush thread can go on */
 	flash_cache_mutex_exit();
 
-	for( i = 0; i < trx_doublewrite->first_free; i++ ){
-		buf_page_io_complete( &(((buf_block_t*) trx_doublewrite->buf_block_arr[i])->page),TRUE );	
-	}
+	/* 
+	 * step 3: add the block to buf_page_t, and launch the write io when the async io compelete,
+	 * release the block mutex from the buf_page_t
+	 */
+	fc_write_launch_io(trx_dw);
 
-	return aio_wait;
+	/* now all async io is launched, release the fc mutex , or instread we set is_doing_doublewrite */
+	//flash_cache_mutex_exit();
+	fc_sync_fcfile();
+
+	/* first commit the log, and then set is_doing_doublewrite zero, so move/migrate can go on */
+#ifdef UNIV_FLASH_CACHE_FOR_RECOVERY_SAFE
+	flash_cache_mutex_enter();
+	ut_a(srv_fc_flush_should_commit_log_write != 0);
+	/* this function will release the fc mutex */
+	fc_log_commit_when_update_writeoff();
+
+	flash_cache_mutex_enter();
+	fc->is_doing_doublewrite = 0;
+	os_event_set(fc->wait_doublewrite_event);	
+	flash_cache_mutex_exit();
+#endif
+
+	/* at this time, io complete, set the block state READY_FOR_FLUSH and release block mutex */
+	fc_write_complete_io(trx_dw);
 }
 
 /********************************************************************//**
 When srv_flash_cache_enable_write is FALSE, doublewrite buffer will behave as deault. 
-So if any page in doublewrite buffer now(newer) is also in flash cache already(olded),
-it must be removed  from the flash cache before doublewrite buffer write to disk.
-@return: pages removed in flash cache */
+So if any page in doublewrite buffer now(newer) is also in L2 Cache already(olded),
+it must be removed  from the L2 Cache before doublewrite buffer write to disk.
+@return: pages removed in L2 Cache */
+UNIV_INTERN
 ulint
-fc_remove_pages_in_dwb(trx_doublewrite_t* trx_doublewrite)
+fc_block_remove_from_hash(
+/*==================*/
+	trx_doublewrite_t* trx_dw)	/*!< in: doublewrite structure */
 {
 	ulint i;
-	fc_block_t* fc_block;
-	ulint space_id;
-	ulint page_no;
 	ulint removed_pages = 0;
-	
-	for(i = 0; i < trx_doublewrite->first_free; ++i) {
-		space_id = mach_read_from_4(trx_doublewrite->write_buf + i * UNIV_PAGE_SIZE + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-		page_no  = mach_read_from_4(trx_doublewrite->write_buf + i * UNIV_PAGE_SIZE + FIL_PAGE_OFFSET);
+	fc_block_t* out_block = NULL;
+	ulint space;
+	ulint offset;
+	ulint mm_blocks;
+
+	for (i = 0; i < trx_dw->first_free; ++i) {
+		space = mach_read_from_4(trx_dw->write_buf
+			+ i * UNIV_PAGE_SIZE + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+		offset = mach_read_from_4(trx_dw->write_buf
+			+ i * UNIV_PAGE_SIZE + FIL_PAGE_OFFSET);
 		
-		flash_cache_mutex_enter();
-		flash_cache_hash_mutex_enter(space_id, page_no);
-		HASH_SEARCH(hash,fc->hash_table,
-				buf_page_address_fold(space_id,page_no),
-				fc_block_t*,fc_block,ut_ad(1),
-				space_id == fc_block->space && page_no == fc_block->offset);
-		if(fc_block){
-			HASH_DELETE(fc_block_t,hash,fc->hash_table,buf_page_address_fold(space_id, page_no),fc_block);
-			fc_block->state = BLOCK_NOT_USED;
-			if(fc_block->fil_offset < fc->size)
-				--srv_flash_cache_used;
+		rw_lock_x_lock(&fc->hash_rwlock);
+		out_block = fc_block_search_in_hash(space, offset);
+		if (out_block) {
+      ulint data_size;
+			flash_block_mutex_enter(out_block->fil_offset);
+			data_size = fc_block_get_data_size(out_block);
+			if (out_block->fil_offset < fc_get_size()) {
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+				fc_print_used();
+#endif
+				srv_flash_cache_used -= data_size;
+
+				srv_flash_cache_used_nocompress -= fc_block_get_orig_size(out_block);
+				if (out_block->state == BLOCK_READY_FOR_FLUSH) {
+					srv_flash_cache_dirty -= data_size;
+				}
+				mm_blocks = FALSE;
+			} else {
+				mm_blocks = TRUE;
+			}
+
 			++removed_pages;
-			
+			fc_block_delete_from_hash(out_block);
+			fc_block_detach(mm_blocks, out_block);			
+			flash_block_mutex_exit(out_block->fil_offset);
 		}	
-		flash_cache_hash_mutex_exit(space_id,page_no);
-		flash_cache_mutex_exit();
+
+		rw_lock_x_unlock(&fc->hash_rwlock);
 	}
+	
 	return removed_pages;
 }
 
-/******************************************************************//**
-Get distance between flush offset and write offset .
-@return	number of pages*/ 
-static
-ulint
-fc_get_distance(
-/*==================*/
-)
-{
-
-	ut_ad(mutex_own(&fc->mutex));
-
-	if (fc->write_round == fc->flush_round){
-		return (fc->write_off - fc->flush_off);
-	}
-	else{
-		return (fc_get_size() + fc->write_off - fc->flush_off);
-	}
-}
-
 /********************************************************************//**
-Flush flash cache block to flash cache file.
-@return: number of pages to flush*/
-UNIV_INTERN
-ulint	
-fc_flush_to_disk_estimate(
-/*==================*/
-	ulint start_offset,	/*!< in: start flush offset */
-	ulint* c_flush,		/*!< out: actually flush pages */
-	ibool do_full_io	/*!< in: whether do full io capacity */
-){
-	ulint ret;
-	ulint n_flush;
-	ulint i = 0;
-	ulint j = 0;
-	byte* page;
-	ulint space;
-	ulint offset;
-	ulint page_type; 
-	ulint zip_size;
-
-#ifdef UNIV_FLASH_DEBUG
-	ulint lsn;
-	ulint lsn2;
-	byte page2[UNIV_PAGE_SIZE];
-	ulint space2;
-	ulint offset2;
-#endif
-
-	ut_ad(!mutex_own(&fc->mutex));
-
-	flash_cache_mutex_enter();
-	if ( fc->flush_round == fc->write_round ){
-		if ( fc->flush_off + srv_fc_io_capacity <= fc->write_off ) {
-			n_flush = srv_fc_io_capacity;
-		}
-		else{
-			/* no enough space to flush */
-			n_flush = fc->write_off - fc->flush_off;
-			if ( n_flush == 0 ){
-				flash_cache_mutex_exit();
-				return (0);
-			}
-		}
-
-		if ( (fc->write_off - fc->flush_off) < ( 1.0*srv_flash_cache_write_cache_pct/100 )*fc_get_size()
-				&& !do_full_io){
-			flash_cache_mutex_exit();
-			return (0);
-		}
-		else if ( (fc->write_off - fc->flush_off) < ( 1.0*srv_flash_cache_do_full_io_pct/100 )*fc_get_size()
-				&& !do_full_io){
-			n_flush = ut_min(PCT_IO(10),n_flush);
-			if ( n_flush == 0 ){
-				flash_cache_mutex_exit();
-				return (0);
-			}
-		}
-	}
-	else{
-		if ( fc->flush_off + srv_fc_io_capacity <= fc_get_size() ) {
-			n_flush = srv_fc_io_capacity;
-		}
-		else{
-			n_flush = fc_get_size() - fc->flush_off;
-		}
-		if ( (fc->write_off - fc->flush_off + fc_get_size() ) < ( 1.0*srv_flash_cache_write_cache_pct/100 )*fc_get_size()
-				&& !do_full_io){
-			flash_cache_mutex_exit();
-			return (0);
-		}
-		else if ( (fc->write_off - fc->flush_off + fc_get_size() )  < ( 1.0*srv_flash_cache_do_full_io_pct/100 )*fc_get_size()
-				&& !do_full_io){
-			n_flush = ut_min(PCT_IO(10),n_flush);
-			if ( n_flush == 0 ){
-				flash_cache_mutex_exit();
-				return (0);
-			}
-		}
-	}
-	flash_cache_mutex_exit();
-
-	srv_flash_cache_flush += n_flush;
-
-	for(i = 0; i < n_flush; i++){
-		flash_cache_mutex_enter();
-		if ( fc->block[start_offset+i].state == BLOCK_NOT_USED
-			|| fc->block[start_offset+i].state == BLOCK_READ_CACHE ){
-			/* if readonly or merge write */
-			if (fc->block[start_offset+i].state == BLOCK_NOT_USED){
-				srv_flash_cache_merge_write++;
-			}
-			flash_cache_mutex_exit();
-			continue;
-		}
-		else if ( fc->block[start_offset+i].state == BLOCK_FLUSHED ){
-			flash_cache_mutex_exit();
-			continue;
-		}
-		ut_a( fc->block[start_offset+i].state == BLOCK_READY_FOR_FLUSH );
-		fc->block[start_offset+i].state = BLOCK_FLUSHED;
-		flash_cache_mutex_exit();
-		page = fc->read_buf + j*UNIV_PAGE_SIZE;
-		ret = fil_io(OS_FILE_READ, TRUE,
-			FLASH_CACHE_SPACE, 0,
-			fc->flush_off + i, 0, UNIV_PAGE_SIZE,
-			page, NULL);
-		if ( ret != DB_SUCCESS ){
-			ut_print_timestamp(stderr);
-			fprintf(
-				stderr,"InnoDB: Flash cache [Error]: unable to read page from flash cache.\n"
-				"flash cache flush offset is:%lu.\n",
-				(ulong)fc->flush_off + i
-				);
-			ut_error;
-		}		
-		space = mach_read_from_4( page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID );
-		zip_size = fil_space_get_zip_size(space);
-		if (zip_size == ULINT_UNDEFINED){
-			/* table has been droped */
-			continue;
-		}
-		offset = mach_read_from_4( page + FIL_PAGE_OFFSET );
-
-		ut_a( space == fc->block[start_offset+i].space );
-		ut_a( offset == fc->block[start_offset+i].offset );
-
-		if (buf_page_is_corrupted(page, zip_size)){
-			buf_page_print(page,zip_size,BUF_PAGE_PRINT_NO_CRASH);
-			ut_error;
-		}
-		page_type = fil_page_get_type(page);
-		if (page_type == FIL_PAGE_INDEX){
-			page_type = 1;
-		}
-		srv_flash_cache_flush_detail[page_type]++;
-		ret = fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,FALSE,space,zip_size,offset,0,zip_size ? zip_size : UNIV_PAGE_SIZE,page,NULL);
-		if ( ret != DB_SUCCESS && ret != DB_TABLESPACE_DELETED ){
-			ut_print_timestamp(stderr);
-			fprintf(stderr," InnoDB Error: write flash cache(%lu) to disk(%lu,%lu) Error.\n",fc->flush_off+i,space,offset);
-			ut_error;
-		}
-		j++;
-	}
-
-	fc_flush_sync_datafiles();
-
-	*c_flush = n_flush;
-
-	return n_flush;
-	
-}
-
-/********************************************************************//**
-Flush flash cache block to flash cache file using adaptive algorithms.
-@return: number of pages to flush*/
-UNIV_INTERN
-ulint	
-fc_flush_to_disk_adaptive(
-/*==================*/
-	ulint start_offset,	/*!< in: start flush offset */
-	ulint* c_flush,		/*!< out: actually flush pages */
-	ibool do_full_io	/*!< in: whether do full io capacity */
-){
-	ulint distance;
-	byte* page;
-	ulint ret;
-	ulint space;
-	ulint offset;
-	ulint page_type;
-	ulint n_flush = 0;
-	ulint i = 0;
-	ulint pos = 0;
-	ulint zip_size;
-    ulint write_offset = 0;
-    
-	ut_ad(!mutex_own(&fc->mutex));
-
-	flash_cache_mutex_enter();
-
-	distance = fc_get_distance();
-    write_offset = fc->write_off;
-    
-	if ( distance == 0 ){
-		flash_cache_mutex_exit();
-		return 0;
-	}
-	else if ( recv_recovery_on ){
-		if ( distance < ( 1.0*srv_flash_cache_write_cache_pct/100 )*fc_get_size() )
-			n_flush = 0;
-		else if ( distance < ( 1.0*srv_flash_cache_do_full_io_pct/100 )*fc_get_size() )
-			n_flush = ut_min(PCT_IO(10), distance);
-		else
-			n_flush = ut_min(PCT_IO(100), distance);
-	}
-	else if ( distance < ( 1.0*srv_flash_cache_write_cache_pct/100 )*fc_get_size() && !do_full_io ){
-		flash_cache_mutex_exit();
-		return 0;
-	}
-	else if ( distance < ( 1.0*srv_flash_cache_do_full_io_pct/100 )*fc_get_size() && !do_full_io ){
-		n_flush = PCT_IO(10);
-		if ( n_flush == 0 ){
-			flash_cache_mutex_exit();
-			return 0;
-		}
-	}
-	else{
-		ut_ad( ( fc_get_distance() > ( 1.0*srv_flash_cache_do_full_io_pct/100 )*fc_get_size() ) || do_full_io );
-		n_flush = ut_min(PCT_IO(100), distance);
-	}
-
-	flash_cache_mutex_exit();
-
-	while(*c_flush < n_flush){
-		pos = ( start_offset + i ) % fc_get_size() ;
-        
-        /*
-         Note: maybe there are not n_flush pages need to flush back to disk.
-         So we add condition (start_offset + i) % fc_get_size() != write_offset
-        */
-        if (pos == write_offset)
-            break;
-        
-		flash_cache_mutex_enter();
-		if ( fc->block[pos].state != BLOCK_READY_FOR_FLUSH ){
-			/* if readonly or merge write or aready flushed */
-			ut_ad ( fc->block[pos].state == BLOCK_NOT_USED
-				|| fc->block[pos].state == BLOCK_READ_CACHE
-				|| fc->block[pos].state == BLOCK_FLUSHED );
-			if (fc->block[pos].state == BLOCK_NOT_USED){
-				srv_flash_cache_merge_write++;
-			}
-			i++;
-			flash_cache_mutex_exit();
-			continue;
-		}
-		fc->block[pos].state = BLOCK_FLUSHED;
-		flash_cache_mutex_exit();
-		page = fc->read_buf + *c_flush*UNIV_PAGE_SIZE;
-		ret = fil_io(OS_FILE_READ, TRUE,
-			FLASH_CACHE_SPACE, 0,
-			pos, 0, UNIV_PAGE_SIZE,
-			page, NULL);
-		if ( ret != DB_SUCCESS ){
-			ut_print_timestamp(stderr);
-			fprintf(
-				stderr," InnoDB: Flash cache [Error]: unable to read page from flash cache.\n"
-				"flash cache flush offset is:%lu.\n",
-				(ulong)fc->flush_off + i
-				);
-			ut_error;
-		}		
-		space = mach_read_from_4( page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID );
-		zip_size = fil_space_get_zip_size(space);
-		if (zip_size == ULINT_UNDEFINED){
-			/* table has been droped */
-			continue;
-		}
-		ut_a( space == fc->block[pos].space );
-		offset = mach_read_from_4( page + FIL_PAGE_OFFSET );
-		ut_a( offset == fc->block[pos].offset );
-		if ( buf_page_is_corrupted(page, zip_size) ){
-			buf_page_print(page,zip_size,BUF_PAGE_PRINT_NO_CRASH);
-			ut_error;
-		}
-		page_type = fil_page_get_type(page);
-		if ( page_type == FIL_PAGE_INDEX ){
-			page_type = 1;
-		}
-		srv_flash_cache_flush_detail[page_type]++;
-		ret = fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,FALSE,space,zip_size,offset,0,zip_size ? zip_size : UNIV_PAGE_SIZE,page,NULL);
-		if (ret != DB_SUCCESS && ret != DB_TABLESPACE_DELETED){
-			ut_print_timestamp(stderr);
-			fprintf(stderr," InnoDB Error: write flash cache(%lu) to disk(%lu,%lu) Error.\n",fc->flush_off+i,space,offset);
-			ut_error;
-		}
-		i++;
-		*c_flush = *c_flush + 1;
-	}
-	
-	fc_flush_sync_datafiles();
-
-	srv_flash_cache_flush = srv_flash_cache_flush + i;
-
-#ifdef UNIV_FLASH_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr," InnoDB: flush page from flash to disk, flush %lu page, actually flush %lu page, merge write ratio %.2f.\n",i,*c_flush, 1.0*(*c_flush)/i);
-#endif
-
-	return i;
-	
-}
-
-/******************************************************************//**
-Flush pages from flash cache.
-@return	number of pages to be flush to tablespace */
-UNIV_INTERN
-ulint
-fc_flush_to_disk(
-/*===================*/
-	ibool do_full_io	/*<! whether do full io flush */
-){
-	ulint n_flush = 0;
-	ulint c_flush = 0;
-	ulint start_offset = fc->flush_off;
-
-	ut_ad(!mutex_own(&fc->mutex));
-
-	if ( srv_flash_cache_adaptive_flushing ){
-		n_flush = fc_flush_to_disk_adaptive(start_offset,&c_flush,do_full_io);
-	} else{
-		n_flush = fc_flush_to_disk_estimate(start_offset,&c_flush,do_full_io);
-	}
-
-	if ( n_flush > 0 ){
-		ut_ad(n_flush >= c_flush);
-
-		flash_cache_mutex_enter();
-		fc->flush_off =  ( fc->flush_off + n_flush ) % fc_get_size();
-		if ( fc->flush_off < start_offset ){
-			fc->flush_round++;
-		}
-
-		fc_log_update(FALSE);
-		fc_log_commit();
-		flash_cache_mutex_exit();
-	}
-
-#ifdef UNIV_FLASH_DEBUG
-	buf_flush_flash_cache_validate();
-#endif
-	
-	return c_flush;
-
-}
-
-/**********************************************************************//**
-Sync flash cache hash table from LRU remove page opreation */ 
-static
-void
-fc_LRU_sync_hash_table(
-/*==========================*/
-	fc_block_t* b, /*!< flash cache block to be removed */
-	buf_page_t* bpage /*!< frame to be written */
-){
-	/* block to be written */
-	fc_block_t* b2;
-
-	ut_ad(mutex_own(&fc->mutex));
-
-	b2 = &fc->block[fc->write_off];
-
-	if ( b != NULL ){
-		HASH_DELETE(fc_block_t,hash,fc->hash_table,
-			buf_page_address_fold(b->space, b->offset),
-			b);
-		b->state = BLOCK_NOT_USED;
-		srv_flash_cache_used = srv_flash_cache_used - 1;
-#ifdef UNIV_FLASH_DEBUG
-		ut_print_timestamp(stderr);
-		fprintf(stderr,"	InnoDB: lru - %lu, %lu.\n",b->space,b->offset);
-#endif
-	}
-
-	if ( b2->state != BLOCK_NOT_USED ){
-		HASH_DELETE(fc_block_t,hash,fc->hash_table,
-			buf_page_address_fold(b2->space, b2->offset),
-			b2);
-		srv_flash_cache_used = srv_flash_cache_used - 1;
-#ifdef UNIV_FLASH_DEBUG
-		ut_print_timestamp(stderr);
-		fprintf(stderr,"	InnoDB: lru - %lu, %lu.\n",b2->space,b2->offset);
-#endif
-	}
-
-	b2->space = bpage->space;
-	b2->offset = bpage->offset;
-	b2->state = BLOCK_READ_CACHE;
-	/* insert to hash table */
-	HASH_INSERT(fc_block_t,hash,fc->hash_table,
-		buf_page_address_fold(bpage->space, bpage->offset),
-		b2);
-	srv_flash_cache_used = srv_flash_cache_used + 1;
-#ifdef UNIV_FLASH_DEBUG
-	ut_print_timestamp(stderr);
-	fprintf(stderr,"	InnoDB: lru + %lu, %lu.\n",b2->space,b2->offset);
-#endif
-}
-
-
-/**********************************************************************//**
-Check whether migration operation possible */ 
-static
-ibool
-fc_LRU_flash_cache_avaliable(
-/*=========================*/
-)
-{
-	ut_ad(mutex_own(&fc->mutex));
-
-	if ( fc->write_round == fc->flush_round ){
-		return TRUE;
-	}
-	else{
-		if ( fc->write_off + 1 < fc->flush_off ) {
-			return TRUE;
-		}
-	}
-	return FALSE;
-}
-
-/**********************************************************************//**
-Move to flash cache if possible */
-UNIV_INTERN
-void
-fc_LRU_move(
-/*=========================*/
-	buf_page_t* bpage	/*!< in: page flush out from buffer pool */
-)
-{
-	fc_block_t* b;
-    page_t*	page;
-	ulint ret ;
-	ulint write_offset;
-	ulint zip_size;
-
-	ut_ad(!mutex_own(&fc->mutex));
-
-	if ( recv_no_ibuf_operations ){
-		return;
-	}
-
-	zip_size = fil_space_get_zip_size(bpage->space);
-	if (zip_size == ULINT_UNDEFINED){
-		/* table has been droped, do not need move to flash cache */
-		return;
-	}
-
-	if (zip_size){
-		ut_ad(bpage->zip.data);
-		page = bpage->zip.data;
-        if(buf_page_is_corrupted(page,zip_size)){
-            ut_print_timestamp(stderr);
-            fprintf(stderr," InnoDB: compressed page is corrupted in LRU_move.\n");
-            ut_error;
-        }
-	}
-	else{
-		page = ((buf_block_t*) bpage)->frame;
-	}
-
-	if ( fil_page_get_type(page) != FIL_PAGE_INDEX
-		&& fil_page_get_type(page) != FIL_PAGE_INODE ){
-			return;
-	}
-	
-retry:
-	flash_cache_mutex_enter();
-	flash_cache_hash_mutex_enter(bpage->space,bpage->offset);	
-	/* search the same space offset in hash table */
-	HASH_SEARCH(hash,fc->hash_table,
-		buf_page_address_fold(bpage->space,bpage->offset),
-		fc_block_t*,b,
-		ut_ad(1),
-		bpage->space == b->space && bpage->offset == b->offset);
-
-	write_offset = fc->write_off;
-
-	if ( fc->block[fc->write_off].is_aio_reading ){
-		srv_flash_cache_wait_for_aio++;
-		flash_cache_hash_mutex_exit(bpage->space,bpage->offset);
-	}
-	else if (
-             b == NULL
-             && (bpage->access_time != 0 || zip_size)
-             && srv_flash_cache_enable_migrate
-             ){
-		/* 
-			flash cache migrate:
-			move page not changed in buffer pool to flash cache block 
-		*/
-		if ( !fc_LRU_flash_cache_avaliable()  ){
-			ut_print_timestamp(stderr);
-			fprintf(stderr,"	InnoDB: sleep for free space.write offset %lu, flush offset %lu.Thread id is %lu.\n",
-                    fc->write_off,fc->flush_off,(ulong)os_thread_get_curr_id());
-			flash_cache_hash_mutex_exit(bpage->space,bpage->offset);	
-			flash_cache_mutex_exit();
-			os_thread_sleep(100000);
-			goto retry;
-		}
-		fc_LRU_sync_hash_table(NULL,bpage);
-		srv_flash_cache_write++;
-		srv_flash_cache_migrate++;
-		flash_cache_hash_mutex_exit(bpage->space,bpage->offset);
-		ret = fil_io(OS_FILE_WRITE,TRUE,FLASH_CACHE_SPACE,0,fc->write_off,0,zip_size ? zip_size : UNIV_PAGE_SIZE,page,NULL);
-		if ( ret != DB_SUCCESS ){
-			ut_print_timestamp(stderr);
-			fprintf(stderr,"	InnoDB: Error to migrate from buffer pool to flash cache, space:%u, offset %u",bpage->space,bpage->offset);
-			ut_error;
-		}
-		fc->write_off = ( fc->write_off + 1 ) % fc_get_size();
-		if ( write_offset > fc->write_off ){
-			fc->write_round = fc->write_round + 1;
-		}
-	}
-	else if ( b && srv_flash_cache_enable_move ){
-		/* 
-			flash cache move:
-			move page already in flash cache block to new location
-			for the sake of geting more high read ratio 
-		*/
-		if ( (((fc->write_off > b->fil_offset) && (fc->write_off - b->fil_offset ) >= FLASH_CACHE_MOVE_HIGH_LIMIT)
-			 || ((fc->write_off < b->fil_offset) && ( b->fil_offset - fc->write_off ) <= FLASH_CACHE_MOVE_LOW_LIMIT))
-				&& fc_LRU_flash_cache_avaliable()
-				&& b->state != BLOCK_READY_FOR_FLUSH
-				&& (bpage->space != 0 && bpage->offset != 0) ){
-
-			ut_ad( b->state == BLOCK_FLUSHED || b->state == BLOCK_READ_CACHE );
-			fc_LRU_sync_hash_table(b,bpage);
-			srv_flash_cache_write++;
-			srv_flash_cache_move++;
-			flash_cache_hash_mutex_exit(bpage->space,bpage->offset);
-			ret = fil_io(OS_FILE_WRITE,TRUE,FLASH_CACHE_SPACE,0,fc->write_off,0,zip_size ? zip_size : UNIV_PAGE_SIZE,page,NULL);
-			if ( ret != DB_SUCCESS ){
-				ut_print_timestamp(stderr);
-				fprintf(stderr,"	InnoDB: Error to migrate from buffer pool to flash cache, space:%lu, offset %lu",
-						(unsigned long)bpage->space, (unsigned long)bpage->offset);
-				ut_error;
-			}
-			fc->write_off = ( fc->write_off + 1 ) % fc_get_size();
-			if ( write_offset > fc->write_off ){
-				fc->write_round = fc->write_round + 1;
-			}
-		}
-		else{
-			flash_cache_hash_mutex_exit(bpage->space,bpage->offset);
-		}
-	}
-	else{
-		flash_cache_hash_mutex_exit(bpage->space,bpage->offset);
-	}
-	flash_cache_mutex_exit();
-#ifdef UNIV_FLASH_DEBUG
-	buf_flush_flash_cache_validate();
-#endif
-}
-
-/********************************************************************//**
-Read page from flash cache block, if not found in flash cache, read from disk.
+Read page from L2 Cache block, if not found in L2 Cache, read from disk.
 Note: ibuf page must read in aio mode to avoid deadlock
 @return DB_SUCCESS is success, 1 if read request is issued. 0 if it is not */
 UNIV_INTERN
@@ -1237,358 +1216,559 @@ fc_read_page(
 	ulint	zip_size,/*!< in: compressed page size, or 0 */
 	ibool	unzip,	/*!< in: TRUE=request uncompressed page */
 	ulint	offset,	/*!< in: page number */
-	ulint	wake_later,	/*!< wake later flag */
+	ulint	wake_later,	/*!< in: wake later flag */
 	void*	buf,		/*!< in/out: buffer where to store read data
-				or from where to write; in aio this must be
-				appropriately aligned */
-	buf_page_t*	bpage	/*!< in/out: read flash cache block to this page */
-)
+				or from where to write; in aio this must be appropriately aligned */
+	buf_page_t*	bpage)	/*!< in/out: read L2 Cache block to this page */
 {
 	ulint err;
-
-	fc_block_t* b;
+	ulint page_type;
+	ulint fc_size;
+	ulint blk_size;
+	ulint block_offset, byte_offset;
 	ibool using_ibuf_aio = FALSE;
-#ifdef UNIV_FLASH_DEBUG
-	fc_block_t* b2;
+	fc_block_t *block = NULL;
+#ifdef UNIV_FLASH_CACHE_TRACE
+	ulint _offset;
+	ulint _space;
 #endif
 	
-	if (fc == NULL){
-		if (zip_size){
-			err = fil_io(OS_FILE_READ | wake_later,
-			      sync, space, zip_size, offset, 0, zip_size,
-			      buf, bpage);
-		}
-		else{
-			err = fil_io(OS_FILE_READ | wake_later,
-						sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
-						buf, bpage);
-		}
-		return err;
+	if (fc == NULL) {
+		err = fil_io(OS_FILE_READ | wake_later, sync, space, zip_size, offset, 0, 
+			zip_size ? zip_size : UNIV_PAGE_SIZE, buf, bpage);        
+		return err;	
 	}
 
 	ut_ad(!mutex_own(&fc->mutex));
 
-	flash_cache_hash_mutex_enter(space,offset);		
-	HASH_SEARCH(hash,fc->hash_table,
-		buf_page_address_fold(space,offset),
-		fc_block_t*,b,
-		ut_ad(1),
-		space == b->space && offset == b->offset);
-	if ( b ){
-		ulint page_type;
-#ifdef UNIV_DEBUG
-		ulint _offset;
-		ulint _space;
-#endif
- 		ut_a( b->state != BLOCK_NOT_USED );
+	fc_size = fc_get_size();
+
+	rw_lock_s_lock(&fc->hash_rwlock);
+	block = fc_block_search_in_hash(space, offset);
+	if (block) {
+		void* read_buf = NULL;
+ 		ut_a(block->state != BLOCK_NOT_USED);
+
+        if (block->zip_size){
+            blk_size = block->zip_size * fc_get_block_size();
+        } else {
+            blk_size = fc_calc_block_size(zip_size);
+        }
+
 		srv_flash_cache_read++;
-		ut_ad( b->is_aio_reading == FALSE );
-		ut_ad( bpage->fc_block == NULL );
 
-		if(b->fil_offset >= fc->size)
-		{
-			memcpy(buf, fc->move_migrate_pages + UNIV_PAGE_SIZE * (b->fil_offset - fc->size),
-					zip_size ? zip_size : UNIV_PAGE_SIZE);
-			page_type = fil_page_get_type(buf);
-			if ( page_type == FIL_PAGE_INDEX ){
-				page_type = 1;
+		/* read hit in memory */
+		if (block->fil_offset >= fc_size) {
+      byte *compress_page = NULL;
+			flash_block_mutex_enter(block->fil_offset);
+
+			compress_page = fc->mm_buf->buf
+					+ (block->fil_offset - fc_size) * fc_get_block_size_byte();
+
+			if (block->zip_size) {
+				fc_block_compress_check(compress_page, block);
+				/* only qlz can do this check  */
+				if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ) {
+					ut_a(block->zip_size * fc_get_block_size_byte()
+						>= (ulint)fc_qlz_size_compressed((const char *)(compress_page + FC_ZIP_PAGE_DATA)));
+					ut_a(UNIV_PAGE_SIZE 
+						== fc_qlz_size_decompressed((const char *)(compress_page + FC_ZIP_PAGE_DATA)));
+				}
+
+				fc_block_do_decompress(DECOMPRESS_READ_MM, compress_page, buf);
+				srv_flash_cache_decompress++;
+			} else {
+				ut_memcpy(buf, compress_page, blk_size * KILO_BYTE);
 			}
-			srv_flash_cache_read_detail[page_type]++;
-			flash_cache_hash_mutex_exit(space,offset);
-            if (!sync){
-                buf_page_io_complete(bpage, TRUE);
-            }
-			return DB_SUCCESS;
-		}
-		
-		b->is_aio_reading = TRUE;
-		if ( ibuf_bitmap_page(zip_size,b->offset) || trx_sys_hdr_page(b->space,b->offset) ){
-			sync = TRUE;
-		}
-		if ( !sync ){
-			bpage->fc_block = b;
-			srv_flash_cache_aio_read++;
-		}
-		flash_cache_hash_mutex_exit(space,offset);		
-
-		if ( !recv_no_ibuf_operations && ibuf_page(b->space, zip_size, b->offset, NULL)){
-			using_ibuf_aio = TRUE;
-		}
-		if ( using_ibuf_aio ){
-			err = fil_io(OS_FILE_READ | wake_later | OS_FORCE_IBUF_AIO,
-				sync, FLASH_CACHE_SPACE, 0, b->fil_offset, 0, zip_size ? zip_size : UNIV_PAGE_SIZE,
-				buf, bpage);
-		}
-		else{
-			err = fil_io(OS_FILE_READ | wake_later ,
-				sync, FLASH_CACHE_SPACE, 0, b->fil_offset, 0, zip_size ? zip_size : UNIV_PAGE_SIZE,
-				buf, bpage);
-		}
-
-		if ( sync ){
-			flash_cache_hash_mutex_enter(space,offset);
-			b->is_aio_reading = FALSE;
-			flash_cache_hash_mutex_exit(space,offset);
-			page_type = fil_page_get_type(buf);
-			if ( page_type == FIL_PAGE_INDEX ){
-				page_type = 1;
-			}
-			srv_flash_cache_read_detail[page_type]++;
-#ifdef UNIV_DEBUG
+				
+#ifdef UNIV_FLASH_CACHE_TRACE
 			_offset = mach_read_from_4((byte*)buf + FIL_PAGE_OFFSET);
 			_space = mach_read_from_4((byte*)buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-			if ( _offset != offset || _space != space ){
+			if (_offset != offset || _space != space) {
+				ut_print_timestamp(stderr);
+				fprintf(stderr, " InnoDB: L2 Cache read error from mm_memory. fos%d\n", 
+					block->fil_offset);
 				ut_error;
 			}
 #endif
+			page_type = fil_page_get_type((unsigned char *)buf);
+			if (page_type == FIL_PAGE_INDEX) {
+				page_type = 1;
+			}			
+
+			flash_block_mutex_exit(block->fil_offset);
+			srv_flash_cache_read_detail[page_type]++;
+			
+			rw_lock_s_unlock(&fc->hash_rwlock);
+	       	if (!sync) {
+	       		buf_page_io_complete(bpage, TRUE);
+         	}
+
+			return DB_SUCCESS;
 		}
-	}
-	else{
-		flash_cache_hash_mutex_exit(space,offset);
-		err = fil_io(OS_FILE_READ | wake_later,
-					sync, space, zip_size, offset, 0, zip_size ? zip_size : UNIV_PAGE_SIZE,
-					buf, bpage);
-        if (zip_size && sync){
-            /* 
-             use write-alloc for compressed page, 
-             since compressed page is marked corrupted when swap out from buffer pool
-            */
-            srv_flash_cache_lru_move_batch ? 
-				fc_LRU_move_optimization(bpage): fc_LRU_move(bpage);
-        }
+
+		/* read hit in SSD */
+		flash_block_mutex_enter(block->fil_offset);
+		ut_a((block->io_fix & IO_FIX_READ) == IO_FIX_NO_IO);
+		ut_a(bpage->fc_block == NULL);
+
+		block->io_fix |= IO_FIX_READ;
+		bpage->fc_block = block;
+		
+		if (ibuf_bitmap_page(zip_size, block->offset)
+			|| trx_sys_hdr_page(block->space, block->offset)) {
+
+			sync = TRUE;
+		}
+		
+		if (!sync) {
+			srv_flash_cache_aio_read++;
+		}
+
+		/* unlock before io is safe as io_fix is set */
+		rw_lock_s_unlock(&fc->hash_rwlock);
+		flash_block_mutex_exit(block->fil_offset);
+
+		if (block->zip_size) {
+			if (srv_flash_cache_decompress_use_malloc == TRUE) {
+				block->read_io_buf = ut_malloc(2 * UNIV_PAGE_SIZE);
+			} else {
+				block->read_io_buf = (void*)buf_block_alloc(NULL);
+			}
+
+		} else {
+			block->read_io_buf = NULL;
+		}
+
+
+		if (block->zip_size) {
+			if (srv_flash_cache_decompress_use_malloc == TRUE) {
+				read_buf = ut_align(block->read_io_buf, UNIV_PAGE_SIZE);
+			} else {
+				read_buf = ((buf_block_t*)block->read_io_buf)->frame;
+			}
+		} else {
+			read_buf = buf;
+		}
+		
+		if (!recv_no_ibuf_operations
+			&& ibuf_page(block->space, zip_size, block->offset, NULL)) {
+            /* ibuf page in L2 cache must use ibuf aio thread */
+			using_ibuf_aio = TRUE;
+		}
+
+		fc_io_offset(block->fil_offset, &block_offset, &byte_offset);
+		if (using_ibuf_aio) {
+			err = fil_io(OS_FILE_READ | wake_later | OS_FORCE_IBUF_AIO,
+					sync, FLASH_CACHE_SPACE, 0, block_offset, byte_offset,
+					blk_size * KILO_BYTE, read_buf, bpage);
+		} else {
+			err = fil_io(OS_FILE_READ | wake_later ,
+					sync, FLASH_CACHE_SPACE, 0, block_offset, byte_offset,
+					blk_size * KILO_BYTE, read_buf, bpage);
+		}
+
+		if (sync) {
+			fc_complete_read(bpage);
+		}
+		
+	} else {
+		rw_lock_s_unlock(&fc->hash_rwlock);
+		err = fil_io(OS_FILE_READ | wake_later, sync, space, zip_size, offset, 0, 
+				zip_size ? zip_size : UNIV_PAGE_SIZE, buf, bpage);
 	}
 
 	return err;
-
 }
 
 /********************************************************************//**
-Compelete flash cache async read. */
+Compelete L2 Cache read. only read hit in ssd,
+not move_migrate will into this function*/
 UNIV_INTERN
 void
-fc_compelete_read(
+fc_complete_read(
 /*==============*/
-	buf_page_t* bpage	/*!< page to compelete */
-)
+	buf_page_t* bpage)	/*!< in: page to compelete io */
 {
 	ulint page_type;
+	byte* buf;
+	void* block_buf = NULL;			
+	ulint zip_size;
+	fc_block_t* fb = (fc_block_t*)(bpage->fc_block);
+#ifdef UNIV_FLASH_CACHE_TRACE
+	ulint _offset;
+	ulint _space;
+#endif
 
 	ut_ad(!mutex_own(&fc->mutex));
-	ut_ad(((fc_block_t*)(bpage->fc_block))->is_aio_reading);
+    ut_a(fb->io_fix & IO_FIX_READ);
+
+	flash_block_mutex_enter(fb->fil_offset);
 	
-	flash_cache_hash_mutex_enter(bpage->space,bpage->offset);
-
-	((fc_block_t*)(bpage->fc_block))->is_aio_reading = FALSE;
-	bpage->fc_block = NULL;
-
-	flash_cache_hash_mutex_exit(bpage->space,bpage->offset);
-
-	if ( bpage->zip.data ){
-		page_type = fil_page_get_type(bpage->zip.data);
-        /*
-         use write-alloc for compressed page,
-         since compressed page is marked corrupted when swap out from buffer pool
-         */
-        	srv_flash_cache_lru_move_batch ? 
-				fc_LRU_move_optimization(bpage): fc_LRU_move(bpage);
+	if (bpage->zip.data) {
+		buf = bpage->zip.data;
+	} else {
+		buf = ((buf_block_t*)bpage)->frame;
 	}
-	else{
-		page_type = fil_page_get_type(((buf_block_t*)bpage)->frame);
+	
+	if (fb->zip_size > 0) {
+		void* read_buf = NULL;
+
+		if (srv_flash_cache_decompress_use_malloc == TRUE) {
+			read_buf = (byte*)ut_align(fb->read_io_buf, UNIV_PAGE_SIZE);
+		} else {
+			read_buf = ((buf_block_t*)fb->read_io_buf)->frame;
+		}
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+		ut_a(read_buf);
+		ut_a(bpage->zip.data == NULL);
+		ut_a(buf);
+		fc_block_compress_check((unsigned char *)read_buf, fb);	
+		/* only qlz can do this check  */
+		if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ) {
+			ut_a(fb->zip_size * fc_get_block_size_byte()
+				>= (ulint)fc_qlz_size_compressed((const char *)read_buf + FC_ZIP_PAGE_DATA));
+			ut_a(UNIV_PAGE_SIZE == fc_qlz_size_decompressed((const char *)read_buf + FC_ZIP_PAGE_DATA));
+		}
+#endif
+
+		fc_block_do_decompress(DECOMPRESS_READ_SSD, read_buf, buf);
+		srv_flash_cache_decompress++;
+	} else {
+		ut_a(fb->read_io_buf == NULL);
 	}
-	if ( page_type == FIL_PAGE_INDEX ){
+
+	/* if not compressed by L2 Cache, page data has already in buf after io */
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+	_offset = mach_read_from_4(buf + FIL_PAGE_OFFSET);
+	_space = mach_read_from_4(buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	if (_offset != fb->offset || _space != fb->space) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr, " InnoDB: L2 Cache read error space:%lu-%lu,offset:%lu-%lu\n",
+			(ulong)fb->space, (ulong)_space, (ulong)fb->offset, (ulong)_offset);
+		fc_block_print(fb);
+		ut_error;
+	}
+
+	if (buf_page_is_corrupted(buf, fil_space_get_zip_size(bpage->space))) {
+		fc_block_print(fb);
+		ut_error;
+	}
+#endif
+
+	page_type = fil_page_get_type(buf);
+	if (page_type == FIL_PAGE_INDEX) {
 		page_type = 1;
 	}
 	srv_flash_cache_read_detail[page_type]++;
 
-}
+	bpage->fc_block = NULL;
+	fb->io_fix &= ~IO_FIX_READ;
+	if (fb->zip_size > 0) {
+		ut_a(fb->read_io_buf != NULL);
+		block_buf = fb->read_io_buf;
+		fb->read_io_buf = NULL;
+	} else {
+		ut_a(fb->read_io_buf == NULL);
 
-/********************************************************************//**
-backup pages haven't flushed to disk from flash cache file. 
-@return number of pages backuped if success */
-static inline
-ulint
-fc_backup(ibool* success)/* out */
-{
-	char* backup_dir;
-	char* backup_file_path;
-	char* backup_file_path_final;
-	ulint backup_file_path_len;
-	ulint backup_file_path_final_len;
-	ulint n_backuped_pages = 0;
-	os_file_t backup_fd;
-	ibool flag = FALSE;
-	byte* unaligned_buf;
-	byte* buf;
-	fc_block_t** sorted_fc_blocks;
-	ulint n_f_2_w;
-	ulint i;
-	ulint n_ready_for_flush_pages;
-	ulint flush_off;
-	ulint write_off;
-	ulint offset_high;
-	ulint offset_low;
-	ulint cur_collected_pages;	
+	}
 
-	flush_off = fc->flush_off;
-	write_off = fc->write_off;
-	n_f_2_w = (write_off >= flush_off) ? (write_off - flush_off):(fc->size - flush_off + write_off);
-	if(n_f_2_w)
-	{
-		sorted_fc_blocks = ut_malloc(n_f_2_w * sizeof(*sorted_fc_blocks));
-		n_ready_for_flush_pages = 0;
-		for(i = flush_off; i != write_off; i = (i + 1) % fc->size)
-		{
-			if(fc->block[i].state != BLOCK_READY_FOR_FLUSH)
-				continue;
-			sorted_fc_blocks[n_ready_for_flush_pages++] = fc->block + i;
-		}
-		if(n_ready_for_flush_pages)
-		{
-			ut_a(n_ready_for_flush_pages <= n_f_2_w);
-			ut_print_timestamp(stderr);
-			fprintf(stderr, " Inoodb: flash cache is backuping...\n");
-			
-			fc_block_sort(sorted_fc_blocks, n_ready_for_flush_pages, ASCENDING);
-
-			backup_dir = srv_flash_cache_backup_dir ? srv_flash_cache_backup_dir : srv_data_home;	
-			backup_file_path_len = strlen(backup_dir) + sizeof("/ib_fc_backup_creating");
-			backup_file_path_final_len = strlen(backup_dir) + sizeof("/ib_fc_backup");
-			backup_file_path = ut_malloc(backup_file_path_len);
-			backup_file_path_final = ut_malloc(backup_file_path_final_len);
-			ut_snprintf(backup_file_path, backup_file_path_len, "%s/%s", backup_dir, "ib_fc_backup_creating");
-			ut_snprintf(backup_file_path_final, backup_file_path_final_len, "%s/%s", backup_dir, "ib_fc_backup");
-			srv_normalize_path_for_win(backup_file_path);
-			srv_normalize_path_for_win(backup_file_path_final);
+	zip_size = fb->zip_size;
 	
-			backup_fd = os_file_create(innodb_file_data_key, backup_file_path, OS_FILE_CREATE, OS_FILE_NORMAL, OS_DATA_FILE, &flag);
-			if(!flag) {
-				ut_print_timestamp(stderr);
-				fprintf(stderr, " Inoodb: Error: create file '%s' failed, check if it has existed already,\n", backup_file_path);
-				fprintf(stderr, " Inoodb: Error: which means the flash cache backup  may have started already.\n");
-				ut_free(backup_file_path);
-				ut_free(backup_file_path_final);
-				ut_free(sorted_fc_blocks);
-				*success = FALSE;
-				return 0;
-			}
+	flash_block_mutex_exit(fb->fil_offset);
 
-			unaligned_buf = ut_malloc((FSP_EXTENT_SIZE + 1)* UNIV_PAGE_SIZE);
-			buf = ut_align(unaligned_buf, UNIV_PAGE_SIZE);
-			i = 0;
-			while(i < n_ready_for_flush_pages)  /* don't ++i, or some page will not be backuped for i acutally increased 2 times*/
-			{
-				for(cur_collected_pages = 0; cur_collected_pages < FSP_EXTENT_SIZE && i < n_ready_for_flush_pages; ++i)
-				{
-					if(sorted_fc_blocks[i]->state != BLOCK_READY_FOR_FLUSH)
-						continue;
-					fil_io(OS_FILE_READ, TRUE, FLASH_CACHE_SPACE, 0, sorted_fc_blocks[i]->fil_offset,
-						   0, UNIV_PAGE_SIZE, buf + cur_collected_pages * UNIV_PAGE_SIZE, NULL);
-					++cur_collected_pages;
-				}
-				
-				offset_high = (n_backuped_pages >> (32 - UNIV_PAGE_SIZE_SHIFT));
-				offset_low  = ((n_backuped_pages << UNIV_PAGE_SIZE_SHIFT) & 0xFFFFFFFFUL);
-				if(!(os_file_write(backup_file_path, backup_fd, buf, offset_low, offset_high, UNIV_PAGE_SIZE * cur_collected_pages))) {
-					if(os_file_get_last_error(FALSE) == OS_FILE_DISK_FULL) {
-						ut_print_timestamp(stderr);
-						fprintf(stderr, " Inoodb: Error: disk is full, reset srv_flash_cache_backup_dir to another\n");
-						fprintf(stderr, "Inoodb: Error: disk or partion where space is large enough to store the flash\n"); 
-						fprintf(stderr, "Inoodb: Error: backup pages, and then reset innodb_flash_cache_backup to TRUE to backup again.\n");
-						}
-					else {
-						ut_print_timestamp(stderr);
-						fprintf(stderr, " Inoodb: Error: error occured while backuping unflushed flash cache pages\n");
-						fprintf(stderr, "Inoodb: Error: try reset innodb_flash_cache_backup to TRUE if wanna do backup again.\n");
-						}
-					ut_free(sorted_fc_blocks);
-					ut_free(unaligned_buf);
-					ut_free(backup_file_path);
-					ut_free(backup_file_path_final);
-					*success = FALSE;
-					os_file_close(backup_fd);
-					os_file_delete(backup_file_path);
-					return 0;
-					}
-				n_backuped_pages += cur_collected_pages;
-								
-			}	
-			
-			os_file_flush(backup_fd);
-			os_file_close(backup_fd);
-			os_file_rename(innodb_file_data_key,backup_file_path,backup_file_path_final);
-			ut_free(sorted_fc_blocks);
-			ut_free(unaligned_buf);
-			ut_free(backup_file_path);
-			ut_free(backup_file_path_final);
-			*success = TRUE;
-			ut_print_timestamp(stderr);
-			fprintf(stderr, " Inoodb: flash cache completed backup.\n");
-			return n_backuped_pages;	
-		}
-		else
-		{
-			ut_free(sorted_fc_blocks);
+	if (zip_size > 0) {
+		if (srv_flash_cache_decompress_use_malloc == TRUE) {
+			ut_free(block_buf);
+		} else {
+			buf_block_free((buf_block_t*)block_buf);
 		}
 	}
-	
-	/*no pages need to be backuped*/
-	ut_print_timestamp(stderr);
-	fprintf(stderr, " Inoodb: no pages in flash cache need to be backuped\n");
-	*success = TRUE;
-	return 0;
-
 }
 
 /********************************************************************//**
-fc_backup_thread 
-*/
+Compress the buf page bpage, return the size of compress data.
+the buf memory has alloced
+@return the compressed size of page */
 UNIV_INTERN
-os_thread_ret_t
-fc_backup_thread(void* args)
+ulint
+fc_block_do_compress(
+/*==================*/
+	ulint is_dw,		/*!< in: TRUE if compress for doublewrite buffer */
+	buf_page_t* bpage, /*!< in: the data need compress is bpage->frame */
+	void*	buf)	/*!< out: the buf contain the compressed data,
+						must be the size of frame + 400 */
 {
-	ibool sucess;
-	fc_backup(&sucess);
-	if(!sucess)
-	{
-		ut_print_timestamp(stderr);
-		fprintf(stderr, " Inoodb: Error: backup flash cache file failed\n");
+	srv_flash_cache_compress++;	
+	
+	if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ) {
+		return fc_block_do_compress_quicklz(is_dw, bpage, buf);
+	} else {
+		//FIXME:if use zlib, how to compress the page;
+		return UNIV_PAGE_SIZE;
 	}
-	srv_flash_cache_backuping = FALSE;
-	os_thread_exit(NULL);
+
 }
 
+/********************************************************************//**
+Compress the buf page bpage with quicklz, return the size of compress data.
+ the buf memory has alloced
+@return the compressed size of page */
+UNIV_INTERN
+ulint
+fc_block_do_compress_quicklz(
+/*==================*/
+	ulint is_dw,		/*!< in: TRUE if compress for doublewrite buffer */
+	buf_page_t* bpage, /*!< in: the data need compress is bpage->frame */
+	void*	buf)	/*!< out: the buf contain the compressed data,
+						must be the size of frame + 400 */
+{
+	ulint cp_size = 0;
+	ulint page_size = UNIV_PAGE_SIZE;
+	fc_qlz_state_compress *state_compress = NULL;
 
+	if (is_dw == TRUE) {
+		state_compress = (fc_qlz_state_compress*)fc->dw_zip_state;
+	} else {
+		state_compress = (fc_qlz_state_compress*)ut_malloc(sizeof(fc_qlz_state_compress));
+	}
+
+	/*
+	 *  we compress the page data to the buf offset  FC_ZIP_PAGE_DATA, so when we do pack,
+	 * the compressed data need not to be moved, and avoid a memcpy operation
+	 */
+	cp_size = fc_qlz_compress(((buf_block_t*)bpage)->frame, (char *)buf + FC_ZIP_PAGE_DATA, 
+					page_size, state_compress);
+
+	if (is_dw == FALSE) {
+		ut_free(state_compress);
+	}
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+  {
+    ulint zip_size;
+	  byte* tmp_unalign = (byte*)ut_malloc(2 * UNIV_PAGE_SIZE);
+	  byte* tmp = (byte*)ut_align(tmp_unalign, UNIV_PAGE_SIZE);
+	  fc_block_do_decompress(DECOMPRESS_READ_SSD, buf, tmp);
+	  zip_size = fil_space_get_zip_size(bpage->space);
+	  if (buf_page_is_corrupted(tmp, zip_size)) {
+		  ut_error;
+	  }
+
+	  ut_free(tmp_unalign);
+  }
+#endif
+
+	return cp_size;
+}
 
 /********************************************************************//**
-Print flash cache status. */
+Decompress the page in the block, return the decompressed data size.
+@return the decompressed size of page, must be UNIV_PAGE_SIZE */
+UNIV_INTERN
+ulint
+fc_block_do_decompress(
+/*==================*/
+	ulint decompress_type, /*!< in: decompress for read or backup or flush or recovery */
+	void *buf_compressed,	/*!< in: contain the compressed data */
+	void *buf_decompressed)	/*!< out: contain the data that have decompressed */
+{
+	/* we add the decompress counts out of the function to skip the flush decompress */
+	//srv_flash_cache_decompress++;
+	
+	if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ) {
+		return fc_block_do_decompress_quicklz(decompress_type,
+					buf_compressed, buf_decompressed);
+	} else {
+		//FIXME:if zlib, how to decompress the page;
+		return UNIV_PAGE_SIZE;
+	}
+
+}
+
+/********************************************************************//**
+Decompress the page in the block with quicklz, return the decompressed data size. */
+UNIV_INTERN
+ulint
+fc_block_do_decompress_quicklz(
+/*==================*/
+	ulint decompress_type, /*!< in: decompress for read or backup or flush or recovery */
+	void *buf_compressed,	/*!< in: contain the compressed data */
+	void *buf_decompressed)	/*!< out: contain the data that have decompressed */
+{
+	ulint decp_size = 0;
+	ulint count = 0;
+	fc_qlz_state_decompress* state_decompress = NULL;
+
+	ut_a(buf_compressed);
+	ut_a(buf_decompressed);
+	ut_a(UNIV_PAGE_SIZE == fc_qlz_size_decompressed((const char *)buf_compressed + FC_ZIP_PAGE_DATA));
+
+	if ((decompress_type == DECOMPRESS_READ_SSD) || (decompress_type == DECOMPRESS_READ_MM)) {
+retry:
+		state_decompress = (fc_qlz_state_decompress*)
+				ut_malloc(sizeof(fc_qlz_state_decompress));
+		if (state_decompress == NULL) {
+			ut_print_timestamp(stderr);
+			count++;
+			if (count >= 10) {
+				fprintf(stderr,
+					" InnoDB: L2 cache: alloc memory for fc_qlz_state_decompress failed.\n");
+				ut_error;
+			} else {
+				goto retry;
+			}
+		}
+	} else if (decompress_type == DECOMPRESS_FLUSH) {
+		state_decompress = (fc_qlz_state_decompress*)fc->flush_dezip_state;
+	} else if (decompress_type == DECOMPRESS_RECOVERY) {
+		state_decompress = (fc_qlz_state_decompress*)fc->recv_dezip_state;
+	} else if (decompress_type == DECOMPRESS_BACKUP) {
+		/* when backup the recovery do not work */
+		state_decompress = (fc_qlz_state_decompress*)fc->recv_dezip_state;
+	}
+
+	ut_a(state_decompress);
+
+	decp_size = fc_qlz_decompress((const char *)buf_compressed + FC_ZIP_PAGE_DATA,
+					buf_decompressed, state_decompress);
+
+	if ((decompress_type == DECOMPRESS_READ_SSD) || (decompress_type == DECOMPRESS_READ_MM)) {
+		ut_free((void *)state_decompress);
+	}
+	
+	if (decp_size != UNIV_PAGE_SIZE) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr," InnoDB: L2 cache:decompress size is not right dz%d.\n", 
+			(int)decp_size);
+		ut_error;
+	}
+	
+	return decp_size;
+}
+
+/********************************************************************//**
+Pack the compressed data with block header and tailer. */
 UNIV_INTERN
 void
-fc_status
-(
-/*=================================*/
-	ulint page_read_delta,
-	ulint n_ra_pages_read,
-	FILE* file
-)
+fc_block_pack_compress(
+/*==================*/
+	fc_block_t* block, /*!< in: the block which is compressed, ready for pack */
+	void *buf) /*!< in/out: the compressed data buf need to pack */
 {
-		
+	ulint page_size; /* bytes of the block */
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+    ulint zip_size;
+		byte* tmp_unalign = (byte*)ut_malloc(2 * UNIV_PAGE_SIZE);
+		byte* tmp = (byte*)ut_align(tmp_unalign, UNIV_PAGE_SIZE);
+		fc_block_do_decompress(DECOMPRESS_READ_SSD, buf, tmp);
+		zip_size = fil_space_get_zip_size(block->space);
+		if (buf_page_is_corrupted(tmp, zip_size)) {
+			ut_error;
+		}
+#endif
+
+	/* calc the zip size of the block */
+	page_size = block->zip_size * fc_get_block_size();
+	page_size = page_size * KILO_BYTE;
+
+	/*
+	  *  we have already compress the page data to the buf + FC_ZIP_PAGE_DATA, so need not to
+	  *  do malloc and memcpy the page data to tmp buf
+	  */
+
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_HEADER, FC_ZIP_PAGE_CHECKSUM);
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_SIZE, page_size);
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_SPACE, block->space);
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_OFFSET, block->offset);
+	mach_write_to_4((unsigned char *)buf + page_size - FC_ZIP_PAGE_TAILER, FC_ZIP_PAGE_CHECKSUM);
+
+	/* calc the original size of the block */
+	page_size = block->size * fc_get_block_size();
+	ut_a(page_size == PAGE_SIZE_KB);
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_ORIG_SIZE, UNIV_PAGE_SIZE);
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+	fc_block_compress_check((unsigned char *)buf, block);
+	fc_block_do_decompress(DECOMPRESS_READ_SSD, buf, tmp);
+	if (buf_page_is_corrupted(tmp, zip_size)) {
+		ut_error;
+	}
+
+	ut_free(tmp_unalign);
+#endif
+
+	srv_flash_cache_compress_pack++;
+}
+
+/********************************************************************//**
+Print L2 Cache status. */
+UNIV_INTERN
+void
+fc_status(
+/*=================================*/
+	ulint page_read_delta,	/*!< in: page_read_delta from buf pool */
+	ulint n_ra_pages_read,	/*!< in: read ahead page counts */
+	FILE* file)				/*!< in: print the fc status to this file */
+{
 	time_t cur_time = ut_time();
-	lint cdiff = fc->write_off -  fc->flush_off;
+	ulint distance = 0;
+	ulint fc_size = fc_get_size();
 	ulint fc_read_point = 0;
+	ulint fc_size_mb = fc_size * fc_get_block_size() / KILO_BYTE;
+	ulint can_cache = fc_size_mb;
+	float pack_pst	= 0;
+	float pack_ratio = (fc_get_block_size_byte() * 1.00) / ((float)UNIV_PAGE_SIZE);
+	ulint can_cache_pack = fc_size_mb * (1 + (pack_ratio * pack_pst) / 100);
+  float compress_ratio = 0;
 	ulint z;
-	for( z=0; z<=FIL_PAGE_TYPE_ZBLOB2; z++){
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+	ulint start_time = ut_time_us(NULL);
+#endif
+	if (fc->write_round == fc->flush_round) {
+		distance = fc->write_off - fc->flush_off;
+	} else {
+		distance = fc_get_size() + fc->write_off - fc->flush_off;
+	}
+
+	for (z=0; z<=FIL_PAGE_TYPE_ZBLOB2; z++) {
 		fc_read_point = fc_read_point + srv_flash_cache_read_detail[z];
 	}
-	if ( cdiff < 0 ){
-		cdiff = cdiff + fc_get_size();
+
+	if ((srv_flash_cache_used != 0) 
+		&& (srv_flash_cache_used_nocompress != 0) 
+		&& (srv_flash_cache_compress != 0)) {
+		
+		if (srv_flash_cache_used_nocompress > (srv_flash_cache_used / pack_ratio)) {
+			srv_flash_cache_used_nocompress = (srv_flash_cache_used / pack_ratio);
+		}
+		
+    compress_ratio = srv_flash_cache_used * 100.0 / srv_flash_cache_used_nocompress;
+		can_cache = fc_size_mb / compress_ratio;
+		pack_pst = (100.0 * srv_flash_cache_compress_pack) / srv_flash_cache_compress;
+		can_cache_pack = fc_size_mb * (1 + (pack_ratio * pack_pst) / 100);
 	}
+
+	can_cache = (can_cache >= can_cache_pack) ? can_cache : can_cache_pack;
+
+	if (can_cache > (ulint)((float)fc_size_mb / pack_ratio)){
+		can_cache = (ulint)((float)fc_size_mb / pack_ratio);
+	}
+
+
 	fputs("----------------------\n"
 	"FLASH CACHE INFO\n"
 	"----------------------\n", file);
+
 	fprintf(file,	"flash cache thread status: %s \n"
-					"flash cache size: %lu \n"
-					"flash cache location is: %lu(%lu), flush to %lu(%lu), distance %lu (%.2f%%), used %lu(%.2f%%), wait aio %lu.\n"
-					"flash cache reads %lu:, aio read %lu, writes %lu, flush %lu(%lu), migrate %lu, move %lu\n"
+					"flash cache size: %lu (%lu MB), write to %lu(%lu), flush to %lu(%lu), distance %lu (%.2f%%)\n"
+					"flash cache used: %lu(%.2f%%), compress_ratio: %.2f%%, can_cache: %lu MB, io skip: %lu\n"
+					"flash cache reads %lu, aio read %lu, writes %lu, dirty %lu(%.2f%%), flush %lu(%lu).\n"
+					"flash cache migrate %lu, move %lu, compress %lu, pack %lu(%.2f%%), decompress %lu\n"
 					"FIL_PAGE_INDEX reads: %lu(%.2f%%): writes: %lu, flush: %lu, merge raio %.2f%%\n"
 					"FIL_PAGE_INODE reads: %lu(%.2f%%): writes: %lu, flush: %lu, merge raio %.2f%%\n"
 					"FIL_PAGE_UNDO_LOG reads: %lu(%.2f%%): writes: %lu, flush: %lu, merge raio %.2f%%\n"
@@ -1598,23 +1778,32 @@ fc_status
 					"flash cache read hit ratio %.2f%% in %lu second(total %.2f%%), merge write ratio %.2f%%\n"
 					"flash cache %.2f reads/s, %.2f writes/s. %.2f flush/s, %.2f merge writes/s, %.2f migrate/s, %.2f move/s\n",
 					srv_flash_cache_thread_op_info,
-					(ulong)fc_get_size(),
+					(ulong)fc_size,
+					(ulong)fc_size_mb,
 					(ulong)fc->write_off,
 					(ulong)fc->write_round,
 					(ulong)fc->flush_off,
 					(ulong)fc->flush_round,
-					(ulong)cdiff,
-					(100.0*cdiff)/fc_get_size(),
+					(ulong)distance,
+					(100.0 * distance) / fc_size,
 					(ulong)srv_flash_cache_used,
-					(100.0*srv_flash_cache_used)/fc_get_size(),
-					(ulong)srv_flash_cache_wait_for_aio,
+					(100.0 * srv_flash_cache_used) / fc_size,
+          (100.0 - compress_ratio),
+					(ulong)can_cache,
+					(ulong)srv_flash_cache_wait_aio,
 					(ulong)srv_flash_cache_read,
 					(ulong)srv_flash_cache_aio_read,
 					(ulong)srv_flash_cache_write,
+					(ulong)srv_flash_cache_dirty,
+					(100.0 * srv_flash_cache_dirty) / fc_size,
 					(ulong)srv_flash_cache_flush,
 					(ulong)srv_flash_cache_merge_write,
 					(ulong)srv_flash_cache_migrate,
 					(ulong)srv_flash_cache_move,
+					(ulong)srv_flash_cache_compress,
+					(ulong)srv_flash_cache_compress_pack,
+					 pack_pst,
+					(ulong)srv_flash_cache_decompress,
 					(ulong)srv_flash_cache_read_detail[1],(100.0*srv_flash_cache_read_detail[1])/(fc_read_point),
 					(ulong)srv_flash_cache_write_detail[1],(ulong)srv_flash_cache_flush_detail[1],100.0-(100.0*srv_flash_cache_flush_detail[1])/srv_flash_cache_write_detail[1],
 					(ulong)srv_flash_cache_read_detail[FIL_PAGE_INODE],(100.0*srv_flash_cache_read_detail[FIL_PAGE_INODE])/(fc_read_point),
@@ -1630,7 +1819,7 @@ fc_status
 								+ srv_flash_cache_read_detail[FIL_PAGE_TYPE_XDES] + srv_flash_cache_read_detail[FIL_PAGE_TYPE_BLOB]
 								+ srv_flash_cache_read_detail[FIL_PAGE_TYPE_ZBLOB] + srv_flash_cache_read_detail[FIL_PAGE_TYPE_ZBLOB2]
 							),
-					(100.*(srv_flash_cache_read_detail[FIL_PAGE_IBUF_FREE_LIST] + srv_flash_cache_read_detail[FIL_PAGE_TYPE_ALLOCATED]
+					(100.0 * (srv_flash_cache_read_detail[FIL_PAGE_IBUF_FREE_LIST] + srv_flash_cache_read_detail[FIL_PAGE_TYPE_ALLOCATED]
 								+ srv_flash_cache_read_detail[FIL_PAGE_IBUF_BITMAP] + srv_flash_cache_read_detail[FIL_PAGE_TYPE_FSP_HDR]
 								+ srv_flash_cache_read_detail[FIL_PAGE_TYPE_XDES] + srv_flash_cache_read_detail[FIL_PAGE_TYPE_BLOB]
 								+ srv_flash_cache_read_detail[FIL_PAGE_TYPE_ZBLOB] + srv_flash_cache_read_detail[FIL_PAGE_TYPE_ZBLOB2]
@@ -1648,7 +1837,7 @@ fc_status
 					(ulong)(page_read_delta == 0)?0:100.0*( srv_flash_cache_read - flash_cache_stat.n_pages_read ) / ( page_read_delta ),
 					(ulong)difftime(cur_time,flash_cache_stat.last_printout_time),
 					(ulong)(srv_flash_cache_read==0)?0:(100.0*srv_flash_cache_read)/(srv_buf_pool_reads + n_ra_pages_read ),
-					(100.0*srv_flash_cache_merge_write)/(srv_flash_cache_write - srv_flash_cache_migrate - srv_flash_cache_move),
+					(100.0 * srv_flash_cache_merge_write)/(srv_flash_cache_write - srv_flash_cache_migrate - srv_flash_cache_move),
 					( srv_flash_cache_read - flash_cache_stat.n_pages_read ) / difftime(cur_time,flash_cache_stat.last_printout_time),
 					( srv_flash_cache_write - flash_cache_stat.n_pages_write ) / difftime(cur_time,flash_cache_stat.last_printout_time),
 					( srv_flash_cache_flush - flash_cache_stat.n_pages_flush ) / difftime(cur_time,flash_cache_stat.last_printout_time),
@@ -1656,6 +1845,7 @@ fc_status
 					( srv_flash_cache_migrate - flash_cache_stat.n_pages_migrate ) / difftime(cur_time,flash_cache_stat.last_printout_time),
 					( srv_flash_cache_move - flash_cache_stat.n_pages_move ) / difftime(cur_time,flash_cache_stat.last_printout_time)
 		);
+
 	flash_cache_stat.flush_off = fc->flush_off;
 	flash_cache_stat.flush_round = fc->flush_round;
 	flash_cache_stat.write_off = fc->write_off;
@@ -1667,277 +1857,14 @@ fc_status
 	flash_cache_stat.n_pages_move = srv_flash_cache_move;
 	flash_cache_stat.n_pages_migrate = srv_flash_cache_migrate;
 	flash_cache_stat.last_printout_time = ut_time();
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+  {
+		ulint end_time = ut_time_us(NULL);
+		fprintf(fc->f_debug, "take %lu us to print fc status\n",
+			(ulong)(end_time - start_time));
+  }
+#endif
+
 	return;
 }
-
-
-/**************** move and migrate ***************************************/
-/*whether bpage should be moved in flash cache 
-@return TRUE if need do move operation */
-static inline
-ibool
-fc_need_move
-(
-	fc_block_t* b, /* 'returned' by HASH_SEARCH*/
-	buf_page_t* bpage
-)
-{
-	ut_ad(bpage);
-	ut_ad(mutex_own(&fc->mutex));
-	ut_ad(mutex_own(&fc->hash_mutex));
-
-	return (b && b->fil_offset < fc->size && srv_flash_cache_enable_move &&
-			(((fc->write_off > b->fil_offset) && (fc->write_off - b->fil_offset ) >= FLASH_CACHE_MOVE_HIGH_LIMIT)
-			|| ((fc->write_off < b->fil_offset) && ( b->fil_offset - fc->write_off ) <= FLASH_CACHE_MOVE_LOW_LIMIT))
-			&& b->state != BLOCK_READY_FOR_FLUSH && b->is_aio_reading == FALSE
-			&& (bpage->space != 0 && bpage->offset != 0));
-}
-
-/*whether bpage should be migrate to flash cache 
-@return TRUE if need do migrate operation */
-static inline
-ibool
-fc_need_migrate(
-	fc_block_t* b, /* 'returned' by HASH_SEARCH*/
-	buf_page_t* bpage,
-	ulint zip_size)
-{
-	ut_ad(bpage);
-	ut_ad(mutex_own(&fc->mutex));
-	ut_ad(mutex_own(&fc->hash_mutex));
-
-	return (b == NULL && (bpage->access_time != 0 || zip_size) && srv_flash_cache_enable_migrate);
-}
-
-/* When fc->move_migrate_blocks is full, write it back to Flash Cache file */
-static 
-void 
-fc_move_migrate_to_flash_cache()
-{
-	ulint i;
-	ulint zip_size;
-	fc_block_t* b;
-	fc_block_t* b2;
-	ulint		write_start = ULINT32_UNDEFINED;
-	ulint		write_end;
-	
-	ut_ad(mutex_own(&fc->mutex));
-	ut_ad(!mutex_own(&fc->hash_mutex)); 
-	ut_ad(fc->move_migrate_next_write_pos == fc->move_migrate_n_pages);
-
-	/* this loop is used to write pages in fc->move_migrate_pages to Flash Cache file, but still keep 
-	fc->move_migrate_blocks in fc->hash_table and release fc->hash_mutex each round to make 
-	fc_read_page won't be blocked for too long */
-	for(i = 0; i < fc->move_migrate_n_pages; ++i)
-	{
-		b2 = fc->move_migrate_blocks + i;
-		if(b2->state == BLOCK_NOT_USED)	/* have been deleted from fc->hash_table because of double write */
-			continue;
-		ut_ad(b2->state == BLOCK_READ_CACHE && b2->is_aio_reading == FALSE); 
-		zip_size = fil_space_get_zip_size(b2->space);
-		if(ULINT_UNDEFINED == zip_size) /*table has been droped, no write, but need delete from fc->hash_table latter*/
-			continue;
-		
-		/* looks for the write pos */
-		while(((fc->write_round == 1 + fc->flush_round) ? (fc->write_off < fc->flush_off) : 1)
-			 && fc->block[fc->write_off].is_aio_reading)
-		{
-			++srv_flash_cache_wait_for_aio;
-			++fc->write_off;
-			if(fc->write_off == fc->size)
-			{
-				fc->write_off = 0;
-				++fc->write_round;
-			}
-		}
-		
-		if(write_start == ULINT32_UNDEFINED)
-			write_start = fc->write_off;
-		
-		if((fc->write_round == 1 +  fc->flush_round) && (fc->write_off == fc->flush_off))
-		{
-			write_end = fc->write_off;
-			goto cannot_write;	/* cann't write, we choose just ignore the move/migrate pages from this one to the 
-								fc->move_migrate_n_pages - 1*/
-		}
-
-		
-		/* here we got the write pos */
-		b = fc->block + fc->write_off;
-		if(b->state != BLOCK_NOT_USED)
-		{
-			ut_ad(b->state == BLOCK_READ_CACHE || b->state == BLOCK_FLUSHED);
-			flash_cache_hash_mutex_enter(b->space,b->offset);
-			HASH_DELETE(fc_block_t,hash,fc->hash_table,
-						buf_page_address_fold(b->space, b->offset),b);
-			--srv_flash_cache_used;
-			b->state = BLOCK_NOT_USED;
-			flash_cache_hash_mutex_exit(b->space, b->offset);
-		}
-		b->space = b2->space;
-		b->offset = b2->offset;
-		b->state = BLOCK_NEED_INSERT;
-		/*b->is_aio_reading = FALSE; */ /* alerady in this status */
-	
-		++srv_flash_cache_write;
-
-		/* using AIO write */
-		fil_io(OS_FILE_WRITE, FALSE, FLASH_CACHE_SPACE, 0, fc->write_off, 0, UNIV_PAGE_SIZE, 
-				fc->move_migrate_pages + i* UNIV_PAGE_SIZE, NULL); /* even page is zipped, also write using 16K */
-
-		++fc->write_off;
-		if(fc->write_off == fc->size)
-		{
-			fc->write_off = 0;
-			++fc->write_round;
-		}
-		
-	}
-	write_end = fc->write_off; /* if reach here, indicates all valid pages in fc->move_migrate_pages has been written*/
-	
-cannot_write:  
-	fc_sync_datafiles();
-	flash_cache_hash_mutex_enter(0, 0);  /* no IO operation, can be finished quickly*/
-
-	/* delete all fc->move_migrate_blocks (even some of them hasn't written to Flash Cache
-	file because of cannot_write) from fc->hash_table */
-	for(i = 0; i < fc->move_migrate_n_pages; ++i)
-	{
-		b2 = fc->move_migrate_blocks + i;
-		if(b2->state == BLOCK_NOT_USED)	/* have been deleted from fc->hash_table because of double write */
-			continue;
-		ut_ad(b2->state == BLOCK_READ_CACHE && b2->is_aio_reading == FALSE);
-		
-		HASH_DELETE(fc_block_t,hash,fc->hash_table,
-					buf_page_address_fold(b2->space, b2->offset),b2);
-		b2->state = BLOCK_NOT_USED;
-	}
-	fc->move_migrate_next_write_pos = 0;
-
-	/* insert blocks with state equals to BLOCK_NEED_INSERT in range [write_start, write_end)  to fc->hash_table */
-	while(write_start != write_end)
-	{
-		b = fc->block + write_start;
-		if(b->state == BLOCK_NEED_INSERT)
-		{
-			++srv_flash_cache_used;
-			b->state = BLOCK_READ_CACHE;
-			HASH_INSERT(fc_block_t,hash,fc->hash_table,
-						buf_page_address_fold(b->space, b->offset), b);
-		}
-		write_start = (write_start + 1) % fc->size;
-	}
-
-	/*flash_cache_mutex_exit(); */   /* release fc->hash_mutex in fc_LRU_move_optimization */
-}
-	
-UNIV_INTERN
-void
-fc_LRU_move_optimization(buf_page_t * bpage)
-{
-	fc_block_t* b; /* used in HASH_SEARCH*/
-	fc_block_t* b2; /*used in fc->move_migrate_blocks */
-    page_t*	page;
-	ulint zip_size;
-
-	ut_ad(!mutex_own(&fc->mutex));
-
-	if ( recv_no_ibuf_operations ){
-		return;
-	}
-
-	zip_size = fil_space_get_zip_size(bpage->space);
-	if (zip_size == ULINT_UNDEFINED){
-		/* table has been droped, do not need move to flash cache */
-		return;
-	}
-
-	if (zip_size){
-		ut_ad(bpage->zip.data);
-		page = bpage->zip.data;
-        if(buf_page_is_corrupted(page,zip_size)){
-            ut_print_timestamp(stderr);
-            fprintf(stderr," InnoDB: compressed page is corrupted in LRU_move.\n");
-            ut_error;
-        }
-	}
-	else{
-		page = ((buf_block_t*) bpage)->frame;
-	}
-
-	if ( fil_page_get_type(page) != FIL_PAGE_INDEX
-		&& fil_page_get_type(page) != FIL_PAGE_INODE ){
-			return;
-	}
-	
-	
-	flash_cache_mutex_enter();
-	flash_cache_hash_mutex_enter(bpage->space,bpage->offset);
-
-	ut_a(fc->move_migrate_next_write_pos < fc->move_migrate_n_pages);
-
-	/* search the same (space, offset) in hash table */
-	HASH_SEARCH(hash,fc->hash_table,
-				buf_page_address_fold(bpage->space,bpage->offset),
-				fc_block_t*,b,ut_ad(1),bpage->space == b->space && bpage->offset == b->offset);
-	
-	if (fc_need_move(b, bpage)){ /* flash cache move: first do delete*/
-		ut_ad( b->state == BLOCK_FLUSHED || b->state == BLOCK_READ_CACHE );
-		ut_d(fprintf(stderr, "move from offset %u\n", b->fil_offset));
-		HASH_DELETE(fc_block_t,hash,fc->hash_table,
-					buf_page_address_fold(b->space, b->offset),b);
-		b->state = BLOCK_NOT_USED;
-		--srv_flash_cache_used;
-		++srv_flash_cache_move;
-	}
-	else if (fc_need_migrate(b, bpage, zip_size)){ /* migrate */
-		srv_flash_cache_migrate++;
-	}
-	else {
-		flash_cache_hash_mutex_exit(bpage->space,bpage->offset);
-		flash_cache_mutex_exit();
-		return ;
-	}
-		
-	/* common operation for both move and migrate */
-	b2 = fc->move_migrate_blocks + fc->move_migrate_next_write_pos;
-	ut_ad(b2->state == BLOCK_NOT_USED);
-	b2->space = bpage->space;
-	b2->offset = bpage->offset;
-	b2->state = BLOCK_READ_CACHE;
-	/*b2->is_aio_reading = FALSE; */ /* need not do this, for after fc_create, never will it  be modified*/
-	HASH_INSERT(fc_block_t,hash,fc->hash_table,
-				buf_page_address_fold(b2->space, b2->offset), b2);
-	memcpy(fc->move_migrate_pages + fc->move_migrate_next_write_pos * UNIV_PAGE_SIZE, 
-			    page, zip_size ? zip_size : UNIV_PAGE_SIZE);
-	++fc->move_migrate_next_write_pos;
-	
-	if(fc->move_migrate_next_write_pos == fc->move_migrate_n_pages)
-	{
-		flash_cache_hash_mutex_exit(bpage->space,bpage->offset); /* can do fc_read_page but not others*/
-		fc_move_migrate_to_flash_cache(); /*fc->move_migrate_next_write_pos will be reset to 0, and both mutex will be freed*/
-	}
-	flash_cache_hash_mutex_exit(bpage->space,bpage->offset);
-	flash_cache_mutex_exit();
-	
-}
-
-/********************************************************************//**
-return TRUE if no need to flush from flash cache to disk
-@return TRUE if offset and round are equal.*/
-UNIV_INTERN
-my_bool
-fc_finish_flush(){
-    ulint ret = FALSE;
-    
-    flash_cache_mutex_enter();
-    if ( fc->flush_off == fc->write_off
-        && fc->flush_round == fc->write_round){
-        ret = TRUE;
-    }
-    flash_cache_mutex_exit();
-    
-    return ret;
-}
-	
-

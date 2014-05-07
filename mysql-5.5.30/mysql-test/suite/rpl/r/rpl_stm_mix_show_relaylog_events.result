@@ -9,13 +9,17 @@ INSERT INTO t1 VALUES (3);
 show binlog events in 'master-bin.000001' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (2)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3)
 master-bin.000001	#	Query	#	#	COMMIT
@@ -26,20 +30,24 @@ master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
 ******** [master] SHOW BINLOG EVENTS IN <FILE> LIMIT 1,3 ********
 show binlog events in 'master-bin.000001' from <binlog_start> limit 1,3;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
-master-bin.000001	#	Query	#	#	BEGIN
-master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 ******** [master] SHOW BINLOG EVENTS  ********
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (2)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3)
 master-bin.000001	#	Query	#	#	COMMIT
@@ -47,13 +55,17 @@ master-bin.000001	#	Query	#	#	COMMIT
 show binlog events in 'slave-bin.000001' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Binlog_checkpoint	#	#	slave-bin.000001
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
 slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (2)
 slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3)
 slave-bin.000001	#	Query	#	#	COMMIT
@@ -64,20 +76,24 @@ slave-bin.000001	#	Binlog_checkpoint	#	#	slave-bin.000001
 ******** [slave] SHOW BINLOG EVENTS IN <FILE> LIMIT 1,3 ********
 show binlog events in 'slave-bin.000001' from <binlog_start> limit 1,3;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
-slave-bin.000001	#	Query	#	#	BEGIN
-slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 ******** [slave] SHOW BINLOG EVENTS  ********
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Binlog_checkpoint	#	#	slave-bin.000001
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
 slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (2)
 slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3)
 slave-bin.000001	#	Query	#	#	COMMIT
@@ -86,14 +102,18 @@ show relaylog events in 'slave-relay-bin.000003' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-relay-bin.000003	#	Rotate	#	#	master-bin.000001;pos=4
 slave-relay-bin.000003	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
-slave-relay-bin.000003	#	Query	#	#	# Dummy
+slave-relay-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000001
+slave-relay-bin.000003	#	Gcid_event	#	#	GCID id=0
 slave-relay-bin.000003	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+slave-relay-bin.000003	#	Gcid_event	#	#	GCID id=0
 slave-relay-bin.000003	#	Query	#	#	BEGIN
 slave-relay-bin.000003	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
 slave-relay-bin.000003	#	Query	#	#	COMMIT
+slave-relay-bin.000003	#	Gcid_event	#	#	GCID id=0
 slave-relay-bin.000003	#	Query	#	#	BEGIN
 slave-relay-bin.000003	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (2)
 slave-relay-bin.000003	#	Query	#	#	COMMIT
+slave-relay-bin.000003	#	Gcid_event	#	#	GCID id=0
 slave-relay-bin.000003	#	Query	#	#	BEGIN
 slave-relay-bin.000003	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3)
 slave-relay-bin.000003	#	Query	#	#	COMMIT
@@ -105,8 +125,8 @@ slave-relay-bin.000003	#	Rotate	#	#	master-bin.000001;pos=4
 show relaylog events in 'slave-relay-bin.000003' from <binlog_start> limit 1,3;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-relay-bin.000003	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
-slave-relay-bin.000003	#	Query	#	#	# Dummy
-slave-relay-bin.000003	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+slave-relay-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000001
+slave-relay-bin.000003	#	Gcid_event	#	#	GCID id=0
 ******** [slave] SHOW RELAYLOG EVENTS  ********
 show relaylog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -119,6 +139,7 @@ show binlog events in 'master-bin.000002' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000001
 master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000002
+master-bin.000002	#	Gcid_event	#	#	GCID id=0
 master-bin.000002	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
 ******** [master] SHOW BINLOG EVENTS IN <FILE> LIMIT 1 ********
 show binlog events in 'master-bin.000002' from <binlog_start> limit 1;
@@ -128,18 +149,23 @@ master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000001
 show binlog events in 'master-bin.000002' from <binlog_start> limit 1,3;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000002
+master-bin.000002	#	Gcid_event	#	#	GCID id=0
 master-bin.000002	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
 ******** [master] SHOW BINLOG EVENTS  ********
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (2)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3)
 master-bin.000001	#	Query	#	#	COMMIT
@@ -149,6 +175,7 @@ show binlog events in 'slave-bin.000002' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000002	#	Binlog_checkpoint	#	#	slave-bin.000001
 slave-bin.000002	#	Binlog_checkpoint	#	#	slave-bin.000002
+slave-bin.000002	#	Gcid_event	#	#	GCID id=0
 slave-bin.000002	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
 ******** [slave] SHOW BINLOG EVENTS IN <FILE> LIMIT 1 ********
 show binlog events in 'slave-bin.000002' from <binlog_start> limit 1;
@@ -158,18 +185,23 @@ slave-bin.000002	#	Binlog_checkpoint	#	#	slave-bin.000001
 show binlog events in 'slave-bin.000002' from <binlog_start> limit 1,3;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000002	#	Binlog_checkpoint	#	#	slave-bin.000002
+slave-bin.000002	#	Gcid_event	#	#	GCID id=0
 slave-bin.000002	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
 ******** [slave] SHOW BINLOG EVENTS  ********
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Binlog_checkpoint	#	#	slave-bin.000001
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
 slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (2)
 slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3)
 slave-bin.000001	#	Query	#	#	COMMIT
@@ -179,8 +211,9 @@ show relaylog events in 'slave-relay-bin.000006' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-relay-bin.000006	#	Rotate	#	#	master-bin.000002;pos=4
 slave-relay-bin.000006	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
-slave-relay-bin.000006	#	Query	#	#	# Dummy
-slave-relay-bin.000006	#	Query	#	#	# Dummy
+slave-relay-bin.000006	#	Binlog_checkpoint	#	#	master-bin.000001
+slave-relay-bin.000006	#	Binlog_checkpoint	#	#	master-bin.000002
+slave-relay-bin.000006	#	Gcid_event	#	#	GCID id=0
 slave-relay-bin.000006	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
 ******** [slave] SHOW RELAYLOG EVENTS IN <FILE> LIMIT 1 ********
 show relaylog events in 'slave-relay-bin.000006' from <binlog_start> limit 1;
@@ -190,8 +223,8 @@ slave-relay-bin.000006	#	Rotate	#	#	master-bin.000002;pos=4
 show relaylog events in 'slave-relay-bin.000006' from <binlog_start> limit 1,3;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-relay-bin.000006	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
-slave-relay-bin.000006	#	Query	#	#	# Dummy
-slave-relay-bin.000006	#	Query	#	#	# Dummy
+slave-relay-bin.000006	#	Binlog_checkpoint	#	#	master-bin.000001
+slave-relay-bin.000006	#	Binlog_checkpoint	#	#	master-bin.000002
 ******** [slave] SHOW RELAYLOG EVENTS  ********
 show relaylog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

@@ -179,7 +179,7 @@ UNIV_INTERN
 void
 del_shm_not_use()
 {
-#ifndef __WIN__
+#ifdef UNIV_LINUX
   int shmid;
   struct shmid_ds buf;
   key_t key;
@@ -234,7 +234,7 @@ os_mem_alloc_shm(
 	UNIV_MEM_ALLOC(ptr, size);
 	return(ptr);
   }
-#else	
+#elif defined UNIV_LINUX
   int 	shmid;
   struct shmid_ds buf;
   key_t 	key;
@@ -306,6 +306,8 @@ os_mem_alloc_shm(
     UNIV_MEM_ALLOC(ptr, size);
     return(ptr);
   }
+#else
+  ut_error;
 #endif
   return(ptr); 
 }

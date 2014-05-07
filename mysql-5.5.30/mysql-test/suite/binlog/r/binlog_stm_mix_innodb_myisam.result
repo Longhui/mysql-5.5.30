@@ -13,6 +13,7 @@ commit;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(1)
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 select * from t1
@@ -31,6 +32,7 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(2)
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 select * from t1
@@ -52,6 +54,7 @@ commit;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(3)
 master-bin.000001	#	Query	#	#	SAVEPOINT `my_savepoint`
@@ -81,6 +84,7 @@ a
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(5)
 master-bin.000001	#	Query	#	#	SAVEPOINT `my_savepoint`
@@ -106,6 +110,7 @@ get_lock("a",10)
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(8)
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 select * from t1
@@ -118,9 +123,11 @@ insert into t2 select * from t1;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(9)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 select * from t1
 master-bin.000001	#	Query	#	#	COMMIT
@@ -133,9 +140,11 @@ insert into t2 select * from t1;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(10)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 select * from t1
 master-bin.000001	#	Query	#	#	COMMIT
@@ -144,12 +153,15 @@ commit;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(10)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 select * from t1
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(11)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -164,6 +176,7 @@ commit;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(12)
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 select * from t1
@@ -191,6 +204,7 @@ commit;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(14)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -212,6 +226,7 @@ a
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(16)
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(18)
@@ -266,44 +281,60 @@ get_lock("lock1",60)
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(16)
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(18)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; delete from t1
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; delete from t2
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; alter table t2 engine=MyISAM
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (1)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 values (20)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; DROP TABLE `t1`,`t2` /* generated by server */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; create temporary table ti (a int) engine=innodb
 master-bin.000001	#	Query	#	#	ROLLBACK
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into ti values(1)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; create temporary table t1 (a int) engine=myisam
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert t1 values (1)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; create table t0 (n int)
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert t0 select * from t1
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into t0 select GET_LOCK("lock1",null)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; create table t2 (n int) engine=innodb
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; DROP /*!40005 TEMPORARY */ TABLE IF EXISTS `t1`,`ti`
 do release_lock("lock1");
 drop table t0,t2;
@@ -394,44 +425,62 @@ DROP TABLE t1,t2;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 values (1,1),(1,2)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; DROP TABLE IF EXISTS `t2` /* generated by server */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 values (3,3)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; DROP TABLE IF EXISTS `t2` /* generated by server */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t2 (a int, b int, primary key (a)) engine=innodb
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (4,4)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE table t2
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (5,5)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; DROP TABLE `t2` /* generated by server */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 values (6,6)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE t2 (a int, b int, primary key (a)) engine=innodb
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 values (7,7)
 master-bin.000001	#	Query	#	#	ROLLBACK
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 values (8,8)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 values (9,9)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE table t2
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 values (10,10)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 values (100,100)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; DROP TEMPORARY TABLE `t2` /* generated by server */
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
 reset master;
 create table t1 (a int) engine=innodb;
@@ -449,14 +498,17 @@ get_lock("a",10)
 1
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	4	Format_desc	1	140	Server ver: 5.5.30-v3b-log, Binlog ver: 4
-master-bin.000001	140	Binlog_checkpoint	1	180	master-bin.000001
-master-bin.000001	180	Query	1	280	use `test`; create table t1 (a int) engine=innodb
-master-bin.000001	280	Query	1	380	use `test`; create table t2 (a int) engine=myisam
-master-bin.000001	380	Query	1	448	BEGIN
-master-bin.000001	448	Query	1	535	use `test`; insert into t1 values(8)
-master-bin.000001	535	Query	1	629	use `test`; insert into t2 select * from t1
-master-bin.000001	629	Query	1	700	ROLLBACK
+master-bin.000001	4	Format_desc	1	150	Server ver: 5.5.30-v4-rc-log, Binlog ver: 4
+master-bin.000001	150	Binlog_checkpoint	1	190	master-bin.000001
+master-bin.000001	190	Gcid_event	1	217	GCID id=0
+master-bin.000001	217	Query	1	317	use `test`; create table t1 (a int) engine=innodb
+master-bin.000001	317	Gcid_event	1	344	GCID id=0
+master-bin.000001	344	Query	1	444	use `test`; create table t2 (a int) engine=myisam
+master-bin.000001	444	Gcid_event	1	471	GCID id=0
+master-bin.000001	471	Query	1	539	BEGIN
+master-bin.000001	539	Query	1	626	use `test`; insert into t1 values(8)
+master-bin.000001	626	Query	1	720	use `test`; insert into t2 select * from t1
+master-bin.000001	720	Query	1	791	ROLLBACK
 flush logs;
 select
 (@a:=load_file("MYSQLTEST_VARDIR/tmp/mix_innodb_myisam_binlog.output"))
@@ -488,6 +540,7 @@ count(*)
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into ti values (1)
 master-bin.000001	#	Query	#	#	use `test`; insert into ti values (2)
@@ -515,6 +568,7 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into ti values (1)
 master-bin.000001	#	Query	#	#	use `test`; insert into ti values (2) /* to make the dup error in the following */
@@ -552,6 +606,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=3
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 values (bug27417(2))
@@ -573,6 +628,7 @@ count(*)
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=4
 master-bin.000001	#	Query	#	#	use `test`; delete from t2 where a=bug27417(3)
@@ -601,6 +657,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=1
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 values (bug27417(1))
@@ -618,6 +675,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=2
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 select bug27417(1) union select bug27417(2)
@@ -634,6 +692,7 @@ ERROR 23000: Duplicate entry '4' for key 'b'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=4
 master-bin.000001	#	Query	#	#	use `test`; update t3 set b=b+bug27417(1)
@@ -652,6 +711,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=6
 master-bin.000001	#	Query	#	#	use `test`; UPDATE t4,t3 SET t4.a=t3.a + bug27417(1) /* top level non-ta table */
@@ -685,6 +745,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=9
 master-bin.000001	#	Query	#	#	use `test`; delete from t2
@@ -707,6 +768,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; delete t2.* from t2,t5 where t2.a=t5.a + 1
 master-bin.000001	#	Query	#	#	ROLLBACK
@@ -729,6 +791,7 @@ count(*)
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=10
 master-bin.000001	#	Begin_load_query	#	#	;file_id=#;block_len=#
@@ -757,6 +820,7 @@ count(*)
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into ti values (1)
 master-bin.000001	#	Query	#	#	use `test`; insert into ti values (2)
@@ -784,6 +848,7 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; insert into ti values (1)
 master-bin.000001	#	Query	#	#	use `test`; insert into ti values (2) /* to make the dup error in the following */
@@ -821,6 +886,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=3
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 values (bug27417(2))
@@ -841,6 +907,7 @@ count(*)
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=4
 master-bin.000001	#	Query	#	#	use `test`; delete from t2 where a=bug27417(3)
@@ -868,6 +935,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=1
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 values (bug27417(1))
@@ -884,6 +952,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=2
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 select bug27417(1) union select bug27417(2)
@@ -899,6 +968,7 @@ ERROR 23000: Duplicate entry '4' for key 'b'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=4
 master-bin.000001	#	Query	#	#	use `test`; update t3 set b=b+bug27417(1)
@@ -916,6 +986,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=6
 master-bin.000001	#	Query	#	#	use `test`; UPDATE t4,t3 SET t4.a=t3.a + bug27417(1) /* top level non-ta table */
@@ -948,6 +1019,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=9
 master-bin.000001	#	Query	#	#	use `test`; delete from t2
@@ -969,6 +1041,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; delete t2.* from t2,t5 where t2.a=t5.a + 1
 master-bin.000001	#	Query	#	#	ROLLBACK
@@ -990,6 +1063,7 @@ count(*)
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Intvar	#	#	INSERT_ID=10
 master-bin.000001	#	User var	#	#	@`b`=_latin1 0x3135 COLLATE latin1_swedish_ci

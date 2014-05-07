@@ -89,7 +89,7 @@ Created 2/16/1996 Heikki Tuuri
 # include "os0sync.h" /* for INNODB_RW_LOCKS_USE_ATOMICS */
 # include "zlib.h" /* for ZLIB_VERSION */
 # include "fc0log.h"
-# include "fc0dump.h"
+# include "fc0warmup.h"
 
 /** Log sequence number immediately after startup */
 UNIV_INTERN ib_uint64_t	srv_start_lsn;
@@ -1129,7 +1129,7 @@ innobase_start_or_create_for_mysql(void)
 		" InnoDB: !!!!!!!! UNIV_MEM_DEBUG switched on !!!!!!!!!\n");
 #endif
 
-	if (fc_is_enabled()){
+	if (fc_is_enabled()) {
 		/* 
 		Currently, we set fc_io_capacity equal to innodb_io_capacity.
 		*/
@@ -1140,7 +1140,7 @@ innobase_start_or_create_for_mysql(void)
 			srv_flash_cache_backuping = FALSE;
 			}
 		
-		srv_fc_io_capacity = srv_io_capacity;
+		//srv_fc_io_capacity = srv_io_capacity;
 	}
 
 	if (UNIV_LIKELY(srv_use_sys_malloc)) {
@@ -1800,7 +1800,7 @@ innobase_start_or_create_for_mysql(void)
 		trx_sys_file_format_tag_init();
 
 		if ( access("flash_cache.warmup",F_OK ) != -1 ){
-			fc_load_warmup_file();
+			//fc_load_warmup_file();
 		}
 
 	}
@@ -1886,7 +1886,7 @@ innobase_start_or_create_for_mysql(void)
 	}
 
 	if (fc_is_enabled() && fc_log->first_use && srv_flash_cache_warmup_table){
-		fc_warmup_tablespaces();
+		//fc_warmup_tablespaces();
 	}
 
 	/* Create the master thread which does purge and other utility
@@ -1907,7 +1907,7 @@ innobase_start_or_create_for_mysql(void)
 	/* If the user has enable flash cache and not need recovery,
 	then start the flash cache thread. */
 	if(fc_is_enabled() > 0 && !recv_needed_recovery){
-		os_thread_create(&srv_flash_cache_thread, NULL, NULL);
+		os_thread_create(&srv_fc_flush_thread, NULL, NULL);
 	}
 
 	/* Wait for the purge and master thread to startup. */

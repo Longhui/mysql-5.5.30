@@ -182,10 +182,15 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
  */
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int
-unpack_row(Relay_log_info const *rli,
+unpack_row(rpl_group_info *rgi,
            TABLE *table, uint const colcnt,
            uchar const *const row_data, MY_BITMAP const *cols,
            uchar const **const row_end, ulong *const master_reclength)
+/*
+int unpack_row(rpl_group_info* rgi, 
+               TABLE *table, uint colcnt, uchar const* row_data, 
+               MY_BITMAP const *cols, uchar const **row_end, ulong* master_reclength)
+*/
 {
   DBUG_ENTER("unpack_row");
   DBUG_ASSERT(row_data);
@@ -209,7 +214,7 @@ unpack_row(Relay_log_info const *rli,
   uint i= 0;
   table_def *tabledef= NULL;
   TABLE *conv_table= NULL;
-  bool table_found= rli && rli->get_table_data(table, &tabledef, &conv_table);
+  bool table_found= rgi && rgi->get_table_data(table, &tabledef, &conv_table);
   DBUG_PRINT("debug", ("Table data: table_found: %d, tabldef: %p, conv_table: %p",
                        table_found, tabledef, conv_table));
   DBUG_ASSERT(table_found);
@@ -220,7 +225,7 @@ unpack_row(Relay_log_info const *rli,
     is used by MySQL Backup, but can be used for other purposes as
     well.
    */
-  if (rli && !table_found)
+  if (rgi && !table_found)
     DBUG_RETURN(HA_ERR_GENERIC);
 
   for (field_ptr= begin_ptr ; field_ptr < end_ptr && *field_ptr ; ++field_ptr)

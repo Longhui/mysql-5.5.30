@@ -80,6 +80,8 @@ void mysql_client_binlog_statement(THD* thd)
   my_bool have_fd_event= TRUE;
   int err;
   Relay_log_info *rli;
+  rpl_group_info *rgi;
+
   rli= thd->rli_fake;
   if (!rli)
   {
@@ -95,6 +97,9 @@ void mysql_client_binlog_statement(THD* thd)
       new Format_description_log_event(4);
     have_fd_event= FALSE;
   }
+  if (!(rgi= thd->rgi_fake))
+    rgi= thd->rgi_fake= new rpl_group_info(rli);
+  rgi->thd= thd;
 
   const char *error= 0;
   char *buf= (char *) my_malloc(decoded_len, MYF(MY_WME));
@@ -224,7 +229,7 @@ void mysql_client_binlog_statement(THD* thd)
         reporting.
       */
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-      err= ev->apply_event(rli);
+      err= ev->apply_event(rgi);
 #else
       err= 0;
 #endif
@@ -255,7 +260,7 @@ void mysql_client_binlog_statement(THD* thd)
 
 end:
   thd->variables.option_bits= thd_options;
-  rli->slave_close_thread_tables(thd);
+  rgi->slave_close_thread_tables(thd);
   my_free(buf);
   DBUG_VOID_RETURN;
 }

@@ -11130,6 +11130,10 @@ show_param:
           {
             Lex->sql_command = SQLCOM_SHOW_SLAVE_SQL_THREAD;
           }
+        | SLAVE MASTER_LOG_POS_SYM
+          {
+            Lex->sql_command = SQLCOM_SHOW_SLAVE_MASTER_LOG_POS;
+          }
         | BINLOG_SYM EVENTS_SYM binlog_in binlog_from
           {
             LEX *lex= Lex;

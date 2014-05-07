@@ -7,10 +7,13 @@ INSERT INTO t1 VALUES (3,UUID()), (4,UUID());
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT, b LONG)
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1,1), (2,2)
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gcid_event	#	#	GCID id=0
 master-bin.000001	#	Query	#	#	BEGIN
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
@@ -19,10 +22,13 @@ master-bin.000001	#	Query	#	#	COMMIT
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Binlog_checkpoint	#	#	slave-bin.000001
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT, b LONG)
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1,1), (2,2)
 slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gcid_event	#	#	GCID id=0
 slave-bin.000001	#	Query	#	#	BEGIN
 slave-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F

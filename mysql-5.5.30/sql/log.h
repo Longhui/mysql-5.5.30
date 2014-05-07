@@ -61,6 +61,7 @@ protected:
 };
 
 extern mysql_mutex_t LOCK_group_commit_queue;
+extern mysql_cond_t COND_group_commit_queue;
 extern mysql_mutex_t LOCK_commit_log;
 extern mysql_mutex_t LOCK_commit_ordered;
 
@@ -344,7 +345,7 @@ private:
 void binlog_checkpoint_callback(void *cookie);
 
 class binlog_cache_data;
-class wait_for_commit;
+struct wait_for_commit;
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
  private:
@@ -483,7 +484,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   */
   int new_file_without_locking();
   int new_file_impl(bool need_lock);
-  int write_transaction(group_commit_entry *entry);
+  int write_transaction(group_commit_entry *entry, uint64 commid_id);
   bool queue_for_group_commit(group_commit_entry *entry, wait_for_commit *wfc);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
@@ -491,6 +492,16 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   void purge();
   void mark_xid_done(ulong cookie, bool write_checkpoint);
   void mark_xids_active(ulong cookie, uint xid_count);
+
+public:
+  struct master_log_info
+  {
+    char master_log_file[FN_REFLEN];
+    ulonglong master_log_pos;
+  };
+
+  ulonglong get_last_xid_pos(IO_CACHE *log, Format_description_log_event *fev);  
+  int get_master_info(master_log_info *mi, int most_num);
 
 public:
   using MYSQL_LOG::generate_name;
@@ -539,6 +550,8 @@ public:
   void commit_checkpoint_notify(void * cookie);
   int recover(LOG_INFO *linfo, const char *last_log_name,
 			  IO_CACHE *first_log, Format_description_log_event *fdle);
+  int get_relay_info();
+  int get_relay_info_from_xid_event(LOG_INFO log_info, int *get);
 #if !defined(MYSQL_CLIENT)
 
   int flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
@@ -591,6 +604,7 @@ public:
   bool write_incident(THD *thd, bool lock);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
   int  write_cache(IO_CACHE *cache, bool lock_log, bool flush_and_sync);
+  void wait_for_sufficient_commits();
 
   int write_cache(THD *thd, IO_CACHE *cache);
 
@@ -652,9 +666,11 @@ public:
   int find_log_pos(LOG_INFO* linfo, const char* log_name,
 		   bool need_mutex);
   int find_next_log(LOG_INFO* linfo, bool need_mutex);
+  int find_prev_log(LOG_INFO* linfo, int line_len , bool need_lock);
   int get_current_log(LOG_INFO* linfo);
   int raw_get_current_log(LOG_INFO* linfo);
   uint next_file_id();
+  bool write_gcid_event(THD *thd, uint64 commit_id);
   inline char* get_index_fname() { return index_file_name;}
   inline char* get_log_fname() { return log_file_name; }
   inline char* get_name() { return name; }
@@ -933,6 +949,6 @@ end:
   DBUG_RETURN(error);
 }
 
-
+extern bool show_master_info_in_binlog(THD *thd, int most_num);
 
 #endif /* LOG_H */

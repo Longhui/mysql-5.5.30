@@ -89,6 +89,8 @@ extern "C" {
 #include "ut0mem.h"
 #include "ibuf0ibuf.h"
 #include "fc0fc.h"
+#include "fc0log.h"
+#include "fc0backup.h"
 }
 
 #include "ha_innodb.h"
@@ -102,6 +104,9 @@ extern "C" {
 
 /** flash cache size */
 static long long innobase_flash_cache_size;
+
+/** flash cache block size */
+static ulong innobase_flash_cache_block_size;
 
 /** to protect innobase_open_files */
 static mysql_mutex_t innobase_share_mutex;
@@ -2489,6 +2494,8 @@ innobase_change_buffering_inited_ok:
 
 	srv_flash_cache_size = (ulint) innobase_flash_cache_size;
 
+	srv_flash_cache_block_size = (ulint) innobase_flash_cache_block_size;
+
 	srv_file_flush_method_str = innobase_file_flush_method;
 
 	srv_n_log_groups = (ulint) innobase_mirrored_log_groups;
@@ -2994,7 +3001,7 @@ retry:
 		   visible to others. So we can wakeup other commits waiting for
 		   this one, to allow then to group commit with us.
 		*/
-		thd_wakeup_subsequent_commits(thd);
+		thd_wakeup_subsequent_commits(thd, 0);
 		
 		/* We did the first part already in innobase_commit_ordered(),
 		Now do a write + flush of logs. */
@@ -10812,7 +10819,7 @@ innobase_commit_by_xid(
 	XID*		xid)	/*!< in: X/Open XA transaction identification */
 {
   DBUG_ENTER("innobase_commit_by_xid");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
+  DBUG_ASSERT(hton == innodb_hton_ptr);
   DBUG_PRINT("rlh",("innobase_commit_by_xid"));
 
 	trx_t* trx = trx_get_trx_by_xid(xid);
@@ -11376,26 +11383,26 @@ innodb_flash_cache_backuping_update(
 
 	if(*(my_bool *) save) { /* wanna begin flash cache bachup */
 		if(srv_flash_cache_enable_write) {
-			ut_print_timestamp(stderr);
-			fprintf(stderr, " Inoodb: Error: before begining flash cache file backup\n");
-			fprintf(stderr, "Inoodb: Error: 'innodb_flash_cache_enable_write' should  be set to OFF firstly.\n");
+				ut_print_timestamp(stderr);
+				fprintf(stderr, " InnoDB: Error: before begining flash cache file backup\n");
+				fprintf(stderr, "InnoDB: Error: 'innodb_flash_cache_enable_write' should be set to OFF firstly.\n");
+			} else if(*(my_bool *) var_ptr) {	
+				ut_print_timestamp(stderr);
+				fprintf(stderr, " InnoDB: Warning: flash cache file backup has been running already\n");
+				fprintf(stderr, "InnoDB: Warning: and not finished yet. Try latter.\n");
+			} else {
+				/* 
+				  * set innodb_flash_chache_backuping to ON, then begin flash cache file backup. 
+				  * when finished, set innodb_flash_chache_backuping to OFF
+				  */
+				*(my_bool *) var_ptr = TRUE;
+				os_thread_create(fc_backup_thread, NULL, NULL);
 			}
-		else if(*(my_bool *) var_ptr) {	
-			ut_print_timestamp(stderr);
-			fprintf(stderr, " Inoodb: Warning: flash cache file backup has been running already\n");
-			fprintf(stderr, "Inoodb: Warning: and not finished yet. Try latter.\n");
-			}
-		else {		/* set innodb_flash_chache_backuping to ON, then begin flash cache file backup. 
-				           When finished, set innodb_flash_chache_backuping to OFF*/
-			*(my_bool *) var_ptr = TRUE;
-			os_thread_create(fc_backup_thread, NULL, NULL);
-			}
-		}
-	else {
-		if(*(my_bool *) var_ptr) { 
-			ut_print_timestamp(stderr);
-			fprintf(stderr, " Inoodb: Error: flash cache file backup is running\n");
-			fprintf(stderr, "Inoodb: Error: cann't set innodb_flash_cache_backuping to OFF(0). Try latter.\n");
+		} else {
+			if(*(my_bool *) var_ptr) { 
+				ut_print_timestamp(stderr);
+				fprintf(stderr, " InnoDB: Error: flash cache file backup is running\n");
+				fprintf(stderr, "InnoDB: Error: cann't set innodb_flash_cache_backuping to OFF(0). Try latter.\n");
 			}
 		}
 }
@@ -11418,16 +11425,22 @@ innodb_flash_cache_enable_write_update(
 	if(*(my_bool *) save) {
 		if(srv_flash_cache_backuping) {
 			ut_print_timestamp(stderr);
-			fprintf(stderr, " Inoodb: Error: flash cache file backup is running\n");
-			fprintf(stderr, "Inoodb: Error: cann't set innodb_flash_cache_enable_write to ON(1) now. Try latter.\n");
+			fprintf(stderr, " InnoDB: Error: flash cache file backup is running\n");
+			fprintf(stderr, "InnoDB: Error: cann't set innodb_flash_cache_enable_write to ON(1) now. Try latter.\n");
 		} else {
 			/* set enable_write from FALSE to TRUE */
 			if (*(my_bool *) var_ptr == FALSE) {
+
 				flash_cache_mutex_enter();
 				*(my_bool *) var_ptr = TRUE;
-				fc_log_update(TRUE);
-				fc_log_commit();
+				flash_cache_log_mutex_enter();
+				fc_log_update(FALSE, FLASH_CACHE_LOG_UPDATE_WRITE);
+				fc_log_update_commit_status();
 				flash_cache_mutex_exit();
+	
+				fc_log_commit();
+				flash_cache_log_mutex_exit();
+				
 				ut_print_timestamp(stderr);
 				fprintf(stderr," InnoDB: flash cache enable_write value changed, current value is:%d.\n", *(my_bool *) var_ptr);
 			}
@@ -11435,17 +11448,185 @@ innodb_flash_cache_enable_write_update(
 	} else {
 		/* set enable_write from TRUE to FALSE */
 		if (*(my_bool *) var_ptr == TRUE) {
+
 			flash_cache_mutex_enter();
 			*(my_bool *) var_ptr = FALSE;
-			fc_log_update(FALSE);
-			fc_log_commit();
+			flash_cache_log_mutex_enter();
+			fc_log_update(FALSE, FLASH_CACHE_LOG_WRITE);
+			fc_log_update_commit_status();
 			flash_cache_mutex_exit();
+	
+			fc_log_commit();
+			flash_cache_log_mutex_exit();
+			
 			ut_print_timestamp(stderr);
-			fprintf(stderr," InnoDB: flash cache enable_write value changed, current value is:%d.\n", *(my_bool *) var_ptr);
+			fprintf(stderr," InnoDB: flash cache enable_write value changed, current value is:%d.\n",
+				*(my_bool *) var_ptr);
 		}
 	}
 	mutex_exit(&(trx_doublewrite->mutex));
 }
+
+/****************************************************************//**
+whether or not use flash cache's dump function
+This function is registered as a callback with MySQL. if disable dump, we should delete the dumpfile*/
+static
+void
+innodb_flash_cache_enable_dump_update(
+/*==============================*/
+	THD*				thd,		/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,		/*!< in: pointer to
+							system variable */
+	void*				var_ptr,	/*!< out: where the
+							formal string goes */
+	const void*			save)		/*!< in: immediate result
+							from check function */
+{
+	if(*(my_bool *) save) {
+		flash_cache_mutex_enter();	
+		srv_flash_cache_enable_dump = TRUE;
+		flash_cache_mutex_exit();
+		fprintf(stderr, "enable dump set true \n");
+	} else {
+		/* set enable_dump from TRUE to FALSE, we should delete the dumpfile */
+		if (*(my_bool *) var_ptr == TRUE) {
+			flash_cache_mutex_enter();
+			
+			srv_flash_cache_enable_dump = FALSE;
+			
+			/*delete the dump file*/
+			char	full_filename[OS_FILE_MAX_PATH];
+			int ret;
+			
+			ut_snprintf(full_filename, sizeof(full_filename),
+				"%s/%s", srv_data_home, "flash_cache.dump");
+			srv_normalize_path_for_win(full_filename);
+
+			ret = unlink(full_filename);
+			if (ret != 0 && errno != ENOENT) {
+				fprintf(stderr, " InnoDB: [Warning] L2 Cache cannot delete '%s': %s when "
+					"change enable_dump from true to false.\n",
+				full_filename, strerror(errno));
+				return;
+			}
+		
+			flash_cache_mutex_exit();
+
+			flash_cache_log_mutex_enter();
+			fc_log_reset_dump_stat();	
+			fc_log_commit();
+			flash_cache_log_mutex_exit();
+
+			ut_print_timestamp(stderr);
+			fprintf(stderr," InnoDB: L2 Cache enable_dump value changed, current value is:%d.\n",
+				*(my_bool *) var_ptr);
+		}
+	}
+
+	fprintf(stderr, "enable dump set out \n");	
+}
+
+/****************************************************************//**
+Update the L2 Cache srv_flash_cache_write_cache_pct, if dirty block percent reach this value, 
+L2 Cache will begin flush. This function is registered as a callback with MySQL. */
+static
+void
+innodb_flash_cache_write_cache_pct_update(
+/*==============================*/
+	THD*				thd,		/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,		/*!< in: pointer to
+							system variable */
+	void*				var_ptr,	/*!< out: where the
+							formal string goes */
+	const void*			save)		/*!< in: immediate result
+							from check function */
+{
+	flash_cache_mutex_enter();
+	srv_flash_cache_write_cache_pct = *static_cast<const ulong*>(save);
+	flash_cache_mutex_exit();
+}
+
+/****************************************************************//**
+Update the L2 Cache srv_flash_cache_write_cache_pct, if dirty block percent reach this value, 
+L2 Cache will begin flush. This function is registered as a callback with MySQL. */
+static
+void
+innodb_flash_cache_io_capacity_update(
+/*==============================*/
+	THD*				thd,		/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,		/*!< in: pointer to
+							system variable */
+	void*				var_ptr,	/*!< out: where the
+							formal string goes */
+	const void*			save)		/*!< in: immediate result
+							from check function */
+{
+	flash_cache_mutex_enter();
+	srv_fc_io_capacity = *static_cast<const ulong*>(save);
+	flash_cache_mutex_exit();
+}
+
+
+/****************************************************************//**
+Update the L2 Cache srv_flash_cache_do_full_io_pct, if dirty block percent reach this value, 
+L2 Cache will begin flush. This function is registered as a callback with MySQL. */
+static
+void
+innodb_flash_cache_do_full_io_pct_update(
+/*==============================*/
+	THD*				thd,		/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,		/*!< in: pointer to
+							system variable */
+	void*				var_ptr,	/*!< out: where the
+							formal string goes */
+	const void*			save)		/*!< in: immediate result
+							from check function */
+{
+	flash_cache_mutex_enter();
+	srv_flash_cache_do_full_io_pct = *static_cast<const ulong*>(save);
+	flash_cache_mutex_exit();
+}
+
+/****************************************************************//**
+Update the L2 Cache srv_fc_full_flush_pct, if dirty block percent reach this value, 
+L2 Cache will begin flush. This function is registered as a callback with MySQL. */
+static
+void
+innodb_flash_cache_full_flush_pct_update(
+/*==============================*/
+	THD*				thd,		/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,		/*!< in: pointer to
+							system variable */
+	void*				var_ptr,	/*!< out: where the
+							formal string goes */
+	const void*			save)		/*!< in: immediate result
+							from check function */
+{
+	flash_cache_mutex_enter();
+	srv_fc_full_flush_pct = *static_cast<const ulong*>(save);
+	flash_cache_mutex_exit();
+}
+
+/****************************************************************//**
+Update the L2 Cache srv_fc_write_cache_flush_pct, if dirty block percent reach this value, 
+L2 Cache will begin flush. This function is registered as a callback with MySQL. */
+static
+void
+innodb_flash_cache_write_cache_flush_pct_update(
+/*==============================*/
+	THD*				thd,		/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,		/*!< in: pointer to
+							system variable */
+	void*				var_ptr,	/*!< out: where the
+							formal string goes */
+	const void*			save)		/*!< in: immediate result
+							from check function */
+{
+	flash_cache_mutex_enter();
+	srv_fc_write_cache_flush_pct = *static_cast<const ulong*>(save);
+	flash_cache_mutex_exit();
+}
+
 
 /****************************************************************//**
 Update the system variable innodb_old_blocks_pct using the "saved"
@@ -12103,7 +12284,7 @@ static MYSQL_SYSVAR_STR(flash_cache_file, srv_flash_cache_file,
   PLUGIN_VAR_READONLY,
   "Flash cache file location.",
   NULL, NULL, NULL);
-
+/*
 static MYSQL_SYSVAR_STR(flash_cache_warmup_table, srv_flash_cache_warmup_table,
   PLUGIN_VAR_READONLY,
   "Flash cache warm up from table.",
@@ -12113,21 +12294,21 @@ static MYSQL_SYSVAR_STR(flash_cache_warmup_file, srv_flash_cache_warmup_file,
   PLUGIN_VAR_READONLY,
   "Flash cache warm up from file.",
   NULL, NULL, NULL);
-
+*/
 static MYSQL_SYSVAR_LONGLONG(flash_cache_size, innobase_flash_cache_size,
   PLUGIN_VAR_READONLY,
-  "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
+  "The size of the SSD buffer InnoDB uses to cache data and indexes of its tables.",
   NULL, NULL, 0, 0, LONGLONG_MAX, 0);
+
+static MYSQL_SYSVAR_ULONG(flash_cache_block_size, innobase_flash_cache_block_size,
+  PLUGIN_VAR_READONLY,
+  "The size of the flash cache block used to cache data and indexes of InnoDB tables.",
+  NULL, NULL, 4096, 1024, 16384, 0);
 
 static MYSQL_SYSVAR_BOOL(flash_cache_is_raw, srv_flash_cache_is_raw,
   PLUGIN_VAR_READONLY,
   "Use raw disk for flash cache",
   NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_BOOL(flash_cache_adaptive_flushing, srv_flash_cache_adaptive_flushing,
-  PLUGIN_VAR_READONLY,
-  "Use adaptive flushing for flash cache",
-  NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(flash_cache_enable_move, srv_flash_cache_enable_move,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_THDLOCAL,
@@ -12139,15 +12320,32 @@ static MYSQL_SYSVAR_BOOL(flash_cache_enable_migrate, srv_flash_cache_enable_migr
   "Enable flash cache migrate",
   NULL, NULL, TRUE);
 
+/*
+static MYSQL_SYSVAR_BOOL(flash_cache_enable_dump, srv_flash_cache_enable_dump,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_THDLOCAL,
+  "Enable flash cache dump, dump the block metadata periodly",
+  NULL, innodb_flash_cache_enable_dump_update, FALSE);
+*/
 static MYSQL_SYSVAR_ULONG(flash_cache_write_cache_pct, srv_flash_cache_write_cache_pct,
-  PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_RQCMDARG,
   "Flash cache write cache percentage",
-  NULL, NULL, 30L, 0, 85L, 0);
+  NULL, innodb_flash_cache_write_cache_pct_update, 80L, 0, 85L, 0);
+
+static MYSQL_SYSVAR_ULONG(flash_cache_full_flush_pct, srv_fc_full_flush_pct,
+  PLUGIN_VAR_RQCMDARG,
+  "Flush srv_fc_full_flush_pct*srv_fc_io_capacity many dirty pages when doing full flush",
+  NULL, innodb_flash_cache_full_flush_pct_update, 100L, 0, 100L, 0);
+
+static MYSQL_SYSVAR_ULONG(flash_cache_small_flush_pct, srv_fc_write_cache_flush_pct,
+  PLUGIN_VAR_RQCMDARG,
+  "Flush srv_fc_write_cache_flush_pct*srv_fc_io_capacity many dirty pages when doing write cache flush",
+  NULL, innodb_flash_cache_write_cache_flush_pct_update, 10L, 0, 100L, 0);
+
 
 static MYSQL_SYSVAR_ULONG(flash_cache_do_full_io_pct, srv_flash_cache_do_full_io_pct,
-  PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_RQCMDARG,
   "Flash cache full io percentage",
-  NULL, NULL, 90L, 0, 95L, 0);
+  NULL, innodb_flash_cache_do_full_io_pct_update, 90L, 0, 95L, 0);
 
 static MYSQL_SYSVAR_ULONG(flash_cache_move_limit, srv_flash_cache_move_limit,
   PLUGIN_VAR_READONLY,
@@ -12157,7 +12355,7 @@ static MYSQL_SYSVAR_ULONG(flash_cache_move_limit, srv_flash_cache_move_limit,
 static MYSQL_SYSVAR_ULONG(flash_cache_io_capacity, srv_fc_io_capacity,
   PLUGIN_VAR_RQCMDARG,
   "Number of IOPs the flash cache can do. Tunes the background IO rate",
-  NULL, NULL, 500, 100, ~0L, 0);
+  NULL, innodb_flash_cache_io_capacity_update, 10000, 100, 16000000, 0);
 
 static MYSQL_SYSVAR_BOOL(flash_cache_enable_write, srv_flash_cache_enable_write,
   PLUGIN_VAR_RQCMDARG,
@@ -12176,8 +12374,18 @@ static MYSQL_SYSVAR_STR(flash_cache_backup_dir, srv_flash_cache_backup_dir,
 
 static MYSQL_SYSVAR_BOOL(flash_cache_lru_move_batch, srv_flash_cache_lru_move_batch,
   PLUGIN_VAR_READONLY,
-  "use fc_LRU_move_optimization if TRUE, otherwise use fc_LRU_move",
+  "use fc_LRU_move_batch if TRUE, otherwise use fc_LRU_move",
+  NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(flash_cache_enable_compress, srv_flash_cache_enable_compress,
+  PLUGIN_VAR_READONLY,
+  "use L2 Cache compress method to compress the page data when it written to SSD",
   NULL, NULL, TRUE);
+
+static MYSQL_SYSVAR_BOOL(flash_cache_decompress_use_malloc, srv_flash_cache_decompress_use_malloc,
+  PLUGIN_VAR_READONLY,
+  "use malloc to buffer the compressed data when L2 Cache do decompress in read hit",
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ULONG(flash_cache_write_mode, srv_flash_cache_write_mode,
   PLUGIN_VAR_READONLY,
@@ -12187,12 +12395,12 @@ static MYSQL_SYSVAR_ULONG(flash_cache_write_mode, srv_flash_cache_write_mode,
 static MYSQL_SYSVAR_BOOL(flash_cache_fast_shutdown, srv_flash_cache_fast_shutdown,
 PLUGIN_VAR_RQCMDARG,
 "fash shutdown for flash cache",
-NULL, innodb_flash_cache_enable_write_update, TRUE);
+NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(flash_cache_safest_recovery, srv_flash_cache_safest_recovery,
 	PLUGIN_VAR_READONLY,
   "Enable flash cache safest recovery, compare ssd data with disk data",
-  NULL, NULL, FALSE);
+  NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_ULONG(file_flush_sleep_time, srv_file_flush_sleep_time,
 PLUGIN_VAR_RQCMDARG,
@@ -12207,18 +12415,27 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(flash_cache_lru_move_batch),
   MYSQL_SYSVAR(flash_cache_backuping),
   MYSQL_SYSVAR(flash_cache_backup_dir),
-  MYSQL_SYSVAR(flash_cache_adaptive_flushing),
   MYSQL_SYSVAR(flash_cache_is_raw),
   MYSQL_SYSVAR(flash_cache_enable_move),
   MYSQL_SYSVAR(flash_cache_enable_migrate),
+ /*
+  MYSQL_SYSVAR(flash_cache_enable_dump),
+*/
+  MYSQL_SYSVAR(flash_cache_enable_compress),
   MYSQL_SYSVAR(flash_cache_write_cache_pct),
   MYSQL_SYSVAR(flash_cache_do_full_io_pct),
+  MYSQL_SYSVAR(flash_cache_full_flush_pct),
+  MYSQL_SYSVAR(flash_cache_small_flush_pct),
   MYSQL_SYSVAR(flash_cache_move_limit),
   MYSQL_SYSVAR(flash_cache_file),
+  /*
   MYSQL_SYSVAR(flash_cache_warmup_table),
   MYSQL_SYSVAR(flash_cache_warmup_file),
+  */
   MYSQL_SYSVAR(flash_cache_size),
+  MYSQL_SYSVAR(flash_cache_block_size),
   MYSQL_SYSVAR(flash_cache_safest_recovery),
+  MYSQL_SYSVAR(flash_cache_decompress_use_malloc),
   MYSQL_SYSVAR(additional_mem_pool_size),
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),

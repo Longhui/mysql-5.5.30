@@ -93,6 +93,7 @@ extern my_bool opt_log, opt_slow_log, opt_slow_io_log, opt_use_profile_limitted,
 extern uint opt_profiler_record;
 extern my_bool opt_use_xa_tmplog;
 extern my_bool opt_backup_history_log;
+extern my_bool opt_use_xa_tmplog;
 extern my_bool opt_backup_progress_log;
 extern ulonglong log_output_options;
 extern ulong log_backup_output_options;
@@ -222,24 +223,27 @@ extern I_List<THD> threads;
 extern char err_shared_dir[];
 extern TYPELIB thread_handling_typelib;
 extern my_decimal decimal_zero;
+
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 extern ulong batch_commit_count;
 extern ulong commit_sum;
 extern ulong commit_num;
 extern ulong batch_commit_max;
-extern bool need_commit;
-/*transfer*/
-extern ulong sql_thread_number;
-extern ulong transfer_slave_thread;
-extern bool opt_enable_transfer;
-/*transfer*/
+#endif
 
 extern ulong backup_throttle;
 extern my_bool opt_binlog_user_ip;
+extern ulong opt_slave_parallel_max_queued;
+extern ulong opt_slave_parallel_threads;
+extern ulong opt_binlog_commit_wait_count;
+extern ulong opt_binlog_commit_wait_usec;
+extern ulong opt_slave_parallel_mode;
+
 /*
   THR_MALLOC is a key which will be used to set/get MEM_ROOT** for a thread,
   using my_pthread_setspecific_ptr()/my_thread_getspecific_ptr().
 */
-extern pthread_key(MEM_ROOT**,THR_MALLOC);
+extern MYSQL_PLUGIN_IMPORT pthread_key(MEM_ROOT**,THR_MALLOC);
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
@@ -273,7 +277,11 @@ extern PSI_mutex_key key_BINLOG_LOCK_index,
   key_LOCK_error_messages, key_LOCK_thread_count, key_PARTITION_LOCK_auto_inc;
 extern PSI_mutex_key key_RELAYLOG_LOCK_index;
 extern PSI_mutex_key key_LOCK_wakeup_ready, key_LOCK_group_commit_queue,
-  key_LOCK_commit_ordered, key_LOCK_commit_log;
+       key_LOCK_commit_ordered, key_LOCK_commit_log;
+
+extern PSI_mutex_key key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_rpl_parallel_thread,
+       key_LOCK_rpl_parallel;
+
 
 extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,key_rwlock_LOCK_profile,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
@@ -298,7 +306,8 @@ extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache;
 extern PSI_cond_key key_RELAYLOG_update_cond;
 extern PSI_cond_key key_COND_wakeup_ready, key_COND_wait_commit;
-
+extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool, key_COND_rpl_parallel, key_COND_group_commit_orderer;
+extern PSI_cond_key key_COND_group_commit_queue;
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand;

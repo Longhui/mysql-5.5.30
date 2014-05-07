@@ -19,7 +19,7 @@
 #include <rpl_reporting.h>
 #include "my_global.h"                          /* uchar */
 
-class Relay_log_info;
+struct rpl_group_info;
 struct TABLE;
 typedef struct st_bitmap MY_BITMAP;
 
@@ -29,11 +29,15 @@ size_t pack_row(TABLE* table, MY_BITMAP const* cols,
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int unpack_row(Relay_log_info const *rli,
+int unpack_row(rpl_group_info *rgi,
                TABLE *table, uint const colcnt,
                uchar const *const row_data, MY_BITMAP const *cols,
                uchar const **const row_end, ulong *const master_reclength);
-
+/*
+int unpack_row(rpl_group_info* rgi, 
+               TABLE *table, uint colcnt, uchar const* row_data, 
+               MY_BITMAP const *cols, uchar const **row_end, ulong* master_reclength);
+*/
 // Fill table's record[0] with default values.
 int prepare_record(TABLE *const table, const uint skip, const bool check);
 #endif

@@ -718,13 +718,7 @@ impossible position";
       else if (event_type == STOP_EVENT)
         binlog_can_be_corrupted= FALSE;
 
-	  if(unlikely(event_type == BINLOG_CHECKPOINT_EVENT))
-       {
-        if (Query_log_event::dummy_event(packet, ev_offset))
-          sql_print_error("Failed to replace binlog checkpoint event with dummy:too small event.");
-       } 
-
-		if(unlikely(event_type == FLASHBACK_EVENT))
+       if(unlikely(event_type == FLASHBACK_EVENT))
        {
         if (Query_log_event::dummy_event(packet, ev_offset))
           sql_print_error("Failed to replace flashback event with dummy:too small event.");
@@ -778,12 +772,12 @@ impossible position";
       DBUG_PRINT("info", ("log event code %d", event_type));
       if (event_type == LOAD_EVENT)
       {
-	if (send_file(thd))
-	{
-	  errmsg = "failed in send_file()";
-	  my_errno= ER_UNKNOWN_ERROR;
-	  goto err;
-	}
+        if (send_file(thd))
+        {
+          errmsg = "failed in send_file()";
+          my_errno= ER_UNKNOWN_ERROR;
+          goto err;
+        }
       }
 
       if (RUN_HOOK(binlog_transmit, after_send_event, (thd, flags, packet)))

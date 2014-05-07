@@ -96,7 +96,9 @@
 #include "set_var.h"
 #include "resource_profiler.h"
 #include "sql_statistics.h"
+#ifdef WITHTOKUDB_STORAGE_ENGINE
 #include "sql_backup.h"
+#endif
 
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
@@ -353,6 +355,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_COLLATIONS]=  CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_BINLOGS]=     CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_SLAVE_HOSTS]= CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_SHOW_SLAVE_MASTER_LOG_POS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_SLAVE_SQL_THREAD]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_BINLOG_EVENTS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_STORAGE_ENGINES]= CF_STATUS_COMMAND;
@@ -2410,11 +2413,16 @@ case SQLCOM_PREPARE:
   }
   case SQLCOM_SHOW_SLAVE_SQL_THREAD:
   {
-    if (check_global_access(thd, REPL_SLAVE_ACL))
+    if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
       goto error;
-    mysql_mutex_lock(&LOCK_active_mi);
-    res = show_slave_sql_thread(thd, active_mi);
-    mysql_mutex_unlock(&LOCK_active_mi);
+    res = show_slave_sql_thread(thd);
+    break;
+  }
+  case SQLCOM_SHOW_SLAVE_MASTER_LOG_POS:
+  {
+    if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
+      goto error;
+    res= show_master_info_in_binlog(thd, 10);
     break;
   }
   case SQLCOM_SHOW_MASTER_STAT:
@@ -3223,10 +3231,14 @@ end_with_restore_list:
      if (thd->variables.sql_log_flashback)
      {
        char new_name_buff[FN_REFLEN + 1];
+       /*
        struct timeval tick_time;
        gettimeofday(&tick_time, 0);
        snprintf(new_name_buff, sizeof(new_name_buff), "%s_%lu", FLASHBACK_TBL_PREFIX, tick_time.tv_sec*1000000+tick_time.tv_usec);
- 
+       */
+       ulonglong micro_time = my_micro_time();
+       snprintf(new_name_buff, sizeof(new_name_buff), "%s_%llu", FLASHBACK_TBL_PREFIX, micro_time);
+
        snprintf(thd->flashback_stmt, sizeof(thd->flashback_stmt), "%c%s.%s:RENAME TABLE `%s`.`%s` TO `%s`.`%s`", 
                 '\1', FLASHBACK_DB, first_table->db, FLASHBACK_DB, new_name_buff, first_table->db, first_table->table_name);
  
@@ -3852,6 +3864,7 @@ end_with_restore_list:
     
     break;
   }
+#ifdef WITH_TOKUDB_STORAGE_ENGINE
   case SQLCOM_BACKUP:
   {
       if (check_global_access(thd, SUPER_ACL))
@@ -3863,6 +3876,7 @@ end_with_restore_list:
           my_ok(thd);  // Do I call this or not?
       break;
   }
+#endif
   case SQLCOM_KILL:
   {
     Item *it= (Item *)lex->value_list.head();

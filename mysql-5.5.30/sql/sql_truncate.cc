@@ -511,9 +511,13 @@ bool Truncate_statement::truncate_table(THD *thd, TABLE_LIST *table_ref)
 bool bak_table(TABLE_LIST *table)
 {
   char new_name_buff[FN_REFLEN + 1];
+  /*
   struct timeval tick_time;
   gettimeofday(&tick_time, 0);
   snprintf(new_name_buff, sizeof(new_name_buff), "%s_%lu", FLASHBACK_TBL_PREFIX, tick_time.tv_sec*1000000+tick_time.tv_usec); 
+  */
+  ulonglong micro_time = my_micro_time();
+  snprintf(new_name_buff, sizeof(new_name_buff), "%s_%llu", FLASHBACK_TBL_PREFIX, micro_time);
 
   char buf[1024];
   snprintf(buf, sizeof(buf), "rename table `%s`.`%s` to `%s`.`%s`;", table->db, table->table_name, FLASHBACK_DB, new_name_buff);

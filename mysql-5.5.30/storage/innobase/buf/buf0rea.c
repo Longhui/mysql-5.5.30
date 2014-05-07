@@ -171,7 +171,6 @@ buf_read_page_low(
 				       tablespace_version, offset, old);
 
 	if (bpage == NULL) {
-
 		return(0);
 	}
 
@@ -188,11 +187,10 @@ buf_read_page_low(
 
 	thd_wait_begin(NULL, THD_WAIT_DISKIO);
 	if (zip_size) {
-		if ( fc_is_enabled() ){
+		if (fc_is_enabled()) {
 			*err = fc_read_page(sync,space,zip_size,
 				0,offset,wake_later,bpage->zip.data,bpage);
-		}
-		else {
+		} else {
 			*err = fil_io(OS_FILE_READ | wake_later | ignore_nonexistent_pages,
 			      sync, space, zip_size, offset, 0, zip_size,
 			      bpage->zip.data, bpage);
@@ -200,12 +198,10 @@ buf_read_page_low(
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
-		if ( fc_is_enabled() ){
+		if (fc_is_enabled()) {
 			*err = fc_read_page(sync,space,zip_size,
 				0,offset,wake_later,((buf_block_t*) bpage)->frame,bpage);
-		}
-		else
-		{
+		} else {
 			*err = fil_io(OS_FILE_READ | wake_later,
 					  sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
 					  ((buf_block_t*) bpage)->frame, bpage);

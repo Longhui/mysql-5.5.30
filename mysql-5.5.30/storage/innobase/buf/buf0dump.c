@@ -257,7 +257,8 @@ buf_dump(
 				      BUF_DUMP_SPACE(dump[j]),
 				      BUF_DUMP_PAGE(dump[j]));
 					  */
-			ret = fprintf(f, ULINTPF "," ULINTPF "," ULINTPF "\n", dump[j].space,dump[j].offset,dump[j].old);
+			ret = fprintf(f, ULINTPF "," ULINTPF "," ULINTPF "\n", (ulong)(dump[j].space),
+					(ulong)(dump[j].offset), (ulong)(dump[j].old));
 
 			if (ret < 0) {
 				ut_free(dump);

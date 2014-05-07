@@ -39,6 +39,17 @@ The following options may be given as the first argument:
  transactional engines for the binary log. If you often
  use transactions containing many statements, you can
  increase this to get more performance
+ --binlog-commit-wait-count=# 
+ If non-zero, binlog write will wait at most
+ binlog_commit_wait_usec microseconds for at least this
+ many commits to queue up for group commit to the binlog.
+ This can reduce I/O on the binlog and provide increased
+ opportunity for parallel apply on the slave, but too high
+ a value will decrease commit throughput.
+ --binlog-commit-wait-usec=# 
+ Maximum time, in microseconds, to wait for more commits
+ to queue up for binlog group commit. Only takes effect if
+ the value of binlog_commit_wait_count is non-zero.
  --binlog-direct-non-transactional-updates 
  Causes updates to non-transactional engines using
  statement format to be written directly to binary log.
@@ -138,8 +149,6 @@ The following options may be given as the first argument:
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
- --enable-muti-replication 
- turn on/off parallel replication
  --enable-table-relay-info 
  store relay info in innodb table
  --engine-condition-pushdown 
@@ -655,6 +664,10 @@ The following options may be given as the first argument:
  --slave-net-timeout=# 
  Number of seconds to wait for more data from a
  master/slave connection before aborting the read
+ --slave-parallel-threads=# 
+ If non-zero, number of threads to spawn to apply in
+ parallel events on the slave that were group-committed on
+ the master and were logged with GCID frontly.
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
  query event returns an error from the provided list
@@ -695,8 +708,6 @@ The following options may be given as the first argument:
  --sql-log-flashback sql_log_flashback
  --sql-mode=name     Syntax: sql-mode=mode[,mode[,mode...]]. See the manual
  for the complete list of valid sql modes
- --sql-thread-number[=#] 
- number of sub SQL threads
  --startup-wait-rollback-ok 
  Wait InnoDB rollback compeleted in recovering beforeMySQL
  serve startup finish
@@ -971,9 +982,6 @@ The following options may be given as the first argument:
  OFF, FORCE (don't start if the plugin fails to load).
  --tokudb-analyze-time=# 
  analyze time
- --tokudb-backup-throttle=# 
- The rate (bytes per second) that the backup is allowed to
- read data out of the mysql data directory
  --tokudb-block-size=# 
  fractal tree block size
  --tokudb-cache-size=# 
@@ -1084,6 +1092,8 @@ batch-commit-max 1
 big-tables FALSE
 bind-address (No default value)
 binlog-cache-size 32768
+binlog-commit-wait-count 0
+binlog-commit-wait-usec 100000
 binlog-direct-non-transactional-updates FALSE
 binlog-format STATEMENT
 binlog-row-event-max-size 1024
@@ -1113,7 +1123,6 @@ delayed-insert-timeout 300
 delayed-queue-size 1000
 disconnect-slave-event-count 0
 div-precision-increment 4
-enable-muti-replication FALSE
 enable-table-relay-info FALSE
 engine-condition-pushdown TRUE
 event-scheduler OFF
@@ -1273,6 +1282,7 @@ slave-compressed-protocol FALSE
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
 slave-net-timeout 3600
+slave-parallel-threads 0
 slave-skip-errors (No default value)
 slave-transaction-retries 10
 slave-type-conversions 
@@ -1283,7 +1293,6 @@ sort-buffer-size 2097152
 sporadic-binlog-dump-fail FALSE
 sql-log-flashback FALSE
 sql-mode NO_ENGINE_SUBSTITUTION
-sql-thread-number 16
 startup-wait-rollback-ok FALSE
 stored-program-cache 256
 symbolic-links FALSE
@@ -1384,7 +1393,6 @@ tnt-verify-after-recover FALSE
 tnt-version (No default value)
 tokudb ON
 tokudb-analyze-time 60
-tokudb-backup-throttle 18446744073709551615
 tokudb-block-size 4194304
 tokudb-cache-size 0
 tokudb-checkpoint-lock FALSE

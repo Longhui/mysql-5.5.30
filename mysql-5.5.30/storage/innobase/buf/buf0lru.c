@@ -49,7 +49,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "log0recv.h"
 #include "srv0srv.h"
 #include "trx0sys.h"
-#include "fc0fc.h"
+#include "fc0fill.h"
 
 /** The number of blocks from the LRU_old pointer onward, including
 the block pointed to, must be buf_pool->LRU_old_ratio/BUF_LRU_OLD_RATIO_DIV
@@ -141,8 +141,9 @@ buf_LRU_block_remove_hashed_page(
 	buf_page_t*	bpage,	/*!< in: block, must contain a file page and
 				be in a state where it can be freed; there
 				may or may not be a hash index to the page */
-	ibool		zip);	/*!< in: TRUE if should remove also the
+	ibool		zip,	/*!< in: TRUE if should remove also the
 				compressed page of an uncompressed page */
+	ibool		fc_move);/*!< in: TRUE if should move/migrate the page to l2cache */
 /******************************************************************//**
 Puts a file page whose has no hash index to the free list. */
 static
@@ -697,7 +698,7 @@ scan_again:
 
 		/* Remove from the LRU list. */
 
-		if (buf_LRU_block_remove_hashed_page(bpage, TRUE)
+		if (buf_LRU_block_remove_hashed_page(bpage, TRUE, FALSE)
 		    != BUF_BLOCK_ZIP_FREE) {
 
 			buf_LRU_block_free_hashed_page((buf_block_t*) bpage);
@@ -1670,6 +1671,7 @@ buf_LRU_free_block(
 	ibool		zip)	/*!< in: TRUE if should remove also the
 				compressed page of an uncompressed page */
 {
+	ibool		fc_move = FALSE;
 	buf_page_t*	b = NULL;
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	mutex_t*	block_mutex = buf_page_get_mutex(bpage);
@@ -1703,6 +1705,8 @@ buf_LRU_free_block(
 		if (bpage->oldest_modification) {
 			return(FALSE);
 		}
+
+		fc_move = TRUE;
 	} else if (bpage->oldest_modification) {
 		/* Do not completely free dirty blocks. */
 
@@ -1731,7 +1735,7 @@ alloc:
 	}
 #endif /* UNIV_DEBUG */
 
-	if (buf_LRU_block_remove_hashed_page(bpage, zip)
+	if (buf_LRU_block_remove_hashed_page(bpage, zip, fc_move)
 	    != BUF_BLOCK_ZIP_FREE) {
 		ut_a(bpage->buf_fix_count == 0);
 
@@ -1973,11 +1977,12 @@ static
 enum buf_page_state
 buf_LRU_block_remove_hashed_page(
 /*=============================*/
-	buf_page_t*	bpage,	/*!< in: block, must contain a file page and
+	buf_page_t* bpage,	/*!< in: block, must contain a file page and
 				be in a state where it can be freed; there
 				may or may not be a hash index to the page */
-	ibool		zip)	/*!< in: TRUE if should remove also the
+	ibool		zip,	/*!< in: TRUE if should remove also the
 				compressed page of an uncompressed page */
+	ibool		fc_move)/*!< in: TRUE if should move/migrate the page to l2cache */
 {
 	ulint			fold;
 	const buf_page_t*	hashed_bpage;
@@ -2003,15 +2008,6 @@ buf_LRU_block_remove_hashed_page(
 
 	switch (buf_page_get_state(bpage)) {
 	case BUF_BLOCK_FILE_PAGE:
-
-		if ( fc_is_enabled() && trx_doublewrite && srv_flash_cache_enable_write && !bpage->zip.data){
-            /*
-             only allow uncompressed page to flash cache 
-            */
-			srv_flash_cache_lru_move_batch ? 
-				fc_LRU_move_optimization(bpage): fc_LRU_move(bpage);
-		}
-
 		UNIV_MEM_ASSERT_W(bpage, sizeof(buf_block_t));
 		UNIV_MEM_ASSERT_W(((buf_block_t*) bpage)->frame,
 				  UNIV_PAGE_SIZE);
@@ -2140,6 +2136,18 @@ buf_LRU_block_remove_hashed_page(
 		return(BUF_BLOCK_ZIP_FREE);
 
 	case BUF_BLOCK_FILE_PAGE:
+
+		if (fc_move && fc_is_enabled() && trx_doublewrite 
+			&& srv_flash_cache_enable_write && !bpage->zip.data){
+            /*
+             only allow uncompressed page to flash cache 
+            */
+            buf_pool_mutex_exit(buf_pool);
+			srv_flash_cache_lru_move_batch ? 
+				fc_LRU_move_batch(bpage): fc_LRU_move(bpage);
+			buf_pool_mutex_enter(buf_pool);
+		}
+		
 		memset(((buf_block_t*) bpage)->frame
 		       + FIL_PAGE_OFFSET, 0xff, 4);
 		memset(((buf_block_t*) bpage)->frame
@@ -2149,8 +2157,20 @@ buf_LRU_block_remove_hashed_page(
 		buf_page_set_state(bpage, BUF_BLOCK_REMOVE_HASH);
 
 		if (zip && bpage->zip.data) {
+      void *data;
 			/* Free the compressed page. */
-			void*	data = bpage->zip.data;
+			if (fc_move && fc_is_enabled() 
+				&& trx_doublewrite && srv_flash_cache_enable_write) {
+          			  /*
+            			 move zip page  to flash cache when buf pool also free the compressed page
+            			 */
+            	buf_pool_mutex_exit(buf_pool);
+				srv_flash_cache_lru_move_batch ? 
+					fc_LRU_move_batch(bpage): fc_LRU_move(bpage);
+				buf_pool_mutex_enter(buf_pool);
+			}
+			
+			data = bpage->zip.data;
 			bpage->zip.data = NULL;
 
 			ut_ad(!bpage->in_free_list);
@@ -2221,7 +2241,7 @@ buf_LRU_free_one_page(
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(mutex_own(block_mutex));
 
-	if (buf_LRU_block_remove_hashed_page(bpage, TRUE)
+	if (buf_LRU_block_remove_hashed_page(bpage, TRUE, FALSE)
 	    != BUF_BLOCK_ZIP_FREE) {
 		buf_LRU_block_free_hashed_page((buf_block_t*) bpage);
 	} else {

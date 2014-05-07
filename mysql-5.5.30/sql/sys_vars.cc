@@ -51,7 +51,9 @@
 #include "../storage/perfschema/pfs_server.h"
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
+#ifdef WITH_TOKUDB_STORAGE_ENGINE
 #include "sql_backup.h"
+#endif
 
 TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
 
@@ -60,7 +62,6 @@ TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
   causes further includes.  [TODO] Eliminate this forward declaration
   and include a file with the prototype instead.
 */
-extern void close_thread_tables(THD *thd);
 extern bool wait_rollback_ok;
 
 
@@ -140,7 +141,89 @@ static Sys_var_mybool Sys_enable_table_relay_info(
 		"store relay info in innodb table",
 		READ_ONLY GLOBAL_VAR(opt_enable_table_relay_info),
 		CMD_LINE(OPT_ARG),DEFAULT(FALSE));
+
+static bool
+fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool running= FALSE;
+  bool err= false;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (active_mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN)
+  {
+    my_error(ER_SLAVE_MUST_STOP, MYF(0));
+    running= TRUE;
+  }
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running || rpl_parallel_change_thread_count(&global_rpl_thread_pool,
+                                                  opt_slave_parallel_threads, TRUE))
+    err= true;
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  return err;
+}
+
+static bool
+check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
+{
+  bool running= FALSE;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (active_mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN)
+  {
+    my_error(ER_SLAVE_MUST_STOP, MYF(0));
+    running= TRUE;
+  }
+  mysql_mutex_unlock(&LOCK_active_mi);
+
+  if (running)
+    return true;
+
+  return false;
+}
+
+/*
+  @raolh
+*/
+static Sys_var_ulong Sys_slave_parallel_threads(
+       "slave_parallel_threads",
+       "If non-zero, number of threads to spawn to apply in parallel events "
+       "on the slave that were group-committed on the master and were logged "
+       "with GCID frontly.",
+       GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
+       ON_UPDATE(fix_slave_parallel_threads));
+/*
+static const char *slave_parallel_mode_names[]={"ROW_BINLOG", "GROUP_COMMIT", 0};
+static Sys_var_enum Sys_slave_parallel_mode(
+       "slave_parallel_mode",
+       "If ROW_BINLOG, master's binlog must be ROW "
+       "If GROUP_COMMIT, group-committed transaction on the master were"
+       "logged with GCID frontly",
+       READ_ONLY GLOBAL_VAR(opt_slave_parallel_mode), CMD_LINE(REQUIRED_ARG),
+       slave_parallel_mode_names, DEFAULT(0));
+*/
 #endif
+
+static Sys_var_ulong Sys_binlog_commit_wait_count(
+       "binlog_commit_wait_count",
+       "If non-zero, binlog write will wait at most binlog_commit_wait_usec "
+       "microseconds for at least this many commits to queue up for group "
+       "commit to the binlog. This can reduce I/O on the binlog and provide "
+       "increased opportunity for parallel apply on the slave, but too high "
+       "a value will decrease commit throughput.",
+       GLOBAL_VAR(opt_binlog_commit_wait_count), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_binlog_commit_wait_usec(
+       "binlog_commit_wait_usec",
+       "Maximum time, in microseconds, to wait for more commits to queue up "
+       "for binlog group commit. Only takes effect if the value of "
+       "binlog_commit_wait_count is non-zero.",
+       GLOBAL_VAR(opt_binlog_commit_wait_usec), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(100000), BLOCK_SIZE(1));
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -285,25 +368,14 @@ static Sys_var_ulong Sys_pfs_max_thread_instances(
 
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 static Sys_var_ulong Sys_batch_commit_max(
        "batch_commit_max",
        "Perform one commit operation for this transcations",
        GLOBAL_VAR(batch_commit_max),
        CMD_LINE(OPT_ARG),
        VALID_RANGE(1, 65535), DEFAULT(1), BLOCK_SIZE(1));
-
-static Sys_var_ulong Sys_sql_thread_number(
-       "sql_thread_number",
-       "number of sub SQL threads",
-       READ_ONLY GLOBAL_VAR(sql_thread_number),
-       CMD_LINE(OPT_ARG),
-       VALID_RANGE(SLAVE_THREAD_MIN, SLAVE_THREAD_MAX), DEFAULT(SLAVE_THREAD), BLOCK_SIZE(1));
-
-static Sys_var_mybool Sys_enable_muti_replication(
-       "enable_muti_replication",
-       "turn on/off parallel replication",
-       READ_ONLY GLOBAL_VAR(opt_enable_transfer),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+#endif
 
 static Sys_var_ulong Sys_auto_increment_increment(
        "auto_increment_increment",
@@ -3465,7 +3537,7 @@ static Sys_var_mybool Sys_pseudo_slave_mode(
        SESSION_ONLY(pseudo_slave_mode), NO_CMD_LINE, DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_pseudo_slave_mode));
 
-
+#ifdef WITH_TOKUDB_STORAGE_ENGINE
 static bool update_backup_throttle(sys_var *self, THD *thd, enum_var_type type)
 {
     sql_backup_throttle(backup_throttle);
@@ -3485,6 +3557,7 @@ static Sys_var_charptr Sys_tokubackup_version(
        "The version number of the installed tokutek backup library",
        READ_ONLY GLOBAL_VAR(tokubackup_version), NO_CMD_LINE, IN_SYSTEM_CHARSET,
        DEFAULT(0));
+#endif
 
 static Sys_var_mybool Sys_use_xa_tmplog(
     "use_xa_tmplog",
@@ -3492,7 +3565,6 @@ static Sys_var_mybool Sys_use_xa_tmplog(
 		"when external xa trx prepared",
 		READ_ONLY GLOBAL_VAR(opt_use_xa_tmplog),
 		CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-                            
 
 /****************************************************************************
   Used templates

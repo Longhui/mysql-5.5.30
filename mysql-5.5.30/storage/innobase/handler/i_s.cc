@@ -3708,8 +3708,6 @@ i_s_flash_cache_fill(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	COND*		cond)	/*!< in: condition (ignored) */
 {
-    fc_block_t* block;
-    int page_type;
     char* table_name;
     int i = 0;
     TABLE*  table = (TABLE *) tables->table;
@@ -3718,24 +3716,9 @@ i_s_flash_cache_fill(
         "Ready For Flush",
         "Read Cache",
         "Flushed",
-        "Need Insert"
+        "Been Attached"
     };
-    char* page_type_info[] = {
-        "FIL_PAGE_INDEX",
-        "FIL_PAGE_UNDO_LOG",
-        "FIL_PAGE_INODE",
-        "FIL_PAGE_IBUF_FREE_LIST",
-        "FIL_PAGE_TYPE_ALLOCATED",
-        "FIL_PAGE_IBUF_BITMAP",
-        "FIL_PAGE_TYPE_SYS",
-        "FIL_PAGE_TYPE_TRX_SYS",
-        "FIL_PAGE_TYPE_FSP_HDR",
-        "FIL_PAGE_TYPE_XDES",
-        "FIL_PAGE_TYPE_BLOB",
-        "FIL_PAGE_TYPE_ZBLOB",
-        "FIL_PAGE_TYPE_ZBLOB2"
-    };
-    
+ 
     DBUG_ENTER("i_s_flash_cache_fill");
     
     if (srv_flash_cache_size == 0){

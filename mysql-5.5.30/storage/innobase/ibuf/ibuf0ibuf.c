@@ -406,7 +406,11 @@ ibuf_tree_root_get(
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(mutex_own(&ibuf_mutex));
 
+      //  fprintf(stderr, " 0 0x%lu ",(ulong)os_thread_get_curr_id());
+
 	mtr_x_lock(dict_index_get_lock(ibuf->index), mtr);
+	
+      //  fprintf(stderr, " 1 0x%lu ",(ulong)os_thread_get_curr_id());
 
 	block = buf_page_get(
 		IBUF_SPACE_ID, 0, FSP_IBUF_TREE_ROOT_PAGE_NO, RW_X_LATCH, mtr);

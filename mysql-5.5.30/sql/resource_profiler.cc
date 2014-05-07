@@ -2,6 +2,7 @@
 #include "sql_class.h"
 
 //#define STATISTICS_DEBUG
+#ifdef UNIV_LINXU
 /* RETURN: the thread's user times unit 1ms*/
 static ulonglong get_thread_time(THD *thd)
 {
@@ -22,6 +23,12 @@ static ulonglong get_thread_time(THD *thd)
 #endif
 	return ret_time / 10000;
 }
+#else
+/* RETURN: the thread's user times unit 1ms*/
+static ulonglong get_thread_time(THD *thd){
+	return 0;
+}
+#endif
 
 void start_trx_statistics(THD *thd)
 {

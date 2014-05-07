@@ -515,12 +515,12 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
    @param order  The computed order of the conversion needed.
    @param rli    The relay log info data structure: for error reporting.
  */
-bool is_conversion_ok(int order, Relay_log_info *rli)
+bool is_conversion_ok(int order, rpl_group_info *rgi)
 {
   DBUG_ENTER("is_conversion_ok");
   bool allow_non_lossy= false, allow_lossy= false;
 
-  if (!rli->getting_pk_value)
+  if (!rgi->getting_pk_value)
   {
     allow_non_lossy = slave_type_conversions_options &
                     (ULL(1) << SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY);
@@ -581,10 +581,11 @@ bool is_conversion_ok(int order, Relay_log_info *rli)
 static bool
 can_convert_field_to(Field *field,
                      enum_field_types source_type, uint16 metadata,
-                     Relay_log_info *rli, uint16 mflags,
+                     rpl_group_info *rgi, uint16 mflags,
                      int *order_var)
 {
   DBUG_ENTER("can_convert_field_to");
+  Relay_log_info *rli= rgi->rli;
 #ifndef DBUG_OFF
   char field_type_buf[MAX_FIELD_WIDTH];
   String field_type(field_type_buf, sizeof(field_type_buf), &my_charset_latin1);
@@ -613,7 +614,7 @@ can_convert_field_to(Field *field,
 
     DBUG_PRINT("debug", ("Base types are identical, doing field size comparison"));
     if (field->compatible_field_size(metadata, rli, mflags, order_var))
-      DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      DBUG_RETURN(is_conversion_ok(*order_var, rgi));
     else
       DBUG_RETURN(false);
   }
@@ -641,7 +642,7 @@ can_convert_field_to(Field *field,
         DECIMAL, so we require lossy conversion.
       */
       *order_var= 1;
-      DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      DBUG_RETURN(is_conversion_ok(*order_var, rgi));
       
     case MYSQL_TYPE_DECIMAL:
     case MYSQL_TYPE_FLOAT:
@@ -653,7 +654,7 @@ can_convert_field_to(Field *field,
       else
         *order_var= compare_lengths(field, source_type, metadata);
       DBUG_ASSERT(*order_var != 0);
-      DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      DBUG_RETURN(is_conversion_ok(*order_var, rgi));
     }
 
     default:
@@ -679,7 +680,7 @@ can_convert_field_to(Field *field,
     case MYSQL_TYPE_LONGLONG:
       *order_var= compare_lengths(field, source_type, metadata);
       DBUG_ASSERT(*order_var != 0);
-      DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      DBUG_RETURN(is_conversion_ok(*order_var, rgi));
 
     default:
       DBUG_RETURN(false);
@@ -724,7 +725,7 @@ can_convert_field_to(Field *field,
        */
       if (*order_var == 0)
         *order_var= -1;
-      DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      DBUG_RETURN(is_conversion_ok(*order_var, rgi));
 
     default:
       DBUG_RETURN(false);
@@ -775,13 +776,15 @@ can_convert_field_to(Field *field,
   @retval false Master table is not compatible with slave table.
 */
 bool
-table_def::compatible_with(THD *thd, Relay_log_info *rli,
+table_def::compatible_with(THD *thd, rpl_group_info *rgi,
                            TABLE *table, TABLE **conv_table_var)
   const
 {
   /*
     We only check the initial columns for the tables.
   */
+  Relay_log_info *rli= rgi->rli;
+
   uint const cols_to_check= min(table->s->fields, size());
   TABLE *tmp_table= NULL;
 
@@ -789,7 +792,7 @@ table_def::compatible_with(THD *thd, Relay_log_info *rli,
   {
     Field *const field= table->field[col];
     int order;
-    if (can_convert_field_to(field, type(col), field_metadata(col), rli, m_flags, &order))
+    if (can_convert_field_to(field, type(col), field_metadata(col), rgi, m_flags, &order))
     {
       DBUG_PRINT("debug", ("Checking column %d -"
                            " field '%s' can be converted - order: %d",
@@ -834,7 +837,7 @@ table_def::compatible_with(THD *thd, Relay_log_info *rli,
       String target_type(target_buf, sizeof(target_buf), &my_charset_latin1);
       show_sql_type(type(col), field_metadata(col), &source_type, field->charset());
       field->sql_type(target_type);
-      rli->main_rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED,
+      rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED,
                   ER(ER_SLAVE_CONVERSION_FAILED),
                   col, db_name, tbl_name,
                   source_type.c_ptr_safe(), target_type.c_ptr_safe());
@@ -955,7 +958,7 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
 
   TABLE *conv_table= create_virtual_tmp_table(thd, field_list);
   if (conv_table == NULL)
-    rli->main_rli->report(ERROR_LEVEL, ER_SLAVE_CANT_CREATE_CONVERSION,
+    rli->report(ERROR_LEVEL, ER_SLAVE_CANT_CREATE_CONVERSION,
                 ER(ER_SLAVE_CANT_CREATE_CONVERSION),
                 target_table->s->db.str,
                 target_table->s->table_name.str);
@@ -1090,20 +1093,20 @@ bool Deferred_log_events::is_empty()
   return array.elements == 0;
 }
 
-bool Deferred_log_events::execute(Relay_log_info *rli)
+bool Deferred_log_events::execute(rpl_group_info *rgi)
 {
   bool res= false;
 
-  DBUG_ASSERT(rli->deferred_events_collecting);
+  DBUG_ASSERT(rgi->deferred_events_collecting);
 
-  rli->deferred_events_collecting= false;
+  rgi->deferred_events_collecting= false;
   for (uint i=  0; !res && i < array.elements; i++)
   {
     Log_event *ev= (* (Log_event **)
                     dynamic_array_ptr(&array, i));
-    res= ev->apply_event(rli);
+    res= ev->apply_event(rgi);
   }
-  rli->deferred_events_collecting= true;
+  rgi->deferred_events_collecting= true;
   return res;
 }
 
@@ -1115,14 +1118,14 @@ void Deferred_log_events::rewind()
   */
   if (!is_empty())
   {
-   /*for (uint i=  0; i < array.elements; i++)
-    {
+   for (uint i=  0; i < array.elements; i++)
+   {
       Log_event *ev= *(Log_event **) dynamic_array_ptr(&array, i);
       delete ev;
-    }*/
-    if (array.elements > array.max_element)
-      freeze_size(&array);
-    reset_dynamic(&array);
+   }
+   if (array.elements > array.max_element)
+     freeze_size(&array);
+   reset_dynamic(&array);
   }
 }
 

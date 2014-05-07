@@ -3209,6 +3209,9 @@ loop:
 			case SRV_WORKER:
 				thread_type = "worker threads";
 				break;
+			case SRV_FLASH_CACHE:
+				thread_type = "l2cache thread";
+				break;				
 			case SRV_MASTER:
 				thread_type = "master thread";
 				break;

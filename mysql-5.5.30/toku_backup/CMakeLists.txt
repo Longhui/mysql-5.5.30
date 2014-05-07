@@ -3,7 +3,7 @@
 ##  This is the community edition of toku hot backup.  ##
 ##                                                     ##
 #########################################################
-
+IF(WITH_TOKUDB)
 cmake_minimum_required(VERSION 2.8.8)
 project(HotBackup)
 
@@ -44,7 +44,8 @@ set(BACKUP_COMMUNITY_SOURCES
         backup_community.cc)
 
 add_library(HotBackupCommunity SHARED ${BACKUP_COMMUNITY_SOURCES})
-target_link_libraries(HotBackupCommunity LINK_PUBLIC rt)
+target_link_libraries(HotBackupCommunity)
+#target_link_libraries(HotBackupCommunity LINK_PUBLIC )
 
 # If for some reason we go back to static libraries, we'll need these two:
 # set_target_properties(HotBackupCommunity PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -69,3 +70,4 @@ set(HOT_BACKUP_LIBS HotBackupCommunity PARENT_SCOPE)
 set(OPTFLAGS "-O3 -flto -s")
 add_space_separated_property(TARGET HotBackupCommunity LINK_FLAGS "-flto -s")
 #set(OPTFLAGS "")
+ENDIF()

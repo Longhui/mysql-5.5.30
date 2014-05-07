@@ -134,6 +134,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -151,6 +153,8 @@ c2 VARCHAR(20)
 ) ENGINE=InnoDB DEFAULT CHARSET latin1
 /*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 CREATE TABLE t2 (
@@ -159,6 +163,8 @@ c2 VARCHAR(20)
 ) ENGINE=MyISAM DEFAULT CHARSET latin1
 /*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -216,15 +222,21 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=1000000000/*!*/;
-TRUNCATE TABLE t1
-/*!*/;
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 TRUNCATE TABLE t1
 /*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+TRUNCATE TABLE t1
+/*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -251,6 +263,8 @@ BEGIN
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -286,6 +300,8 @@ BEGIN
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -305,6 +321,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -362,16 +380,22 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 TRUNCATE TABLE t1
 /*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 TRUNCATE TABLE t2
 /*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -397,6 +421,8 @@ BEGIN
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -433,6 +459,8 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -451,10 +479,14 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 TRUNCATE TABLE t1
 /*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;

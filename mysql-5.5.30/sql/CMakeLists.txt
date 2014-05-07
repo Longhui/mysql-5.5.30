@@ -78,12 +78,15 @@ SET (SQL_SOURCE
                sql_iostat.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
                resource_profiler.cc
-               sql_backup.cc
                sql_reload.cc rpl_info_handler.cc rpl_info_table.cc
                rpl_info_table_access.cc rpl_info_values.cc rpl_info_fake.cc
-               sql_statistics.cc
+               sql_statistics.cc rpl_parallel.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE})
+
+IF(WITH_TOKUDB)
+  SET(SQL_SOURCE ${SQL_SOURCE} sql_backup.cc)
+ENDIF()
 
 MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
 RECOMPILE_FOR_EMBEDDED)

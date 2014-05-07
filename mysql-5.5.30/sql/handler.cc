@@ -46,7 +46,7 @@
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 #endif
-
+#include "debug_sync.h"
 //extern my_bool opt_enable_table_relay_info;
 /*
   While we have legacy_db_type, we have this array to
@@ -1453,7 +1453,7 @@ int ha_commit_one_phase(THD *thd, bool all)
   DBUG_ENTER("ha_commit_one_phase");
 
 #ifdef HAVE_REPLICATION
-  if (is_real_trans)
+  if (all)
   {
     if (thd->wait_for_prior_commit())
     {
@@ -1463,7 +1463,10 @@ int ha_commit_one_phase(THD *thd, bool all)
     else
     {
       if (opt_enable_table_relay_info)
-       thd->update_trans_position();
+      {
+        thd->update_relay_table();
+        DEBUG_SYNC(thd, "after_trans_update_position");
+      }
     }
   }
 #endif
@@ -1508,7 +1511,7 @@ commit_one_phase_low(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   /* Free resources and perform other cleanup even for 'empty' transactions. */
   if (is_real_trans)
   {
-    thd->wakeup_subsequent_commits();
+    thd->wakeup_subsequent_commits(error);
     thd->transaction.cleanup();
   }
 
@@ -1879,6 +1882,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
             my_hash_search(info->commit_list, (uchar *)&x, sizeof(x)) != 0 :
             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
         {
+
           hton->commit_by_xid(hton, info->list+i);
         }
         else

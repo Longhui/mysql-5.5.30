@@ -86,7 +86,7 @@ pack_row_old(TABLE *table, MY_BITMAP const* cols,
  */
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int
-unpack_row_old(Relay_log_info *rli,
+unpack_row_old(rpl_group_info *rgi,
                TABLE *table, uint const colcnt, uchar *record,
                uchar const *row, MY_BITMAP const *cols,
                uchar const **row_end, ulong *master_reclength,
@@ -95,7 +95,8 @@ unpack_row_old(Relay_log_info *rli,
   DBUG_ASSERT(record && row);
   my_ptrdiff_t const offset= record - (uchar*) table->record[0];
   size_t master_null_bytes= table->s->null_bytes;
-
+  Relay_log_info *rli=rgi->rli;
+  
   if (colcnt != table->s->fields)
   {
     Field **fptr= &table->field[colcnt-1];

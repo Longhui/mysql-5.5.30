@@ -480,11 +480,11 @@ enum srv_thread_type {
 };
 
 /*********************************************************************//**
-The flash cache thread controlling the server.
+The flash cache flush thread to flush ssd dirty page to disk.
 @return	a dummy parameter */
 UNIV_INTERN
 os_thread_ret_t
-srv_flash_cache_thread(
+srv_fc_flush_thread(
 /*==============*/
 	void*	arg);	/*!< in: a dummy parameter required by
 			os_thread_create */

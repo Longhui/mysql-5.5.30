@@ -46,6 +46,7 @@
 
 // Forward declarations
 class Relay_log_info;
+struct rpl_group_info;
 class Master_info;
 
 
@@ -181,7 +182,7 @@ int fetch_master_table(THD* thd, const char* db_name, const char* table_name,
 		       Master_info* mi, MYSQL* mysql, bool overwrite);
 
 bool show_master_info(THD* thd, Master_info* mi);
-bool show_slave_sql_thread(THD* thd, Master_info* mi);
+bool show_slave_sql_thread(THD* thd);
 bool mysql_show_binlog_events(THD *thd, Master_info* mi);
 bool show_binlog_info(THD* thd);
 bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
@@ -208,7 +209,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
 void set_slave_thread_options(THD* thd);
 void set_slave_thread_default_charset(THD *thd, Relay_log_info const *rli);
 int rotate_relay_log(Master_info* mi);
-int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli);
+int apply_event_and_update_pos(Log_event* ev, THD* thd, rpl_group_info* rgi);
 
 pthread_handler_t handle_slave_io(void *arg);
 pthread_handler_t handle_slave_sql(void *arg);
