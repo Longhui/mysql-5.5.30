@@ -1,0 +1,130 @@
+/**************************************************//**
+@file fc/fc0recv.ic
+Flash Cache for InnoDB
+
+Created	24/10/2013 Thomas Wen (wenzhenghu.zju@gmail.com)
+*******************************************************/
+
+#ifndef fc0recv_ic
+#define fc0recv_ic
+#include "page0zip.h"
+
+/******************************************************************//**
+Check if the page size is zip_size,   
+@return: TRUE if the pge size is zip_size*/
+UNIV_INLINE
+ulint
+fc_page_calc_size(
+/*==================*/
+	byte *read_buf, /*<! in: data buffer read from ssd, contain data page */
+	ulint zip_size) /*<! in: the page size we guess */
+{
+	ulint	checksum_field;
+	ulint	old_checksum_field;
+
+	if (UNIV_LIKELY(!zip_size)
+	    && memcmp(read_buf + FIL_PAGE_LSN + 4, (read_buf + UNIV_PAGE_SIZE
+		      - FIL_PAGE_END_LSN_OLD_CHKSUM + 4), 4)) {
+		/* Stored log sequence numbers at the start and the end
+		 * of page do not match */
+		return(TRUE);
+	}
+
+	/* If we use checksums validation, make additional check before
+	returning TRUE to ensure that the checksum is not equal to
+	BUF_NO_CHECKSUM_MAGIC which might be stored by InnoDB with checksums
+	disabled. Otherwise, skip checksum calculation and return FALSE */
+
+	if (UNIV_LIKELY(srv_use_checksums)) {
+		checksum_field = mach_read_from_4(read_buf + FIL_PAGE_SPACE_OR_CHKSUM);
+
+		if (zip_size) {
+			if (memcmp(read_buf + FIL_PAGE_LSN + 4, (read_buf + zip_size
+		      		- FIL_PAGE_END_LSN_OLD_CHKSUM + 4), 4)) {
+				/* Stored log sequence numbers at the start and the end
+				of page do not match */
+				return(TRUE);
+			}
+			
+			return((checksum_field != BUF_NO_CHECKSUM_MAGIC)
+			       && (checksum_field != page_zip_calc_checksum(read_buf, zip_size)));
+		}
+
+		old_checksum_field = 
+			mach_read_from_4(read_buf + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
+
+		/* There are 2 valid formulas for old_checksum_field:
+
+		1. Very old versions of InnoDB only stored 8 byte lsn to the
+		start and the end of the page.
+
+		2. Newer InnoDB versions store the old formula checksum
+		there. */
+
+		if (old_checksum_field != mach_read_from_4(read_buf + FIL_PAGE_LSN)
+		    && old_checksum_field != BUF_NO_CHECKSUM_MAGIC
+		    && old_checksum_field != buf_calc_page_old_checksum(read_buf)) {
+			return(TRUE);
+		}
+
+		/* InnoDB versions < 4.0.14 and < 4.1.1 stored the space id
+		(always equal to 0), to FIL_PAGE_SPACE_OR_CHKSUM */
+
+		if (checksum_field != 0 && checksum_field != BUF_NO_CHECKSUM_MAGIC
+		    	&& checksum_field != buf_calc_page_new_checksum(read_buf)) {
+			return(TRUE);
+		}
+	}
+
+	return(FALSE);
+}
+
+/******************************************************************//**
+Exchange the page size from ,   
+@return: the size of page, with number of L2 Cache base blocks */
+UNIV_INLINE
+ulint
+fc_calc_drop_page_size(
+/*==================*/
+	byte *page,	   /*<! in: data buffer read from ssd, contain data page */
+	ulint buf_len) /*<! in: the len of the data buffer */
+{
+	ulint fc_blk_size = fc_get_block_size();
+
+	switch (fc_blk_size) {
+		case 1:
+			goto blk_size_1KB;
+		case 2:
+			goto blk_size_2KB;
+		case 4:
+			goto blk_size_4KB;
+		case 8:
+			goto blk_size_8KB;
+		case 16:
+			goto blk_size_16KB;
+	}
+
+blk_size_1KB:
+	if ((buf_len >= 1) && (FALSE == fc_page_calc_size(page, 1024)))
+		return 1;
+	
+blk_size_2KB:
+	if ((buf_len >= 2) && (FALSE == fc_page_calc_size(page, 2048)))
+		return 2;
+
+blk_size_4KB:
+	if ((buf_len >= 4) && (FALSE == fc_page_calc_size(page, 4096)))
+		return 4;
+
+blk_size_8KB:
+	if ((buf_len >= 8) && (FALSE == fc_page_calc_size(page, 8192)))
+		return 8;
+
+blk_size_16KB:
+	if ((buf_len == 16) && (FALSE == fc_page_calc_size(page, 0)))
+		return 16;
+	
+	return (ULINT_UNDEFINED);
+}
+
+#endif
