@@ -94,7 +94,9 @@ static const char *handler_error_messages[]=
   "Profile already exists",
   "Profile doesn't exist",
   "Role doesn't exist",
-  "Grant role to user with check option error"
+  "Grant role to user with check option error",
+  "user in user_list_string can not to be deleted or updated",
+  "table mysql.user can not to be truncated or dropped"
 };
 
 extern void my_handler_error_register(void);

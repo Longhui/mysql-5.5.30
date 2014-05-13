@@ -1562,6 +1562,7 @@ private:
   { DBUG_ASSERT(0); return Statement::is_conventional(); }
 
 public:
+  ulonglong rpl_wait_begin_usec;
   MDL_context mdl_context;
 
   /* Used to execute base64 coded binlog events in MySQL server */

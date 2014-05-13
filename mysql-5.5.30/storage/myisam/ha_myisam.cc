@@ -1598,13 +1598,34 @@ int ha_myisam::update_row(const uchar *old_data, uchar *new_data)
   ha_statistic_increment(&SSV::ha_update_count);
   if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_UPDATE)
     table->timestamp_field->set_time();
+  if (forbid_deleted())
+  {
+    return HA_ERR_RDSADMIN_DELETED;
+  }
   return mi_update(file,old_data,new_data);
 }
 
 int ha_myisam::delete_row(const uchar *buf)
 {
   ha_statistic_increment(&SSV::ha_delete_count);
+  /* the users in user_list_string not allow to be deleted */
+  if (forbid_deleted())
+  {
+    return HA_ERR_RDSADMIN_DELETED;
+  }
   return mi_delete(file,buf);
+}
+
+bool ha_myisam::forbid_deleted()
+{
+  const char *db_name = table_share->db.str;
+  const char *table_name = table_share->table_name.str;
+  if (strcmp(db_name, "mysql") == 0 && strcmp(table_name, "user") == 0)
+  {
+    const char *lastkey = (char *)file->rec_buff;
+    return has_forbid_deleted_user(lastkey);
+  }
+  return false;
 }
 
 int ha_myisam::index_read_map(uchar *buf, const uchar *key,
@@ -1841,6 +1862,10 @@ int ha_myisam::extra_opt(enum ha_extra_function operation, ulong cache_size)
 
 int ha_myisam::delete_all_rows()
 {
+  if (strcmp(table_share->db.str, "mysql") == 0 && strcmp(table_share->table_name.str, "user") == 0)
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
   return mi_delete_all_rows(file);
 }
 

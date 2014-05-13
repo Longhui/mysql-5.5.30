@@ -612,7 +612,7 @@ extern unsigned long long rpl_semi_sync_master_net_wait_num;
 extern unsigned long long rpl_semi_sync_master_trx_wait_num;
 extern unsigned long long rpl_semi_sync_master_net_wait_time;
 extern unsigned long long rpl_semi_sync_master_trx_wait_time;
-
+extern unsigned long long start_micro_time;
 /*
   This indicates whether we should keep waiting if no semi-sync slave
   is available.

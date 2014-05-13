@@ -60,6 +60,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   ha_rows	deleted= 0;
   bool          reverse= FALSE;
   bool          skip_record;
+  bool          rdsadmin_delete = FALSE;
   ORDER *order= (ORDER *) ((order_list && order_list->elements) ?
                            order_list->first : NULL);
   uint usable_index= MAX_KEY;
@@ -299,7 +300,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
     thd->examined_row_count++;
     // thd->is_error() is tested to disallow delete row on error
-    if (!select || (!select->skip_record(thd, &skip_record) && !skip_record))
+    if (!select || ((!select->skip_record(thd, &skip_record) || rdsadmin_delete) && !skip_record))
     {
 
       if (table->triggers &&
@@ -328,6 +329,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       }
       else
       {
+        if (error == HA_ERR_RDSADMIN_DELETED)
+        {
+          rdsadmin_delete = TRUE;
+          continue;
+        }
 	table->file->print_error(error,MYF(0));
 	/*
 	  In < 4.0.14 we set the error number to 0 here, but that
@@ -349,6 +355,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       table->file->unlock_row();  // Row failed selection, release lock on it
     else
       break;
+  }
+  if ( !thd->is_error() && rdsadmin_delete)
+  {
+    table->file->print_error(HA_ERR_RDSADMIN_DELETED, MYF(0));
   }
   killed_status= thd->killed;
   if (killed_status != THD::NOT_KILLED || thd->is_error())

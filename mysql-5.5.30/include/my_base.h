@@ -461,7 +461,9 @@ enum ha_base_keytype {
 #define HA_ERR_PROFILE_DOESNOT_EXIST 189
 #define HA_ERR_ROLE_DOESNOT_EXIST 190
 #define HA_ERR_GRANT_ROLE_TO_USER 191
-#define HA_ERR_LAST               191    /* Copy of last error nr */
+#define HA_ERR_RDSADMIN_DELETED 192
+#define HA_ERR_USER_TABLE_DROPPED 193
+#define HA_ERR_LAST               193    /* Copy of last error nr */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

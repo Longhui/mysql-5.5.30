@@ -815,6 +815,7 @@ THD::THD()
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
    wait_for_commit_ptr(0),
+   rpl_wait_begin_usec(0),
    main_warning_info(0, false)
 {
   ulong tmp;
@@ -1327,18 +1328,18 @@ void THD::cleanup(void)
 #endif
   {
     if(!use_xa_resume || transaction.xid_state.xa_state != XA_PREPARED)
-	{
-	  transaction.xid_state.xa_state= XA_NOTR;
-	  trans_rollback(this);
-	  xid_cache_delete(&transaction.xid_state);
-	}
-	else
-	{
-	  XID localxid = transaction.xid_state.xid;
-	  ha_semi_rollback(this);
-	  xid_cache_delete(&transaction.xid_state);
-	  xid_cache_insert(&localxid,XA_PREPARED);
-	}
+	  {
+	    transaction.xid_state.xa_state= XA_NOTR;
+	    trans_rollback(this);
+	    xid_cache_delete(&transaction.xid_state);
+ 	  }
+	  else
+	  {
+	    XID localxid = transaction.xid_state.xid;
+	    ha_semi_rollback(this);
+	    xid_cache_delete(&transaction.xid_state);
+	    xid_cache_insert(&localxid,XA_PREPARED);
+	  }
   }
 
   locked_tables_list.unlock_locked_tables(this);

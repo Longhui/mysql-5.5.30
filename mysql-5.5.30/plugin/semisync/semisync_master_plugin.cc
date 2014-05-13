@@ -321,6 +321,17 @@ Binlog_transmit_observer transmit_observer = {
     return 0;								\
   }
 
+static int get_cond_wait_time(MYSQL_THD *thd, SHOW_VAR *var, char *buff)
+{
+  var->type = SHOW_LONGLONG;
+  var->value = buff;
+  if (0 == start_micro_time)
+    *((long *)buff) = 0;
+  else
+    *((long *)buff) = (long)((my_micro_time() - start_micro_time) / 1000000);
+  return 0;
+}
+
 DEF_SHOW_FUNC(status, SHOW_BOOL)
 DEF_SHOW_FUNC(clients, SHOW_LONG)
 DEF_SHOW_FUNC(wait_sessions, SHOW_LONG)
@@ -334,6 +345,9 @@ DEF_SHOW_FUNC(avg_trx_wait_time, SHOW_LONG)
 
 /* plugin status variables */
 static SHOW_VAR semi_sync_master_status_vars[]= {
+  {"Rpl_semi_sync_master_cond_wait_time",
+   (char*) &get_cond_wait_time,
+   SHOW_FUNC},
   {"Rpl_semi_sync_master_status",
    (char*) &SHOW_FNAME(status),
    SHOW_FUNC},

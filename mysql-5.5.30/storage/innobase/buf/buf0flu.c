@@ -1617,6 +1617,7 @@ buf_flush_LRU_list_batch(
 	flush. When estimating the desired rate at which flush_list
 	should be flushed, we factor in this value. */
 	buf_lru_flush_page_count += count;
+  srv_flush_lru_list = buf_lru_flush_page_count;
 
 	ut_ad(buf_pool_mutex_own(buf_pool));
 
@@ -1812,6 +1813,7 @@ buf_flush_common(
 #endif /* UNIV_DEBUG */
 
 	srv_buf_pool_flushed += page_count;
+  srv_flush_lru_list = buf_lru_flush_page_count;
 }
 
 /******************************************************************//**

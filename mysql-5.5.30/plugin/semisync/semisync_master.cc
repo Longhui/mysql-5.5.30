@@ -17,6 +17,7 @@
 
 
 #include "semisync_master.h"
+#include "sql_class.h"
 
 /* This indicates whether semi-synchronous replication is enabled. */
 char rpl_semi_sync_master_commit_after_ack;
@@ -42,7 +43,7 @@ char rpl_semi_sync_master_wait_no_slave = 1;
 
 char rpl_semi_sync_master_keepsyncrepl = 0;
 char rpl_semi_sync_master_trysyncrepl = 1;
-
+unsigned long long start_micro_time = 0;
 
 /*******************************************************************************
  *
@@ -600,6 +601,8 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
     const char *old_msg= 0;
     
     set_timespec(start_ts, 0);
+    /* RDS Add a column in results of show processlist */
+    current_thd->rpl_wait_begin_usec = my_micro_time();
 
     /* Acquire the mutex. */
     lock();
@@ -696,8 +699,12 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
         sql_print_information("%s: wait %lu ms for binlog sent (%s, %lu)",
                               kWho, wait_timeout_,
                               wait_file_name_, (unsigned long)wait_file_pos_);
-      
+      if (0 == start_micro_time)
+      {
+        start_micro_time = my_micro_time();
+      }
       wait_result = cond_timewait(&abstime);
+      start_micro_time = 0;
       rpl_semi_sync_master_wait_sessions--;
       
       if (wait_result != 0 && !rpl_semi_sync_master_keepsyncrepl)
@@ -754,7 +761,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
        call unlock() here */
     thd_exit_cond(NULL, old_msg);
   }
-
+  current_thd->rpl_wait_begin_usec = 0;
   return function_exit(kWho, 0);
 }
 

@@ -3008,6 +3008,11 @@ static bool fix_log(char** logname, const char* default_logname,
   mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
+static Sys_var_charptr Sys_user_list_string(
+  "user_list_string", "users can't be deleted or dropped",
+  PREALLOCATED READ_ONLY GLOBAL_VAR(user_list_string), CMD_LINE(REQUIRED_ARG),
+  IN_FS_CHARSET, DEFAULT("rdsadmin@localhost"), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
 static void reopen_general_log(char* name)
 {
   logger.get_log_file_handler()->close(0);
@@ -3403,6 +3408,144 @@ static Sys_var_ulong Sys_slave_trans_retries(
        "or elapsed lock wait timeout, before giving up and stopping",
        GLOBAL_VAR(slave_trans_retries), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, ULONG_MAX), DEFAULT(10), BLOCK_SIZE(1));
+
+bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
+{
+  bool result= true;                            // Assume error
+  Master_info *mi= active_mi;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (mi)
+  {
+    if (mi->rli.slave_running)
+    {
+      my_message(ER_SLAVE_MUST_STOP, ER(ER_SLAVE_MUST_STOP), MYF(0));
+      result= true;
+    }
+    else if (!var->save_result.string_value.str)
+    {
+      my_error(ER_WRONG_ARGUMENTS,MYF(0),"SET");
+      result= true;
+    }
+    else
+    {
+      result= set_filter_value(var->save_result.string_value.str);
+    }
+  }
+                                                                                                  
+  mysql_mutex_unlock(&LOCK_active_mi);
+  return result;
+}
+
+bool Sys_var_rpl_filter::set_filter_value(const char *value)
+{
+  bool status= true;
+
+  switch (opt_id) {
+  case OPT_REPLICATE_DO_DB:
+    status= rpl_filter->set_do_db(value);
+    break;
+  case OPT_REPLICATE_DO_TABLE:
+    status= rpl_filter->set_do_table(value);
+    break;
+  case OPT_REPLICATE_IGNORE_DB:
+    status= rpl_filter->set_ignore_db(value);
+    break;
+  case OPT_REPLICATE_IGNORE_TABLE:
+    status= rpl_filter->set_ignore_table(value);
+    break;
+  case OPT_REPLICATE_WILD_DO_TABLE:
+    status= rpl_filter->set_wild_do_table(value);
+    break;
+  case OPT_REPLICATE_WILD_IGNORE_TABLE:
+    status= rpl_filter->set_wild_ignore_table(value);
+    break;
+  }
+  return status;
+}
+
+uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
+{
+  char buf[256];
+  String tmp(buf, sizeof(buf), &my_charset_bin);
+  uchar *ret;
+  Master_info *mi= active_mi;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (!mi)
+  {
+    mysql_mutex_unlock(&LOCK_active_mi);
+    return 0;
+  }
+  tmp.length(0);
+
+  switch (opt_id) {
+  case OPT_REPLICATE_DO_DB:
+    rpl_filter->get_do_db(&tmp);
+    break;
+  case OPT_REPLICATE_DO_TABLE:
+    rpl_filter->get_do_table(&tmp);
+    break;
+  case OPT_REPLICATE_IGNORE_DB:
+    rpl_filter->get_ignore_db(&tmp);
+    break;
+  case OPT_REPLICATE_IGNORE_TABLE:
+    rpl_filter->get_ignore_table(&tmp);
+    break;
+  case OPT_REPLICATE_WILD_DO_TABLE:
+    rpl_filter->get_wild_do_table(&tmp);
+    break;
+  case OPT_REPLICATE_WILD_IGNORE_TABLE:
+    rpl_filter->get_wild_ignore_table(&tmp);
+    break;
+  }
+
+  ret= (uchar *) thd->strmake(tmp.ptr(), tmp.length());
+  mysql_mutex_unlock(&LOCK_active_mi);
+
+  return ret;
+}
+
+static Sys_var_rpl_filter Sys_replicate_do_db(
+       "replicate_do_db", OPT_REPLICATE_DO_DB,
+       "Tell the slave to restrict replication to updates of tables "
+       "whose names appear in the comma-separated list. For "
+       "statement-based replication, only the default database (that "
+       "is, the one selected by USE) is considered, not any explicitly "
+       "mentioned tables in the query. For row-based replication, the "
+       "actual names of table(s) being updated are checked.");
+
+static Sys_var_rpl_filter Sys_replicate_do_table(
+       "replicate_do_table", OPT_REPLICATE_DO_TABLE,
+       "Tells the slave to restrict replication to tables in the "
+       "comma-separated list.");
+
+static Sys_var_rpl_filter Sys_replicate_ignore_db(
+       "replicate_ignore_db", OPT_REPLICATE_IGNORE_DB,
+       "Tell the slave to restrict replication to updates of tables "
+       "whose names do not appear in the comma-separated list. For "
+       "statement-based replication, only the default database (that "
+       "is, the one selected by USE) is considered, not any explicitly "
+       "mentioned tables in the query. For row-based replication, the "
+       "actual names of table(s) being updated are checked.");
+
+static Sys_var_rpl_filter Sys_replicate_ignore_table(
+       "replicate_ignore_table", OPT_REPLICATE_IGNORE_TABLE,
+       "Tells the slave thread not to replicate any statement that "
+       "updates the specified table, even if any other tables might be "
+       "updated by the same statement.");
+
+static Sys_var_rpl_filter Sys_replicate_wild_do_table(
+       "replicate_wild_do_table", OPT_REPLICATE_WILD_DO_TABLE,
+       "Tells the slave thread to restrict replication to statements "
+       "where any of the updated tables match the specified database "
+       "and table name patterns.");
+
+static Sys_var_rpl_filter Sys_replicate_wild_ignore_table(
+       "replicate_wild_ignore_table", OPT_REPLICATE_WILD_IGNORE_TABLE,
+       "Tells the slave thread to not replicate to the tables that "
+       "match the given wildcard pattern.");
+
 #endif
 
 static bool check_locale(sys_var *self, THD *thd, set_var *var)
@@ -3565,6 +3708,12 @@ static Sys_var_mybool Sys_use_xa_tmplog(
 		"when external xa trx prepared",
 		READ_ONLY GLOBAL_VAR(opt_use_xa_tmplog),
 		CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_ulong Sys_super_connections_after_max(
+  "super_connections_after_max",
+  "the number of connections who has the super private allow, when the connections is full",
+  GLOBAL_VAR(super_connections_after_max),  NO_CMD_LINE,
+  VALID_RANGE(1, 100), DEFAULT(1), BLOCK_SIZE(1));
 
 /****************************************************************************
   Used templates

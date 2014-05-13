@@ -1782,6 +1782,7 @@ public:
   virtual bool is_auto_inc_singleton() 
   { return true; }
   int update_auto_increment();
+  bool has_forbid_deleted_user(const char *record);
   void print_keydup_error(uint key_nr, const char *msg);
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
