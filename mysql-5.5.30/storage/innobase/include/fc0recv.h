@@ -3,6 +3,7 @@
 Flash Cache log recovery
 
 Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
+Modified by Thomas Wen (wenzhenghu.zju@gmail.com)
 *******************************************************/
 
 #ifndef fc0recv_h

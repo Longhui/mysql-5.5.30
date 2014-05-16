@@ -7896,7 +7896,7 @@ PSI_mutex_key key_BINLOG_LOCK_index,
   key_master_info_sleep_lock,
   key_mutex_slave_reporting_capability_err_lock, key_relay_log_info_data_lock,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
-  key_relay_log_info_sleep_lock, key_rli_last_committed_id,
+  key_rpl_group_info_sleep_lock, key_rli_last_committed_id,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
   key_LOCK_error_messages, key_LOG_INFO_lock, key_LOCK_thread_count,
   key_PARTITION_LOCK_auto_inc;
@@ -7966,7 +7966,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_relay_log_info_data_lock, "Relay_log_info::data_lock", 0},
   { &key_relay_log_info_log_space_lock, "Relay_log_info::log_space_lock", 0},
   { &key_relay_log_info_run_lock, "Relay_log_info::run_lock", 0},
-  { &key_relay_log_info_sleep_lock, "Relay_log_info::sleep_lock", 0},
+  { &key_rpl_group_info_sleep_lock, "Relay_log_info::sleep_lock", 0},
   { &key_rli_last_committed_id, "Relay_log_info::LOCK_last_committed_id", 0},
   { &key_structure_guard_mutex, "Query_cache::structure_guard_mutex", 0},
   { &key_TABLE_SHARE_LOCK_ha_data, "TABLE_SHARE::LOCK_ha_data", 0},
@@ -7981,6 +7981,7 @@ PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,key_rwlock_LOCK_pro
   key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock,
   key_rwlock_rli_table_field_lock,key_rwlock_rli_workers_lock;
     
+PSI_rwlock_key key_relay_log_info_data1_lock;
 
 static PSI_rwlock_info all_server_rwlocks[]=
 {
@@ -8011,7 +8012,7 @@ PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_master_info_sleep_cond,
   key_relay_log_info_data_cond, key_relay_log_info_log_space_cond,
   key_relay_log_info_start_cond, key_relay_log_info_stop_cond,
-  key_relay_log_info_sleep_cond,
+  key_rpl_group_info_sleep_cond,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache;
 PSI_cond_key key_RELAYLOG_update_cond;
@@ -8049,7 +8050,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_relay_log_info_log_space_cond, "Relay_log_info::log_space_cond", 0},
   { &key_relay_log_info_start_cond, "Relay_log_info::start_cond", 0},
   { &key_relay_log_info_stop_cond, "Relay_log_info::stop_cond", 0},
-  { &key_relay_log_info_sleep_cond, "Relay_log_info::sleep_cond", 0},
+  { &key_rpl_group_info_sleep_cond, "Relay_log_info::sleep_cond", 0},
   { &key_TABLE_SHARE_cond, "TABLE_SHARE::cond", 0},
   { &key_user_level_lock_cond, "User_level_lock::cond", 0},
   { &key_COND_thread_count, "COND_thread_count", PSI_FLAG_GLOBAL},

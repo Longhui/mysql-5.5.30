@@ -81,15 +81,15 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, bool is_rli_table)
   mysql_mutex_init(key_relay_log_info_run_lock, &run_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_relay_log_info_data_lock,
                    &data_lock, MY_MUTEX_INIT_FAST);
+  mysql_rwlock_init(key_relay_log_info_data1_lock,
+                   &data1_lock);
   mysql_mutex_init(key_relay_log_info_log_space_lock,
                    &log_space_lock, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(key_relay_log_info_sleep_lock, &sleep_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(0, &table_lock, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_relay_log_info_data_cond, &data_cond, NULL);
   mysql_cond_init(key_relay_log_info_start_cond, &start_cond, NULL);
   mysql_cond_init(key_relay_log_info_stop_cond, &stop_cond, NULL);
   mysql_cond_init(key_relay_log_info_log_space_cond, &log_space_cond, NULL);
-  mysql_cond_init(key_relay_log_info_sleep_cond, &sleep_cond, NULL);
   
   relay_log.init_pthread_objects();
   if(enable_rli_table)
@@ -123,14 +123,13 @@ Relay_log_info::~Relay_log_info()
   delete handler;
   mysql_mutex_destroy(&run_lock);
   mysql_mutex_destroy(&data_lock);
+  mysql_rwlock_destroy(&data1_lock);
   mysql_mutex_destroy(&log_space_lock);
-  mysql_mutex_destroy(&sleep_lock);
   mysql_mutex_destroy(&table_lock);
   mysql_cond_destroy(&data_cond);
   mysql_cond_destroy(&start_cond);
   mysql_cond_destroy(&stop_cond);
   mysql_cond_destroy(&log_space_cond);
-  mysql_cond_destroy(&sleep_cond);
   relay_log.cleanup();
   DBUG_VOID_RETURN;
 }
@@ -1554,13 +1553,15 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli_)
     wait_commit_group_info(0), wait_start_sub_id(0), 
     deferred_events(NULL), is_parallel_exec(false)
 {
+  mysql_mutex_init(key_rpl_group_info_sleep_lock, &sleep_lock, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_rpl_group_info_sleep_cond, &sleep_cond, NULL); 
   reinit(rli);
 }
 
 static void
 mark_start_commit_inner(group_commit_orderer *gco)
 {
-  uint64 count= ++rpl_group_entry->count_committing_event_groups;
+  uint64 count= ++rpl_group_entry->count_committed_event_groups;
   if (gco->next_gco && gco->next_gco->wait_count == count)
     mysql_cond_broadcast(&gco->next_gco->COND_group_commit_orderer);
 }
@@ -1591,6 +1592,8 @@ rpl_group_info::mark_start_commit()
 
 rpl_group_info::~rpl_group_info()
 {
+  mysql_mutex_destroy(&sleep_lock);
+  mysql_cond_destroy(&sleep_cond);
   if (NULL != deferred_events)
   {
     delete deferred_events;

@@ -11,25 +11,17 @@ Modified by 24/10/2013 Thomas Wen (wenzhenghu.zju@gmail.com)
 
 #include "fc0fc.h"
 
-
-/******************************************************************//**
-Load blocks from L2 Cache warmup file
-@return: how many blocks have load into L2 Cache*/
+/********************************************************************//**
+Compress the buffer, return the size of compress data.
+the buf memory has alloced
+@return the compressed size of page */
 UNIV_INTERN
 ulint
-fc_warmup_load_blocks(
+fc_block_do_compress_warmup(
 /*==================*/
-	FILE*	f,				/*<! L2 Cache warmup file handler */
-	char*	full_filename,	/*<! L2 Cache warmup file name */
-	ulint	count,			/*<! the number of blocks to warmup */
-	byte*	page);			/*<! the page buffer to temply store the warmup data */
-
-/******************************************************************//**
-Load flash cache from warmup file */
-UNIV_INTERN
-void
-fc_load_warmup_file(void);
-/*==================*/
+	byte* page, 	/*!< in: the data need compress */
+	void* buf);	/*!< out: the buf contain the compressed data,
+							must be the size of frame + 400 */
 
 /********************************************************************//**
 Warm up tablespaces to flash cache block.,stop if no space left. */

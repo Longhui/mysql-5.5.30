@@ -254,6 +254,24 @@ fc_inc_flush_off(
 		((fc->write_round = 1 + fc->flush_round)));
 }
 
+/********************************************************************//**
+Test if the compress is helpfull.
+@return TRUE if compress successed */
+UNIV_INLINE
+ibool
+fc_block_compress_successed(
+/*==================*/
+	ulint cp_size) /*!< in: the page size after compress */
+{
+	//printf("cp_size in successed %lu ", cp_size);
+	if ((cp_size + FC_ZIP_PAGE_META_SIZE) 
+			< (UNIV_PAGE_SIZE - fc_get_block_size_byte())) {
+		return TRUE;
+	} 
+
+	return FALSE;
+}
+
 /******************************************************************//**
 Test if the buf page should be compress by L2 Cache. 
 @return: return TRUE if the page should be compressed */ 
@@ -261,7 +279,7 @@ UNIV_INLINE
 ibool  
 fc_block_need_compress(
 /*=====================*/
-	buf_page_t* bpage) /*!< in: the buf page to test */	
+	ulint space_id) /*!< in: space_id of the page */
 {
 	ulint page_size;
 	ulint blk_size;
@@ -271,7 +289,7 @@ fc_block_need_compress(
     	return FALSE;
     }
 	
-	page_size = fil_space_get_zip_size(bpage->space);
+	page_size = fil_space_get_zip_size(space_id);
 	if (page_size != 0) {
 		/* page has already been compressed */
 		return FALSE;
@@ -295,7 +313,7 @@ fc_block_need_decompress(
 /*=======================*/
 	fc_block_t* block) /*!< in: L2 Cache block */
 {
-	if (block->zip_size == 0) {
+	if (block->raw_zip_size == 0) {
 		return FALSE;
 	}
 	
@@ -314,8 +332,10 @@ fc_block_compress_align(
 
 	ulint blk_size_byte;
 	ulint n_blocks;
+
+	size_unalign += FC_ZIP_PAGE_META_SIZE;
 	
-	blk_size_byte = fc_get_block_size() * KILO_BYTE;
+	blk_size_byte = fc_get_block_size_byte();
 	n_blocks = size_unalign / blk_size_byte;
 
 	if ((n_blocks * blk_size_byte) < size_unalign) {
@@ -331,7 +351,7 @@ fc_block_set_compress_type(
 	ulint	compress_type
 )
 {
-	
+	srv_flash_cache_compress_algorithm = compress_type;
 }
 
 UNIV_INLINE
@@ -339,7 +359,7 @@ ulint
 fc_block_get_compress_type(
 )
 {
-	return 1;
+	return srv_flash_cache_compress_algorithm;
 }
 
 /********************************************************************//**
@@ -353,10 +373,12 @@ fc_block_get_data_size(
 {
 	ulint data_size = 0;
 
-	ut_a(block->state !=  BLOCK_BEEN_ATTACHED);
-
-	if (block->zip_size > 0) {
-		data_size =  block->zip_size;
+	if (block->raw_zip_size > 0) {
+		if (block->is_v4_blk) {
+			data_size = block->raw_zip_size;
+		} else {
+			data_size = fc_block_compress_align(block->raw_zip_size);
+		}
 	} else {
 		data_size =  block->size;
 	}
@@ -370,7 +392,13 @@ fc_block_get_data_size(
 		ut_a(0);
 	}
 
-	if (block->size < block->zip_size) {
+	if ((block->is_v4_blk == 0)
+			&& (block->size < fc_block_compress_align(block->raw_zip_size))) {
+		fc_block_print(block);
+		ut_a(0);
+	}
+
+	if ((block->is_v4_blk) && (block->size < block->raw_zip_size)) {
 		fc_block_print(block);
 		ut_a(0);
 	}
@@ -391,8 +419,6 @@ fc_block_get_orig_size(
 {
 	ulint data_size = 0;
 
-	ut_a (block->state !=  BLOCK_BEEN_ATTACHED) ;
-
 	data_size =  block->size;
 	
 #ifdef UNIV_FLASH_CACHE_TRACE
@@ -404,96 +430,20 @@ fc_block_get_orig_size(
 		ut_a(0);
 	}
 
-	if (block->size < block->zip_size) {
+	if ((block->is_v4_blk == 0)
+			&& (block->size < fc_block_compress_align(block->raw_zip_size))) {
 		fc_block_print(block);
 		ut_a(0);
 	}
+
+	if ((block->is_v4_blk) && (block->size < block->raw_zip_size)) {
+		fc_block_print(block);
+		ut_a(0);
+	}
+
 #endif
 
 	return data_size;
-}
-
-/******************************************************************//**
-Attach a block with the size of block->blk_size */ 
-UNIV_INLINE
-void  
-fc_block_attach(
-/*=======================*/
-	ulint mm_blocks, /*!< in: if is fc->mm_blocks */
-	fc_block_t* block) /*!< in: the block need to attach, 
-							the block size has been inited */
-{
-	ulint i;
-	ulint fil_offset;
-	ulint data_size;
-	fc_block_t* tmp;
-
-	fil_offset = block->fil_offset;
-
-	if (srv_flash_cache_lru_move_batch) {
-		ut_a(fil_offset < (fc_get_size() + fc->mm_buf->size));		
-	} else {
-		ut_a(fil_offset < fc_get_size());
-	}
-	
-	data_size = fc_block_get_data_size(block);
-
-	for (i = 1; i < data_size; i++) {
-		if (mm_blocks) {
-			tmp = &(fc->mm_blocks[fil_offset - fc_get_size() + i]);
-		} else {
-			tmp = &(fc->block[fil_offset + i]);
-		}
-		tmp->size = 0;
-		tmp->zip_size = 0;
-		tmp->space = 0;
-		tmp->offset = 0;
-		tmp->io_fix = IO_FIX_NO_IO;
-		tmp->state = BLOCK_BEEN_ATTACHED;
-	}
-
-}
-
-/******************************************************************//**
-Detach a block, set them with not used and not io fixed */ 
-UNIV_INLINE
-void  
-fc_block_detach(
-/*=======================*/
-	ulint mm_blocks, /*!< in: if is fc->mm_blocks */
-	fc_block_t* block) /*!< in: the block need to detach */
-{
-	ulint i;
-	ulint fil_offset;
-	ulint blk_size;
-	fc_block_t *tmp;
-
-	fil_offset = block->fil_offset;
-
-	if (srv_flash_cache_lru_move_batch) {
-		ut_a(fil_offset < (fc_get_size() + fc->mm_buf->size));		
-	} else {
-		ut_a(fil_offset < fc_get_size());
-	}
-
-	blk_size = fc_block_get_data_size(block);
-
-	for (i = 0; i < blk_size; i++) {
-		if (mm_blocks) {
-			tmp = &(fc->mm_blocks[fil_offset - fc_get_size() + i]);
-		} else {
-			tmp = &(fc->block[fil_offset + i]);
-		}
-		tmp->size = 1;
-		tmp->zip_size = 0;
-		tmp->space = 0;
-		tmp->offset = 0;
-		tmp->io_fix = IO_FIX_NO_IO;
-		tmp->state = BLOCK_NOT_USED;
-	}
-
-	
-	return;
 }
 
 /******************************************************************//**
@@ -509,15 +459,28 @@ fc_block_compress_check(
 	ulint zip_size = (ulint)mach_read_from_4(buf + FC_ZIP_PAGE_SIZE);
 	ulint space = (ulint)mach_read_from_4(buf + FC_ZIP_PAGE_SPACE);
 	ulint offset = (ulint)mach_read_from_4(buf + FC_ZIP_PAGE_OFFSET);
+	ulint raw_zip_size = (ulint)mach_read_from_4(buf + FC_ZIP_PAGE_ZIP_RAW_SIZE);
 	
 	ut_a((ulint)mach_read_from_4(buf + FC_ZIP_PAGE_HEADER) == FC_ZIP_PAGE_CHECKSUM);
-	ut_a((ulint)mach_read_from_4(buf 
-		+ block->zip_size * fc_get_block_size_byte() - FC_ZIP_PAGE_TAILER)
-		== FC_ZIP_PAGE_CHECKSUM);	
-	ut_a(zip_size == block->zip_size * fc_get_block_size_byte());
+
+
+	if (block->is_v4_blk) {
+		ut_a(zip_size == block->raw_zip_size * fc_get_block_size_byte());	
+		ut_a((ulint)mach_read_from_4(buf 
+		+ block->raw_zip_size * fc_get_block_size_byte()
+		- FC_ZIP_PAGE_TAILER) == FC_ZIP_PAGE_CHECKSUM);	
+	} else {
+		ut_a((ulint)mach_read_from_4(buf
+		+ fc_block_compress_align(block->raw_zip_size) * fc_get_block_size_byte()
+		- FC_ZIP_PAGE_TAILER) == FC_ZIP_PAGE_CHECKSUM);	
+		ut_a(zip_size == fc_block_compress_align(block->raw_zip_size) * fc_get_block_size_byte());
+		ut_a(raw_zip_size == block->raw_zip_size);	
+	}
+
 	ut_a(size == UNIV_PAGE_SIZE);		
 	ut_a(space == block->space);
 	ut_a(offset == block->offset);	
+	
 }
 
 
@@ -580,9 +543,13 @@ retry:
 	 * we will wait it compelete
 	 */
 	while (i < block_size) {
-		tmp_block = &(fc->block[start_position + i]);
+		tmp_block = fc_get_block(start_position + i);
+		if (tmp_block == NULL) {
+			i++;
+			continue;
+		}
+
 		flash_block_mutex_enter(tmp_block->fil_offset);
-		ut_a(tmp_block->state != BLOCK_BEEN_ATTACHED);	
 		
 		data_size = fc_block_get_data_size(tmp_block);
 
@@ -592,7 +559,7 @@ retry:
 			fprintf(fc->f_debug, "find io %d, fix 0x%x. file:%s:%d\n", 
 				(int)tmp_block->fil_offset, (int)tmp_block->io_fix,
                                 __FILE__, __LINE__);
-            fc_block_print(tmp_block);	
+            fc_block_print(tmp_block);
 #endif
 			srv_flash_cache_wait_aio++;
 
@@ -624,19 +591,20 @@ retry:
 #ifdef UNIV_FLASH_CACHE_TRACE
 			fc_print_used();
 #endif
+
 			srv_flash_cache_used -= data_size;
 
 			srv_flash_cache_used_nocompress -= fc_block_get_orig_size(tmp_block);
 		}
 
-		fc_block_detach(FALSE, tmp_block);
 		flash_block_mutex_exit(tmp_block->fil_offset);
+		fc_block_free(tmp_block);
+
 	}
 
 	/* ok, we found a right block for fill data, and have set blocks not used */
-	tmp_block = &(fc->block[start_position]);
+	tmp_block = fc_block_init(start_position);
 	tmp_block->size = block_size;
-	fc_block_attach(FALSE, tmp_block);
 
 	if (tmp_block->state != BLOCK_NOT_USED) {
 		fc_block_print(tmp_block);
@@ -790,9 +758,15 @@ fc_validate(void)
 	
 	rw_lock_x_lock(&fc->hash_rwlock);		
 	while (z < fc_size) {
-		tmp_block = &(fc->block[z]);
+		tmp_block = fc_get_block(z);
+
+		if (tmp_block == NULL) {
+			z++;
+			continue;
+		}
+
 		flash_block_mutex_enter(tmp_block->fil_offset);
-		ut_a(tmp_block->state != BLOCK_BEEN_ATTACHED);
+
 		ut_a(!(tmp_block->io_fix & IO_FIX_DOUBLEWRITE));
 		ut_a(!(tmp_block->io_fix & IO_FIX_FLUSH));		
 		
@@ -835,6 +809,7 @@ fc_validate(void)
 		} 
 		
 		flash_block_mutex_exit(tmp_block->fil_offset);
+
 		z += data_size;
 	}
 	
@@ -859,23 +834,62 @@ fc_validate(void)
 /******************************************************************//**
 Init the L2 Cache block when create L2 Cache */
 UNIV_INLINE
-void
+fc_block_t*
 fc_block_init(
 /*==================*/
-	fc_block_t* tmp_block, /*<! in: L2 Cache block to init */
 	ulint fil_offset)	   /*<! in: the L2 Cache block fil_offset init to */
-{		
+{	
+
+	fc_block_t* tmp_block; 
+
+	tmp_block = (fc_block_t*)ut_malloc(sizeof(fc_block_t));
+	
 	tmp_block->fil_offset = fil_offset;  
 	tmp_block->size = 1;
-	tmp_block->zip_size = 0;
+	tmp_block->is_v4_blk = FALSE;
+	tmp_block->raw_zip_size = 0;
 	tmp_block->hash = NULL;
 	tmp_block->space = 0;
 	tmp_block->offset = 0;
 	tmp_block->read_io_buf = NULL;
-	tmp_block->state = BLOCK_NOT_USED;   
+	tmp_block->state = BLOCK_NOT_USED;
 	tmp_block->io_fix = IO_FIX_NO_IO; 
 	
 	mutex_create(PFS_NOT_INSTRUMENTED, &tmp_block->mutex, SYNC_DOUBLEWRITE);
+
+	fc->block_array[fil_offset].block = tmp_block;
+
+	return tmp_block;
+}
+
+/******************************************************************//**
+free the L2 Cache block */
+UNIV_INLINE
+void
+fc_block_free(
+/*==================*/
+	fc_block_t* block)	   /*<! in: the L2 Cache block to free */
+{	
+	ulint fil_offset;
+
+	fil_offset = block->fil_offset;
+
+	mutex_free(&(block->mutex));
+	ut_free((void*)block);
+
+	fc->block_array[fil_offset].block = NULL;
+}
+
+/**************************************************************//**
+Get flash cache block from block offset
+@return NULL */
+UNIV_INLINE
+fc_block_t*
+fc_get_block(
+/*=========*/
+ulint fil_offset) /*<! in: L2 Cache block offset in ssd */
+{
+	return fc->block_array[fil_offset].block;
 }
 
 /******************************************************************//**
@@ -890,7 +904,7 @@ fc_block_print(
 	ut_print_timestamp(fc->f_debug);
 	fprintf(fc->f_debug, " bs:%d, bzs:%d, st:%d, foff:%d, "
 		"fix:%d, sp:%d, of:%d\n", (int)block->size, 
-		(int)block->zip_size, (int)block->state, (int)block->fil_offset,
+		(int)block->raw_zip_size, (int)block->state, (int)block->fil_offset,
 		(int)block->io_fix, (int)block->space, (int)block->offset);
 #endif
 }

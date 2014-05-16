@@ -484,7 +484,15 @@ void TNTTable::dropMemIndex(Session *session, uint idx) {
 */
 void TNTTable::optimize(Session *session, bool keepDict, bool *newHasDic, bool *cancelFlag) throw(NtseException) {
 	if (m_tab->getTableDef()->m_indexOnly)
-		NTSE_THROW(NTSE_EC_NOT_SUPPORT, "Index only table can not been optimized");
+		NTSE_THROW(NTSE_EC_NOT_SUPPORT, "Index only table can not be optimized");
+
+	// 检测表中原有的索引中是否包含大对象列
+	// TODO: 目前暂不支持包含大对象列的在线操作
+	for (int i = 0; i < m_tab->getTableDef()->m_numIndice; i++) {
+		if (m_tab->getTableDef()->getIndexDef(i)->hasLob()) {
+			NTSE_THROW(NTSE_EC_GENERIC, "Table with Lob/LongVar Index can not be optimized");
+		}
+	}
 
 	// OPTIMIZE通过一个即不增加任何字段也不删除任何字段的在线增删字段操作实现
 	TNTTblMntOptimizer optimizer(this, session->getConnection(), cancelFlag, keepDict);

@@ -1,3 +1,3 @@
 select version();
 version()
-5.5.30-v3b-log
+5.5.30-v5-rc-log

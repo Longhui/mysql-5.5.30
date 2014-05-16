@@ -40,8 +40,8 @@ typedef struct unicase_info_st
 /* A helper macros for "need at least n bytes" */
 #define MY_CS_TOOSMALLN(n)    (-100-(n))
 
+#define MY_CS_REPLACEMENT_CHARACTER 0xFFFD
 /****** 以上来自：M_ctype.h  ******/
-
 
 /****** 以下来自： My_gloabl.h ******/
 #if defined(_lint) || defined(FORCE_INIT_OF_VARS)
@@ -56,6 +56,8 @@ extern int my_strnncollsp_gbk(const uchar *a, size_t a_length,
 						const uchar *b, size_t b_length);
 extern int my_strnncollsp_utf8(const uchar *s, size_t slen,
 						const uchar *t, size_t tlen);
+extern int my_strnncollsp_utf8mb4(const uchar *s, size_t slen,
+							   const uchar *t, size_t tlen);
 extern int my_strnncollsp_latin1(const uchar *s, size_t slen,
 						const uchar *t, size_t tlen);
 extern int my_strnncoll_bin(const uchar *s, size_t slen,
@@ -64,6 +66,8 @@ extern int my_strnncoll_bin(const uchar *s, size_t slen,
 extern uint ismbchar_gbk(const char *b, const char *e);
 
 extern uint ismbchar_utf8(const char *b, const char *e);
+
+extern uint ismbchar_utf8mb4(const char *b, const char *e);
 
 } // _NTSE_CTYPE_COMMON_H_
 

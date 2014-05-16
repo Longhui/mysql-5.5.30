@@ -46,21 +46,6 @@ fc_LRU_move(
 /*=========================*/
 	buf_page_t* bpage);	/*!< in: page LRU out from buffer pool */
 
-/**********************************************************************//**
-Move to L2 Cache memory buffer, if possible */
-UNIV_INTERN
-void
-fc_LRU_move_batch(
-/*==================*/
-	buf_page_t * bpage);	/*!< in: page LRU out from buffer pool */
-
-/**********************************************************************//**
-When fc->mm_buf is full, write it back to flash cache file */
-UNIV_INTERN
-void 
-fc_LRU_move_batch_low(void);
-/*=========================*/
-
 #ifndef UNIV_NONINL
 #include "fc0fill.ic"
 #endif

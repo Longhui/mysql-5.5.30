@@ -1717,6 +1717,13 @@ binlog_commit_flush_stmt_cache(THD *thd,
                              FALSE, all));
 }
 
+int binlog_rollback_append(IO_CACHE *log)
+{
+  Query_log_event evt(current_thd, STRING_WITH_LEN("ROLLBACK"),
+                          TRUE, FALSE, TRUE, 0);
+  return evt.write(log);
+}
+
 /**
   This function flushes the trx-cache upon commit.
 
@@ -7916,6 +7923,8 @@ int TC_LOG_BINLOG::open(const char *opt_name)
       sql_print_error("find_log_pos() failed (error: %d)", error);
       goto err;
     }
+
+	VSR_BEFORE_RECOVER(log_name + dirname_length(log_name));
 
     if ((file= open_binlog(&log, log_name, &errmsg)) < 0)
     {

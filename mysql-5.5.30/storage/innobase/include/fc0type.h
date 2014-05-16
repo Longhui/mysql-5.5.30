@@ -3,6 +3,7 @@
 Flash cache global type definitions
 
 Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
+Modified by Thomas Wen (wenzhenghu.zju@gmail.com)
 *******************************************************/
 
 #ifndef fc0type_h
@@ -16,6 +17,8 @@ Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
 
 typedef struct fc_buf_struct		fc_buf_t;
 typedef struct fc_block_struct	fc_block_t;
+typedef struct fc_block_array_struct	fc_block_array_t;
+
 typedef struct fc_page_info_struct	fc_page_info_t;
 typedef struct fc_struct		fc_t;
 

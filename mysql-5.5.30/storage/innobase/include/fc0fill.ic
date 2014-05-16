@@ -23,8 +23,7 @@ fc_LRU_need_move(
 	ut_ad(mutex_own(&(fc->mutex)));
 	ut_ad(mutex_own(&(b->mutex)));
 
-	return ((b->fil_offset < fc->size) &&
-		(((fc->write_off > b->fil_offset) && (fc->write_off - b->fil_offset ) 
+	return ((((fc->write_off > b->fil_offset) && (fc->write_off - b->fil_offset ) 
 				>= FLASH_CACHE_MOVE_HIGH_LIMIT)
 		|| ((fc->write_off < b->fil_offset) && ( b->fil_offset - fc->write_off )
 				<= FLASH_CACHE_MOVE_LOW_LIMIT))

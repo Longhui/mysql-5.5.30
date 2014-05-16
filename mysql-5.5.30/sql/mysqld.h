@@ -78,6 +78,11 @@ extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *files_charset_info ;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *national_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
 
+extern char  *ha_partner_host;
+extern uint   ha_partner_port;
+extern char  *ha_partner_user;
+extern char  *ha_partner_password;
+
 extern my_bool opt_enable_table_relay_info;
 /**
   Character set of the buildin error messages loaded from errmsg.sys.
@@ -273,7 +278,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index,
   key_master_info_sleep_lock,
   key_mutex_slave_reporting_capability_err_lock, key_relay_log_info_data_lock,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
-  key_relay_log_info_sleep_lock, key_rli_last_committed_id,
+  key_rpl_group_info_sleep_lock, key_rli_last_committed_id,
   key_LOCK_wait_commit,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
   key_LOCK_error_messages, key_LOCK_thread_count, key_PARTITION_LOCK_auto_inc;
@@ -290,6 +295,7 @@ extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,key_rwlock_L
   key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock,
   key_rwlock_rli_table_field_lock, key_rwlock_rli_workers_lock;
 
+extern PSI_rwlock_key key_relay_log_info_data1_lock;
 #ifdef HAVE_MMAP
 extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
@@ -303,7 +309,7 @@ extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_master_info_sleep_cond,
   key_relay_log_info_data_cond, key_relay_log_info_log_space_cond,
   key_relay_log_info_start_cond, key_relay_log_info_stop_cond,
-  key_relay_log_info_sleep_cond,
+  key_rpl_group_info_sleep_cond,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache;
 extern PSI_cond_key key_RELAYLOG_update_cond;
@@ -567,4 +573,8 @@ inline THD *_current_thd(void)
 #endif
 #define current_thd _current_thd()
 
+inline int set_current_thd(THD *thd)
+{
+  return my_pthread_setspecific_ptr(THR_THD, thd);
+}
 #endif /* MYSQLD_INCLUDED */

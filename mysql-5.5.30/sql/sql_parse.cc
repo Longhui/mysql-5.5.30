@@ -154,6 +154,7 @@ const LEX_STRING command_name[]={
   { C_STRING_WITH_LEN("Set option") },
   { C_STRING_WITH_LEN("Fetch") },
   { C_STRING_WITH_LEN("Daemon") },
+  { C_STRING_WITH_LEN("VSR Query") },
   { C_STRING_WITH_LEN("Error") }  // Last command number
 };
 
@@ -1292,6 +1293,18 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
     }
 #endif
+  case COM_VSR_QUERY:
+  {
+    sql_print_information("VSR HA : master query replication information");
+    if (check_global_access(thd, REPL_SLAVE_ACL))
+	{
+      sql_print_information("VSR HA : ha_parter_user need REPL_SLAVE privilege");
+      break;
+	}
+    VSR_MASTER_REQUEST(&thd->net);
+    my_ok(thd);
+    break;
+  }
   case COM_REFRESH:
   {
     int not_used;

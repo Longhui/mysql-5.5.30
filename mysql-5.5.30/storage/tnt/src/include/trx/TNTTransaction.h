@@ -640,6 +640,10 @@ public:
 		return getHoldingLockCnt() > 1000;
 	}
 
+	inline void setFlushLogLater(bool flushLogLater) {
+		m_flushLogLater = flushLogLater;
+	}
+
 #ifdef NTSE_UNIT_TEST
 	inline void setTrxId(TrxId trxId) {
 		m_trxId = trxId;
@@ -756,7 +760,8 @@ private:
 
 	bool            m_hangByRecover; //是否为recover后的悬挂事务，即外部xa parepre事务在recover后首先表现为悬挂
 	u32             m_hangTime;
-	
+
+	bool			m_flushLogLater;
 	friend class TNTTrxSys;
 };
 

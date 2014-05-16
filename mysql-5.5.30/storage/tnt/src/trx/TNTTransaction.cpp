@@ -135,8 +135,9 @@ void TNTTransaction::init(TNTTrxSys *trxSys, Txnlog *tntLog, MemoryContext *ctx,
 	m_redoCnt = 0;
 	m_hangByRecover = false;
 	m_hangTime = 0;
-
-}
+	
+	m_flushLogLater = false;
+}	
 
 /**
  * Ïú»ÙÊÂÎñ
@@ -175,6 +176,7 @@ void TNTTransaction::reset() {
 	m_hangByRecover = false;
 	m_hangTime = 0;
 	m_thd = NULL;
+	m_flushLogLater = false;
 }
 
 /**
@@ -630,7 +632,7 @@ LsnType TNTTransaction::writeTNTLog(LogType logType, u16 tableId, byte *data, si
  */
 void TNTTransaction::flushTNTLog(LsnType lsn, FlushSource fs) {
 	assert(m_valid);
-	if (m_flushMode == TFM_NOFLUSH) {
+	if (m_flushLogLater || m_flushMode == TFM_NOFLUSH) {
 		return;
 	}
 	m_tntLog->flush(lsn, fs);

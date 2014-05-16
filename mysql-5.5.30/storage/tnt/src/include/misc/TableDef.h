@@ -40,6 +40,7 @@ enum CollType {
 	COLL_LATIN1,    /** 西欧字符(ISO-8859-1) */
 	COLL_GBK,		/** GBK编码的中文 */
 	COLL_UTF8,		/** UTF8编码的中文 */
+	COLL_UTF8MB4,	/** UTF8MB4编码的中文*/
 };
 
 enum TableStatus {

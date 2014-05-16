@@ -117,11 +117,20 @@ fc_backup(
 		sorted_blocks = ut_malloc(flush_distance * sizeof(*sorted_blocks));
 		n_dirty_pages = 0;
 
-		/*collect dirty pages for backup*/
+		/*collect dirty pages for backup, should get mutex */
+		flash_cache_mutex_enter();
+		rw_lock_s_lock(&fc->hash_rwlock);
+		
 		i = 0;
 		while (i < flush_distance) {
 			pos = (flush_off + i) % fc_size;
-			blk = &(fc->block[pos]);
+			blk = fc_get_block(pos);
+
+			if (blk == NULL) {
+				i++;
+				continue;
+			}
+
 			flash_block_mutex_enter(blk->fil_offset);
 			if (blk->state != BLOCK_READY_FOR_FLUSH) {
 				i += fc_block_get_data_size(blk);
@@ -132,12 +141,15 @@ fc_backup(
 			i += fc_block_get_data_size(blk);
 			flash_block_mutex_exit(blk->fil_offset);
 		}
-		
+
+		rw_lock_s_unlock(&fc->hash_rwlock);
+		flash_cache_mutex_exit();
+
 		ut_a(n_dirty_pages <= flush_distance);
 		
 		if (n_dirty_pages) {
-      ulint len_tmp;
-      ulint len_final;
+     		ulint len_tmp;
+      		ulint len_final;
 			ut_print_timestamp(stderr);
 			fprintf(stderr, " InnoDB: flash cache is backuping,dirty_page:%d ...\n", (int)n_dirty_pages);
 			
@@ -189,8 +201,8 @@ fc_backup(
 				/* first read pages from ssd to buf, buf size is 1MB */
 				buf_offset = 0;
 				while (i < n_dirty_pages) {
-          ulint data_size;
-          byte *read_buf;
+         	 		ulint data_size;
+          			byte *read_buf;
 
 					blk = sorted_blocks[i];
 					flash_block_mutex_enter(blk->fil_offset);
@@ -199,6 +211,10 @@ fc_backup(
 					if (blk->state != BLOCK_READY_FOR_FLUSH) {
 						i++;
 						flash_block_mutex_exit(blk->fil_offset);
+#ifdef UNIV_FLASH_CACHE_TRACE
+						ut_a(blk->state == BLOCK_NOT_USED);
+						fc_block_free(blk);
+#endif
 						continue;
 					}
 
@@ -210,7 +226,7 @@ fc_backup(
 					
 					data_size = fc_block_get_data_size(blk);
 					fc_io_offset(blk->fil_offset, &block_offset, &byte_offset);
-					if (blk->zip_size > 0) {
+					if (blk->raw_zip_size > 0) {
 						ut_a(compress_buf);
 						read_buf = compress_buf;
 					} else {
@@ -220,19 +236,24 @@ fc_backup(
 						block_offset, byte_offset, (data_size * fc_get_block_size_byte()),
 						read_buf, NULL);
 					
-					if (blk->zip_size > 0) {
+					if (blk->raw_zip_size > 0) {
 #ifdef UNIV_FLASH_CACHE_TRACE
 						fc_block_compress_check(read_buf, blk);
 			
 						/* only qlz can do this check  */
 						if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ) {
-							ut_a(blk->zip_size * fc_get_block_size_byte()
-								>= (ulint)fc_qlz_size_compressed((const char *)(read_buf + FC_ZIP_PAGE_DATA)));
+							if (blk->is_v4_blk) {
+								ut_a(blk->raw_zip_size * fc_get_block_size_byte()
+									>=(ulint)fc_qlz_size_compressed((const char *)(read_buf + FC_ZIP_PAGE_DATA)));
+							} else {
+								ut_a(blk->raw_zip_size 
+									==(ulint)fc_qlz_size_compressed((const char *)(read_buf + FC_ZIP_PAGE_DATA)));
+							}
 							ut_a(UNIV_PAGE_SIZE 
 								== fc_qlz_size_decompressed((const char *)(read_buf + FC_ZIP_PAGE_DATA)));
 						}
 #endif
-						fc_block_do_decompress(DECOMPRESS_BACKUP, read_buf, buf + buf_offset * KILO_BYTE);
+						fc_block_do_decompress(DECOMPRESS_BACKUP, read_buf, blk->raw_zip_size, buf + buf_offset * KILO_BYTE);
 					}
 
 					blk_metas[n_backup_pages].blk_space = blk->space;

@@ -17,6 +17,7 @@
 
 
 #include "semisync_master.h"
+#include "semisync_vsr.h"
 #include "sql_class.h"                          // THD
 
 ReplSemiSyncMaster repl_semisync;
@@ -424,12 +425,23 @@ static void init_semisync_psi_keys(void)
 }
 #endif /* HAVE_PSI_INTERFACE */
 
+void repl_semi_adjust_binlog(Vsr_master_param *param )
+{
+  adjust_binlog_with_slave(param->slave_host, param->slave_port,
+             param->user, param->passwd, param->last_binlog);
+}
+
+Vsr_master_observer vsr_master_observer= {
+  sizeof(Vsr_master_observer), //len
+  repl_semi_adjust_binlog, // before recover
+};
+
 static int semi_sync_master_plugin_init(void *p)
 {
 #ifdef HAVE_PSI_INTERFACE
   init_semisync_psi_keys();
 #endif
-
+  register_master_observer(&vsr_master_observer);
   if (repl_semisync.initObject())
     return 1;
   if(!rpl_semi_sync_master_commit_after_ack)

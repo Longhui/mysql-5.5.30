@@ -218,6 +218,9 @@ public:
 	static int tnt_close_connection(handlerton *hton, THD* thd);
 	static handler* tnt_create_handler(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
 	static void tnt_drop_database(handlerton *hton, char* path);
+#ifdef EXTENDED_FOR_COMMIT_ORDERED
+	static void tnt_commit_ordered(handlerton *hton, THD* thd, bool all);
+#endif
 	static int tnt_commit_trx(handlerton *hton, THD* thd, bool all);
 	static int tnt_rollback_trx(handlerton *hton, THD *thd, bool all);
 	static int tnt_xa_prepare(handlerton *hton, THD* thd, bool all);

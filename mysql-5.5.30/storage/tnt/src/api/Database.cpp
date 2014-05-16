@@ -3393,7 +3393,8 @@ void Database::restore(const char *backupDir, const char *dir) throw(NtseExcepti
 		// 拷贝控制文件
 		string ctfPath = destDir + NTSE_PATH_SEP + Limits::NAME_CTRL_FILE;
 		string ctfBackPath = srcDir + NTSE_PATH_SEP + Limits::NAME_CTRL_FILE;
-		u64 errNo = File::copyFile(ctfPath.c_str(), ctfBackPath.c_str(), true);
+		File backCtrlFile(ctfBackPath.c_str());
+		u64 errNo = backCtrlFile.move(ctfPath.c_str(), true);
 		if (errNo != File::E_NO_ERROR)
 			NTSE_THROW(errNo, "copy %s to %s failed", ctfBackPath.c_str(), ctfPath.c_str());
 		ctrlFile = ControlFile::open(ctfPath.c_str(), &log);
@@ -3503,7 +3504,8 @@ void Database::restoreTable(ControlFile *ctrlFile, u16 tabId , const char *backu
 			continue;
 		string dstPath = basedir + NTSE_PATH_SEP + pathStr + suffixes[i];
 		File(dirname(dstPath.c_str()).c_str()).mkdir();
-		u64 errNo = File::copyFile(dstPath.c_str(), backupPath.c_str(), true);
+		File backupTable(backupPath.c_str());
+		u64 errNo = backupTable.move(dstPath.c_str(), true);
 		if (errNo != File::E_NO_ERROR)
 			NTSE_THROW(errNo, "copy %s to %s failed", backupPath.c_str(), dstPath.c_str());
 	}
@@ -3555,6 +3557,9 @@ void Database::restoreTxnlog(ControlFile *ctrlFile, const char *basedir, const c
 		throw e;
 	}
 	backupFile.close();
+
+	if ((errNo = backupFile.remove()) != File::E_NO_ERROR)
+		NTSE_THROW(errNo, "open backup file %s failed", backupFile.getPath());
 }
 
 /** 注册后台线程

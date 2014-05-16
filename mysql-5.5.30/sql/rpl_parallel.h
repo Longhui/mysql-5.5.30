@@ -117,13 +117,13 @@ public:
      the following batch.
 
    - The worker thread waits on gco->COND_group_commit_orderer for
-     rpl_parallel_entry::count_committing_event_groups to reach wait_count
+     rpl_parallel_entry::count_committed_event_groups to reach wait_count
      before starting; the first waiter links the gco into the next_gco
      pointer of the gco of the previous batch for signalling.
 
    - When an event group reaches the commit stage, it signals the
      COND_group_commit_orderer if its gco->next_gco pointer is non-NULL and
-     rpl_parallel_entry::count_committing_event_groups has reached
+     rpl_parallel_entry::count_committed_event_groups has reached
      gco->next_gco->wait_count.
 
    - When gco->wait_count is reached for a worker and the wait completes,
@@ -281,7 +281,7 @@ public:
     batch of master group commits have started committing on the slave, so
     that it is safe to start executing the events in the following batch.
   */
-  uint64 count_committing_event_groups;
+  uint64 count_committed_event_groups;
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
 

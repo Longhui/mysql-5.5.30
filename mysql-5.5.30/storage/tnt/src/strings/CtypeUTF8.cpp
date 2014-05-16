@@ -1596,6 +1596,86 @@ static int my_utf8_uni(my_wc_t * pwc, const uchar *s, const uchar *e)
 }
 
 
+static int my_mb_wc_utf8mb4(my_wc_t * pwc, const uchar *s, const uchar *e)
+{
+  uchar c;
+
+  if (s >= e)
+    return MY_CS_TOOSMALL;
+
+  c= s[0];
+  if (c < 0x80)
+  {
+    *pwc= c;
+    return 1;
+  }
+  else if (c < 0xc2)
+    return MY_CS_ILSEQ;
+  else if (c < 0xe0)
+  {
+    if (s + 2 > e) /* We need 2 characters */
+      return MY_CS_TOOSMALL2;
+
+    if (!((s[1] ^ 0x80) < 0x40))
+      return MY_CS_ILSEQ;
+
+    *pwc= ((my_wc_t) (c & 0x1f) << 6) | (my_wc_t) (s[1] ^ 0x80);
+    return 2;
+  }
+  else if (c < 0xf0)
+  {
+    if (s + 3 > e) /* We need 3 characters */
+      return MY_CS_TOOSMALL3;
+
+    if (!((s[1] ^ 0x80) < 0x40 && (s[2] ^ 0x80) < 0x40 &&
+          (c >= 0xe1 || s[1] >= 0xa0)))
+      return MY_CS_ILSEQ;
+
+    *pwc= ((my_wc_t) (c & 0x0f) << 12)   |
+          ((my_wc_t) (s[1] ^ 0x80) << 6) |
+           (my_wc_t) (s[2] ^ 0x80);
+    return 3;
+  }
+  else if (c < 0xf5)
+  {
+    if (s + 4 > e) /* We need 4 characters */
+      return MY_CS_TOOSMALL4;
+
+    /*
+      UTF-8 quick four-byte mask:
+      11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+      Encoding allows to encode U+00010000..U+001FFFFF
+      
+      The maximum character defined in the Unicode standard is U+0010FFFF.
+      Higher characters U+00110000..U+001FFFFF are not used.
+      
+      11110000.10010000.10xxxxxx.10xxxxxx == F0.90.80.80 == U+00010000 (min)
+      11110100.10001111.10111111.10111111 == F4.8F.BF.BF == U+0010FFFF (max)
+      
+      Valid codes:
+      [F0][90..BF][80..BF][80..BF]
+      [F1][80..BF][80..BF][80..BF]
+      [F2][80..BF][80..BF][80..BF]
+      [F3][80..BF][80..BF][80..BF]
+      [F4][80..8F][80..BF][80..BF]
+    */
+
+    if (!((s[1] ^ 0x80) < 0x40 &&
+          (s[2] ^ 0x80) < 0x40 &&
+          (s[3] ^ 0x80) < 0x40 &&
+          (c >= 0xf1 || s[1] >= 0x90) &&
+          (c <= 0xf3 || s[1] <= 0x8F)))
+      return MY_CS_ILSEQ;
+    *pwc = ((my_wc_t) (c & 0x07) << 18)    |
+           ((my_wc_t) (s[1] ^ 0x80) << 12) |
+           ((my_wc_t) (s[2] ^ 0x80) << 6)  |
+            (my_wc_t) (s[3] ^ 0x80);
+    return 4;
+  }
+  return MY_CS_ILSEQ;
+}
+
+
 static inline int bincmp(const uchar *s, const uchar *se,
                          const uchar *t, const uchar *te)
 {
@@ -1604,6 +1684,31 @@ static inline int bincmp(const uchar *s, const uchar *se,
   int cmp= memcmp(s,t,len);
   return cmp ? cmp : slen-tlen;
 }
+
+static inline int bincmp_utf8mb4(const uchar *s, const uchar *se,
+			   const uchar *t, const uchar *te)
+{
+	int slen= (int) (se - s), tlen= (int) (te - t);
+	int len= std::min(slen, tlen);
+	int cmp= memcmp(s, t, len);
+	return cmp ? cmp : slen - tlen;
+}
+
+
+static inline void my_tosort_unicode(MY_UNICASE_INFO **uni_plane, my_wc_t *wc)
+{
+	int page= *wc >> 8;
+	if (page < 256)
+	{
+		if (uni_plane[page])
+			*wc= uni_plane[page][*wc & 0xFF].sort;
+	}
+	else
+	{
+		*wc= MY_CS_REPLACEMENT_CHARACTER;
+	}
+}
+
 
 
 int my_strnncollsp_utf8(const uchar *s, size_t slen,
@@ -1675,10 +1780,93 @@ int my_strnncollsp_utf8(const uchar *s, size_t slen,
   return res;
 }
 
+
+
+int my_strnncollsp_utf8mb4(const uchar *s, size_t slen,
+                       const uchar *t, size_t tlen)
+{
+  int res;
+  my_wc_t s_wc, t_wc;
+  const uchar *se= s + slen, *te= t + tlen;
+  MY_UNICASE_INFO **uni_plane= my_unicase_default;
+  LINT_INIT(s_wc);
+  LINT_INIT(t_wc);
+
+  bool diff_if_only_endspace_difference = false;
+
+  while ( s < se && t < te )
+  {
+    int s_res= my_mb_wc_utf8mb4(&s_wc, s, se);
+    int t_res= my_mb_wc_utf8mb4(&t_wc, t, te);
+
+    if ( s_res <= 0 || t_res <= 0 )
+    {
+      /* Incorrect string, compare bytewise */
+      return bincmp_utf8mb4(s, se, t, te);
+    }
+
+    my_tosort_unicode(uni_plane, &s_wc);
+    my_tosort_unicode(uni_plane, &t_wc);
+
+    if ( s_wc != t_wc )
+    {
+      return s_wc > t_wc ? 1 : -1;
+    }
+
+    s+=s_res;
+    t+=t_res;
+  }
+
+  slen= (size_t) (se-s);
+  tlen= (size_t) (te-t);
+  res= 0;
+
+  if (slen != tlen)
+  {
+    int swap= 1;
+    if (diff_if_only_endspace_difference)
+      res= 1;                                   /* Assume 'a' is bigger */
+    if (slen < tlen)
+    {
+      slen= tlen;
+      s= t;
+      se= te;
+      swap= -1;
+      res= -res;
+    }
+    /*
+      This following loop uses the fact that in UTF-8
+      all multibyte characters are greater than space,
+      and all multibyte head characters are greater than
+      space. It means if we meet a character greater
+      than space, it always means that the longer string
+      is greater. So we can reuse the same loop from the
+      8bit version, without having to process full multibute
+      sequences.
+    */
+    for ( ; s < se; s++)
+    {
+      if (*s != ' ')
+	return (*s < ' ') ? -swap : swap;
+    }
+  }
+  return res;
+}
+
+
 uint ismbchar_utf8(const char *b, const char *e) {
 	my_wc_t wc;
 	int  res= my_utf8_uni(&wc, (const uchar*)b, (const uchar*)e);
 	return (res>1) ? res : 0;
+}
+
+
+
+uint ismbchar_utf8mb4(const char *b, const char *e)
+{
+	my_wc_t wc;
+	int res= my_mb_wc_utf8mb4(&wc, (const uchar*)b, (const uchar*)e);
+	return (res > 1) ? res : 0;
 }
 
 }

@@ -3,6 +3,7 @@
 Flash Cache for InnoDB
 
 Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
+Modified by Thomas Wen (wenzhenghu.zju@gmail.com)
 *******************************************************/
 
 #ifndef fc0fc_h
@@ -10,16 +11,17 @@ Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
 
 #include "univ.i"
 #include "fil0fil.h"
+#include "os0sync.h"
 #include "ha0ha.h"
 #include "fc0type.h"
 #include "trx0sys.h"
 #include "buf0buf.h"
 #include "fc0quicklz.h"
+#include "fc0snappy.h"
 
 #define KILO_BYTE 					1024
 #define PAGE_SIZE_KB				(UNIV_PAGE_SIZE / KILO_BYTE)
 #define KILO_BYTE_SHIFT 			10
-#define FC_MOVE_MIGRATE_BUF_SIZE 	2048    /*KB*/
 #define FC_LEAST_AVIABLE_BLOCK_FOR_RECV		(256 * (PAGE_SIZE_KB / fc_get_block_size()))
 #define FC_FIND_BLOCK_SKIP_COUNT 	1024
 #define FC_BLOCK_MM_NO_COMMIT 		8192
@@ -28,7 +30,9 @@ Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
 
 /*type of the compress algorithm supported in L2 cache, */
 #define FC_BLOCK_COMPRESS_QUICKLZ	1	/*the default compress algorithm*/
-#define FC_BLOCK_COMPRESS_ZLIB		2	/*will support soon*/
+#define FC_BLOCK_COMPRESS_SNAPPY	2	/*will support soon*/
+#define FC_BLOCK_COMPRESS_ZLIB		5	/*will support soon*/
+
 
 #define	FC_ZIP_PAGE_CHECKSUM	4294967291UL
 #define	FC_ZIP_PAGE_HEADER		0
@@ -36,6 +40,9 @@ Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
 #define	FC_ZIP_PAGE_SPACE		8
 #define	FC_ZIP_PAGE_OFFSET		12
 #define	FC_ZIP_PAGE_ORIG_SIZE	16
+#define	FC_ZIP_PAGE_ZIP_ALG		20
+#define	FC_ZIP_PAGE_ZIP_RAW_SIZE	24
+
 #define	FC_ZIP_PAGE_DATA		64
 #define	FC_ZIP_PAGE_TAILER		4 /*back from the page tail*/
 
@@ -57,16 +64,14 @@ Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
 #define 	IO_FIX_NO_IO		0x00	/*!< block is not in io */
 #define 	IO_FIX_READ			0x01	/*!< block read hit in L2 Cache */
 #define 	IO_FIX_DOUBLEWRITE	0x02	/*!< block data is writing in by doublewrite */
-#define 	IO_FIX_LRU_MOVE		0x04	/*!< block data is write in by lru move or migrate */	
-#define 	IO_FIX_FLUSH 		0x08	/*!< this block is dirty and is being flushed into disk */
+#define 	IO_FIX_FLUSH 		0x04	/*!< this block is dirty and is being flushed into disk */
 //#define 	IO_FIX_READING 		0x10	/*!< text */
 
 /** flash cache block decompress state when doing decompress */
 #define 	DECOMPRESS_READ_SSD	1	/*!< read hit decompress */
-#define 	DECOMPRESS_READ_MM	2	/*!< read hit decompress */
-#define 	DECOMPRESS_FLUSH	3	/*!< decompress for flush compress dirty page */
-#define 	DECOMPRESS_BACKUP	4	/*!< decompress for backup compress dirty page */
-#define 	DECOMPRESS_RECOVERY	5	/*!< decompress when recovery */
+#define 	DECOMPRESS_FLUSH	2	/*!< decompress for flush compress dirty page */
+#define 	DECOMPRESS_BACKUP	3	/*!< decompress for backup compress dirty page */
+#define 	DECOMPRESS_RECOVERY	4	/*!< decompress when recovery */
 
 /** flash cache variables */
 extern ulint	srv_flash_cache_size;
@@ -85,7 +90,6 @@ extern my_bool  srv_flash_cache_enable_write;
 extern my_bool  srv_flash_cache_safest_recovery;
 extern my_bool  srv_flash_cache_backuping;
 extern char*    srv_flash_cache_backup_dir;
-extern my_bool  srv_flash_cache_lru_move_batch;
 extern ulong  	srv_flash_cache_write_mode;
 extern my_bool  srv_flash_cache_fast_shutdown;
 extern ulint 	srv_fc_flush_last_commit;
@@ -95,6 +99,7 @@ extern ulint 	srv_fc_flush_should_commit_log_write;
 extern my_bool 	srv_flash_cache_enable_compress;
 extern ulint 	srv_flash_cache_compress_algorithm;
 extern my_bool 	srv_flash_cache_decompress_use_malloc;
+extern ulint 	srv_flash_cache_version;
 
 /** flash cache status */
 extern ulint	srv_flash_cache_read;
@@ -140,15 +145,18 @@ enum flash_cache_block_state{
 	BLOCK_READY_FOR_FLUSH,	/*!< ready for flush to disk */
 	BLOCK_READ_CACHE,		/*!< block migrate or warmup to flash cache */
 	BLOCK_FLUSHED,			/*!< block has been flushed */
-	BLOCK_BEEN_ATTACHED, 	/*!< block has attached by previous block */
 };
 
 /** flash cache buffer struct for buffer flash cache blocks when flush or lru move */
 struct fc_buf_struct{
-	byte*		unalign; 		/*!< unalign buf */
-	byte*		buf;			/*!< buf for block data */
-	ulint		size;			/*!< buf size, with n flash cache blocks */
-	ulint		free_pos;		/*!< first buf free position, with n flash cache blocks */
+	byte*	unalign; 		/*!< unalign buf */
+	byte*	buf;			/*!< buf for block data */
+	ulint	size;			/*!< buf size, with n flash cache blocks */
+	ulint	free_pos;		/*!< first buf free position, with n flash cache blocks */
+};
+
+struct fc_block_array_struct{
+	fc_block_t* block;		/** flash cache block */
 };
 
 /** flash cache block struct */
@@ -157,10 +165,12 @@ struct fc_block_struct{
 	ulint	space:32;		/*!< tablespace id */
 	ulint	offset:32;		/*!< page number */
 	ulint	fil_offset:32;	/*!< flash cache page number */
-	ulint	size:8;		/*!< size of innodb page before l2 cahce zip, with n flash blocks */
-	ulint	zip_size:8;	/*!< size of innodb page after l2 cache zip, with n flash blocks */
-	ulint	state:8;		/*!< flash cache block state */
-	ulint	io_fix:8; 		/*!< the io status */
+	ulint	size:6;			/*!< size of innodb page before l2 cahce zip, with n flash blocks */
+	//ulint	zip_size:8;		/*!< size of innodb page after l2 cache zip, with n flash blocks */
+	ulint	is_v4_blk:1;	/*!< if this block is load from InnoSQL 5.5.30-v4 */
+	ulint	raw_zip_size:15;/*!< size of innodb page after l2 cache zip, with n byte */
+	ulint	state:5;		/*!< flash cache block state */
+	ulint	io_fix:5; 		/*!< the io status */
 	void*	read_io_buf; /*!<used in read to store the compressed data from ssd*/
 	fc_block_t* hash;		/*!< hash chain */
 };
@@ -169,7 +179,8 @@ struct fc_page_info_struct{
 	ulint	space:32;		/*!< tablespace id */
 	ulint	offset:32;		/*!< page number */
 	ulint	size:8;		/*!< size of innodb page before l2 cahce zip, with n flash blocks */
-	ulint	zip_size:8;	/*!< size of innodb page after l2 cache zip, with n flash blocks */
+//	ulint	zip_size:8;	/*!< size of innodb page after l2 cache zip, with n flash blocks */
+	ulint	raw_zip_size:24;
 	ulint   fil_offset:32; /*!< offset of the cache file to store this (space, offset) page */
 };
 
@@ -189,9 +200,10 @@ struct fc_struct{
 	ulint			flush_round; 	/*!< flush round */
 	mutex_t			mutex; 			/*!< mutex protecting write/flush_off/round */
 	
-	fc_block_t* 	block; 			/*!< flash cache block array */
+	fc_block_array_t* 	block_array; 			/*!< flash cache block array */
 
 	/******** used for flush dirty L2 Cache data to disk */
+	ulint			n_flush_cur;	/* how many block will be flush at this flush ops */
 	fc_buf_t*		flush_buf; /*!< store the flush async (decompressed) data
 													when write dirty page to disk */
 	void*	flush_dezip_state;	/*!< used to buf the state of decompress
@@ -202,13 +214,6 @@ struct fc_struct{
 #ifdef UNIV_FLASH_CACHE_FOR_RECOVERY_SAFE
 	os_event_t		wait_doublewrite_event;/*!< Condition event to wait doublewrite launched aio for move */
 #endif
-	
-	/******** used for move & migration optimization */
-	mutex_t		mm_mutex; 	/*!< mutex protecting following fields */
-	fc_block_t*	mm_blocks;  /*!< protected by mm_mutex and hash_mutex*/	
-	fc_buf_t*	mm_buf;		/*!< 128 16KB pages, total 2048 KB */
-	byte*	mm_zip_buf_unalign;
-	byte*	mm_zip_buf;		/*!< temply store the compressed data */
 
 	/******** used for doublewrite data compress */
 	fc_page_info_t*	dw_pages;/*!< temply store the doublewrite blocks info of compressed */
@@ -234,18 +239,13 @@ struct fc_struct{
 
 #define flash_cache_mutex_enter() (mutex_enter(&fc->mutex))
 #define flash_cache_mutex_exit()  (mutex_exit(&fc->mutex))
-#define fc_mm_mutex_enter() (mutex_enter(&fc->mm_mutex))
-#define fc_mm_mutex_exit()  (mutex_exit(&fc->mm_mutex))
+
 /* we should first get fc mutex and then log_mutex to avoid deadlock */
 #define flash_cache_log_mutex_enter() (mutex_enter(&fc_log->log_mutex))
 #define flash_cache_log_mutex_exit()  (mutex_exit(&fc_log->log_mutex))
-#define flash_block_mutex_enter(offset) ((offset < fc->size)  \
-	?  mutex_enter(&(fc->block[offset].mutex))  \
-	: mutex_enter(&(fc->mm_blocks[(offset - fc->size)].mutex)))
 
-#define flash_block_mutex_exit(offset) ((offset < fc->size)  \
-	?  mutex_exit(&(fc->block[offset].mutex))  \
-	: mutex_exit(&(fc->mm_blocks[(offset - fc->size)].mutex)))
+#define flash_block_mutex_enter(offset) mutex_enter(&(fc->block_array[offset].block->mutex))
+#define flash_block_mutex_exit(offset) mutex_exit(&(fc->block_array[offset].block->mutex))
 
 /**************************************************************//**
 Check whether flash cache is enable.*/
@@ -385,25 +385,6 @@ fc_inc_flush_off(
 	ulint inc_count); /*!< in: add that many offset in fc flush_off */
 
 /******************************************************************//**
-Attach a block with the size of block->blk_size */
-UNIV_INLINE
-void  
-fc_block_attach(
-/*=======================*/
-	ulint mm_blocks, /*!< in: if is fc->mm_blocks */
-	fc_block_t* block); /*!< in: the block need to attach,
-							the block size has been inited */
-
-/******************************************************************//**
-Detach a block, set them with not used and not io fixed */
-UNIV_INLINE
-void  
-fc_block_detach(
-/*=======================*/
-	ulint mm_blocks, /*!< in: if is fc->mm_blocks */
-	fc_block_t* block); /*!< in: the block need to detach */
-
-/******************************************************************//**
 Check a block metadata with the packed data buffer */ 
 UNIV_INLINE
 void  
@@ -468,11 +449,28 @@ fc_validate(void);
 /******************************************************************//**
 Init the L2 Cache block when create L2 Cache */
 UNIV_INLINE
-void
+fc_block_t*
 fc_block_init(
 /*==================*/
-	fc_block_t* tmp_block, /*<! in: L2 Cache block to init */
 	ulint fil_offset);	   /*<! in: the L2 Cache block fil_offset init to */
+
+/******************************************************************//**
+free the L2 Cache block */
+UNIV_INLINE
+void
+fc_block_free(
+/*==================*/
+	fc_block_t* block);	   /*<! in: the L2 Cache block to free */
+
+/**************************************************************//**
+Get flash cache block from block offset
+@return NULL */
+UNIV_INLINE
+fc_block_t*
+fc_get_block(
+/*=========*/
+ulint fil_offset); /*<! in: L2 Cache block offset in ssd */
+
 
 /******************************************************************//**
 Print the L2 Cache block values */
@@ -506,6 +504,15 @@ fc_dw_page_corrupted(
 /*==================*/
 	buf_block_t* dw_block); /*<! in: buf block to test if is corrupted */
 
+/********************************************************************//**
+Test if the compress is helpfull.
+@return TRUE if compress successed */
+UNIV_INLINE
+ulint
+fc_block_compress_successed(
+/*==================*/
+	ulint cp_size); /*!< in: the page size after compress */
+
 /******************************************************************//**
 Test if the buf page should be compress by L2 Cache.
 @return: return TRUE if the page should be compressed */
@@ -513,7 +520,7 @@ UNIV_INLINE
 ibool
 fc_block_need_compress(
 /*=====================*/
-	buf_page_t* bpage); /*!< in: the buf page to test */
+	ulint space_id); /*!< in: space_id of the page */
 
 /******************************************************************//**
 Test if the L2 Cache block has been compressed by L2 Cache.
@@ -538,19 +545,6 @@ fc_block_do_compress(
 							must be the size of frame + 400 */
 
 /********************************************************************//**
-Compress the buf page bpage with quicklz, return the size of compress data.
- the buf memory has alloced
-@return the compressed size of page */
-UNIV_INTERN
-ulint
-fc_block_do_compress_quicklz(
-/*==================*/
-	ulint is_dw,		/*!< in: TRUE if compress for doublewrite buffer */
-	buf_page_t* bpage, /*!< in: the data need compress is bpage->frame */
-	void*	buf);	/*!< out: the buf contain the compressed data,
-						must be the size of frame + 400 */
-
-/********************************************************************//**
 Decompress the page in the block, return the decompressed data size.
 @return the decompressed size of page, must be UNIV_PAGE_SIZE */
 UNIV_INTERN
@@ -559,16 +553,7 @@ fc_block_do_decompress(
 /*==================*/
 	ulint decompress_type, /*!< in: decompress for read or backup or flush or recovery */
 	void *buf_compressed,	/*!< in: contain the compressed data */
-	void *buf_decompressed);	/*!< out: contain the data that have decompressed */
-
-/********************************************************************//**
-Decompress the page in the block with quicklz, return the decompressed data size. */
-UNIV_INTERN
-ulint
-fc_block_do_decompress_quicklz(
-/*==================*/
-	ulint decompress_type, /*!< in: decompress for read or backup or flush or recovery */
-	void *buf_compressed,	/*!< in: contain the compressed data */
+	ulint compressed_size,  /*!< in: the compressed buffer size */
 	void *buf_decompressed);	/*!< out: contain the data that have decompressed */
 
 /**********************************************************************//**
@@ -591,6 +576,24 @@ ulint
 fc_block_get_compress_type(
 );
 
+/********************************************************************//**
+Write compress algrithm to the compress data buffer. */
+UNIV_INTERN
+void
+fc_block_write_compress_alg(
+/*==================*/
+	ulint compress_algrithm,/*!< in: the compress algrithm to write */
+	void *buf);				/*!< in/out: the compressed data buf need to write */
+
+/********************************************************************//**
+Read compress algrithm from compressed data buffer. 
+@return the compress algrithm of page */
+UNIV_INTERN
+ulint
+fc_block_read_compress_alg(
+/*==================*/
+	void *buf);				/*!< in: the compressed data buf */
+	
 /********************************************************************//**
 Pack the compressed data with block header and tailer. */
 UNIV_INTERN

@@ -3227,14 +3227,18 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     my_snprintf(host_info=buff, sizeof(buff)-1, ER(CR_TCP_CONNECTION), host);
     DBUG_PRINT("info",("Server name: '%s'.  TCP sock: %d", host, port));
 #ifdef MYSQL_SERVER
-    thr_alarm_init(&alarmed);
-    thr_alarm(&alarmed, mysql->options.connect_timeout, &alarm_buff);
+    {
+      thr_alarm_init(&alarmed);
+      thr_alarm(&alarmed, mysql->options.connect_timeout, &alarm_buff);
+	}
 #endif
 
     DBUG_PRINT("info",("IP '%s'", "client"));
 
 #ifdef MYSQL_SERVER
-    thr_end_alarm(&alarmed);
+	{
+      thr_end_alarm(&alarmed);
+	}
 #endif
 
     memset(&hints, 0, sizeof(hints));

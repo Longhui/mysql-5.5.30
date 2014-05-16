@@ -4287,7 +4287,8 @@ void TNTDatabase::restore(const char *backupDir, const char *baseDir, const char
 	// ¿½±´¿ØÖÆÎÄ¼þ
 	string ctfPath = destDir + NTSE_PATH_SEP + Limits::NAME_TNT_CTRL_FILE;
 	string ctfBackPath = srcDir + NTSE_PATH_SEP + Limits::NAME_TNT_CTRL_FILE;
-	u64 errNo = File::copyFile(ctfPath.c_str(), ctfBackPath.c_str(), true);
+	File backCtrlFile(ctfBackPath.c_str());
+	u64 errNo = backCtrlFile.move(ctfPath.c_str(), true);
 	if (errNo != File::E_NO_ERROR)
 		NTSE_THROW(errNo, "copy %s to %s failed", ctfBackPath.c_str(), ctfPath.c_str());
 

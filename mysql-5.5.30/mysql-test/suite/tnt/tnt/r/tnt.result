@@ -662,7 +662,7 @@ select count(*) from t1 where cat_code='E';
 count(*)
 0
 alter table t1 drop index sca_pic, add index (sca_pic, cat_code);
-ERROR HY000: Got temporary error 223 'Incorrect index name sca_pic' from TNT
+ERROR HY000: Got temporary error 225 'Incorrect index name sca_pic' from TNT
 select count(*) from t1 where sca_code='PD' and sca_pic is null;
 count(*)
 1

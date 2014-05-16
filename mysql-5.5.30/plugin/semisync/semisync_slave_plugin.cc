@@ -16,6 +16,7 @@
 
 
 #include "semisync_slave.h"
+#include "semisync_vsr.h"
 #include <mysql.h>
 
 ReplSemiSyncSlave repl_semisync;
@@ -30,6 +31,11 @@ ReplSemiSyncSlave repl_semisync;
 bool semi_sync_need_reply= false;
 
 C_MODE_START
+
+void repl_semi_send_syncInfo(Vsr_slave_param *param)
+{
+   send_slave_sync_info(param->net, param->filename, param->pos);   
+}
 
 int repl_semi_reset_slave(Binlog_relay_IO_param *param)
 {
@@ -286,12 +292,18 @@ static void init_fullsync_psi_keys(void)
 }
 #endif /*HAVE_PSI_INTERFACE*/
 
+Vsr_slave_observer slave_observer = {
+  sizeof(Vsr_slave_observer), //len
+  repl_semi_send_syncInfo,  //master request
+};
+
 static int semi_sync_slave_plugin_init(void *p)
 {
 #ifdef HAVE_PSI_INTERFACE
   init_fullsync_psi_keys();
 #endif
 
+  register_slave_observer(&slave_observer);
   if (repl_semisync.initObject())
     return 1;
   if (register_binlog_relay_io_observer(&relay_io_observer, p))
@@ -303,6 +315,7 @@ static int semi_sync_slave_plugin_init(void *p)
 
 static int semi_sync_slave_plugin_deinit(void *p)
 {
+  unregister_slave_observer();
   if (unregister_binlog_relay_io_observer(&relay_io_observer, p))
     return 1;
   if (unregister_binlog_relay_sql_observer(&relay_sql_observer, p))

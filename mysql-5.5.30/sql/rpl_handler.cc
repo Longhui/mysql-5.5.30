@@ -25,12 +25,63 @@
 
 Trans_delegate *transaction_delegate;
 Binlog_storage_delegate *binlog_storage_delegate;
+Vsr_master_delegate *vsr_master_delegate;
+Vsr_slave_delegate *vsr_slave_delegate;
+
 #ifdef HAVE_REPLICATION
 Binlog_transmit_delegate *binlog_transmit_delegate;
 Binlog_relay_IO_delegate *binlog_relay_io_delegate;
 Binlog_relay_SQL_delegate *binlog_relay_sql_delegate;
 
 #endif /* HAVE_REPLICATION */
+
+char  *ha_partner_host= 0;
+uint   ha_partner_port= 0;
+char  *ha_partner_user= 0;
+char  *ha_partner_password= 0;
+
+void 
+Vsr_master_delegate::before_recover(char *fname)
+{
+  if (likely(NULL != observer))
+  {
+    Vsr_master_param param;
+    if ( NULL == ha_partner_host ||
+         0 == ha_partner_port ||
+         NULL == ha_partner_user ||
+         NULL == ha_partner_password )
+    {
+      sql_print_warning("Skiped VSR_HA function before_recover() "
+                          "for one ha_parter_* isn't set");
+      return;
+    }
+    param.slave_host= ha_partner_host;
+    param.slave_port= ha_partner_port;
+    param.user= ha_partner_user;
+    param.passwd= ha_partner_password;
+    param.last_binlog= fname;
+    observer->before_recover(&param);
+  }
+}
+
+void
+Vsr_slave_delegate::master_request(NET *net)
+{
+  if (likely(NULL != observer))
+  {
+    Vsr_slave_param param;
+    if (0 == active_mi)
+    {
+      sql_print_warning("Skiped VSR_HA function master_request() "
+                        "for active_mi is NULL");
+      return;
+    }
+    param.net= net;
+    param.filename= active_mi->master_log_name;
+    param.pos= active_mi->master_log_pos;
+    observer->master_request(&param);
+  }
+}
 
 /*
   structure to save transaction log filename and position
@@ -107,6 +158,8 @@ int delegates_init()
   void *place_storage_mem= storage_mem.data;
 
   transaction_delegate= new (place_trans_mem) Trans_delegate;
+  vsr_master_delegate= new Vsr_master_delegate;
+  vsr_slave_delegate= new Vsr_slave_delegate;
 
   if (!transaction_delegate->is_inited())
   {
@@ -169,6 +222,8 @@ int delegates_init()
 
 void delegates_destroy()
 {
+  delete vsr_master_delegate;
+  delete vsr_slave_delegate;
   if (transaction_delegate)
     transaction_delegate->~Trans_delegate();
   if (binlog_storage_delegate)
@@ -558,6 +613,30 @@ int Binlog_relay_SQL_delegate::after_apply_event(THD * thd, Relay_log_info * rli
 }
 
 #endif /* HAVE_REPLICATION */
+
+void register_master_observer(Vsr_master_observer *observer)
+{
+  if (likely(NULL == vsr_master_delegate->observer))
+    vsr_master_delegate->observer= observer;
+}
+
+void unregister_master_observer()
+{
+  if (unlikely(NULL != vsr_master_delegate->observer))
+    vsr_master_delegate->observer=  NULL;
+}
+
+void register_slave_observer(Vsr_slave_observer *observer)
+{
+  if (likely(NULL == vsr_slave_delegate->observer))
+    vsr_slave_delegate->observer= observer;
+}
+
+void unregister_slave_observer()
+{
+  if (unlikely(NULL != vsr_slave_delegate->observer))
+    vsr_slave_delegate->observer=  NULL;
+}
 
 int register_trans_observer(Trans_observer *observer, void *p)
 {

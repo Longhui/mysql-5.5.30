@@ -828,7 +828,7 @@ void rpl_parallel::reset()
   current_group_info= NULL;
   stop_on_error_sub_id= (uint64)ULONGLONG_MAX;
   count_queued_event_groups= 0;
-  count_committing_event_groups= 0;
+  count_committed_event_groups= 0;
   current_gco= 0;
   flag= 0;
   global_sub_id= 0;
@@ -840,7 +840,7 @@ rpl_parallel::rpl_parallel(Relay_log_info *rli_): force_abort(false),
     last_group_commit_id(0),current_group_info(NULL),
     rli(rli_),flag(0),stop_on_error_sub_id((uint64)ULONGLONG_MAX),
     count_queued_event_groups(0),
-    count_committing_event_groups(0),
+    count_committed_event_groups(0),
     current_gco(NULL)
 {
   mysql_mutex_init(key_LOCK_rpl_parallel, &LOCK_rpl_parallel,
@@ -877,7 +877,7 @@ handle_rpl_row_thread(void *arg)
   thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);
-  //set_current_thd(thd);
+  set_current_thd(thd);
   pthread_detach_this_thread();
   thd->init_for_queries();
   init_thr_lock();
@@ -960,7 +960,7 @@ more_trans:
       }
       else
         rpt->n_executed_trans++;
-      finish_event_group(thd, err, rgi, (rpl_parallel *)rpl_row_entry);
+      finish_event_group(thd, rgi->is_error, rgi, (rpl_parallel *)rpl_row_entry);
       /*
         @raolh
         wakeup main SQL thread checking primary key confliction
@@ -1176,7 +1176,7 @@ handle_rpl_group_thread(void *arg)
   thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);
-  //set_current_thd(thd);
+  set_current_thd(thd);
   pthread_detach_this_thread();
   thd->init_for_queries();
   init_thr_lock();
@@ -1184,6 +1184,7 @@ handle_rpl_group_thread(void *arg)
   thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
   thd->security_ctx->skip_grants();
   thd->variables.max_allowed_packet= slave_max_allowed_packet;
+  my_net_init(&thd->net, 0);
   thd->slave_thread= 1;
   thd->enable_slow_log= opt_log_slow_slave_statements;
   set_slave_thread_options(thd);
@@ -1268,7 +1269,7 @@ handle_rpl_group_thread(void *arg)
           gco->installed= true;
         }
         wait_count= gco->wait_count;
-        if (wait_count > rpl_group_entry->count_committing_event_groups)
+        if (wait_count > rpl_group_entry->count_committed_event_groups)
         {
            old_msg= thd->enter_cond(&gco->COND_group_commit_orderer,
                                    &rpl_group_entry->LOCK_rpl_parallel,
@@ -1291,7 +1292,7 @@ handle_rpl_group_thread(void *arg)
             }
             mysql_cond_wait(&gco->COND_group_commit_orderer,
                             &rpl_group_entry->LOCK_rpl_parallel);
-          } while (wait_count > rpl_group_entry->count_committing_event_groups);
+          } while (wait_count > rpl_group_entry->count_committed_event_groups);
         }
 
         if ((tmp_gco= gco->prev_gco))
@@ -1354,18 +1355,23 @@ handle_rpl_group_thread(void *arg)
          (event_type == QUERY_EVENT &&
           (((Query_log_event *)events->evt)->is_commit() ||
            ((Query_log_event *)events->evt)->is_rollback()));
+/*
+  @raolh
+  this will lead lock timeout error when disk is very busy,and transaction
+  committing take too much time.
+
       if (group_ending)
       {
         rgi->mark_start_commit();
       }
-
+*/
       /*
         If the SQL thread is stopping, we just skip execution of all the
         following event groups. We still do all the normal waiting and wakeup
         processing between the event groups as a simple way to ensure that
         everything is stopped and cleaned up correctly.
       */
-      //
+      
      if (!rgi->is_error && !group_skip_for_stop)
         err= rpt_handle_event(events);
       else
@@ -1942,6 +1948,8 @@ bool rpl_group_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev, siz
   {// non_group event applied immediatly
   
     qev->rgi= serial_rgi;
+    qev->is_relay_log_event= ((qev->evt->server_id == ::server_id) &&
+                              !rli->replicate_same_server_id);
     
     /* Handle master log name change, seen in Rotate_log_event. */
     if (typ == ROTATE_EVENT)
@@ -1955,8 +1963,6 @@ bool rpl_group_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev, siz
         memcpy(rli->future_event_master_log_name,
                rev->new_log_ident, rev->ident_len+1);
       }
-      else
-        qev->is_relay_log_event= 1;
     }
     
     bool tmp= serial_rgi->is_parallel_exec;
@@ -2009,7 +2015,7 @@ void rpl_group_parallel::wait_for_done()
 
   mysql_mutex_lock(&LOCK_rpl_parallel);
   force_abort= true;
-  stop_count= count_committing_event_groups;
+  stop_count= count_committed_event_groups;
   
   if(cur_thread)
     mysql_cond_signal(&cur_thread->COND_rpl_thread);

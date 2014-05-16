@@ -3694,7 +3694,7 @@ static ST_FIELD_INFO	i_s_flash_cache_fields_info[] =
         STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
         STRUCT_FLD(value,		0),
         STRUCT_FLD(field_flags,	0),
-        STRUCT_FLD(old_name,		"Flash Cache Block Status"),
+        STRUCT_FLD(old_name,		"Flash Cache Table name"),
         STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
     
 	END_OF_ST_FIELD_INFO
@@ -3708,15 +3708,15 @@ i_s_flash_cache_fill(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	COND*		cond)	/*!< in: condition (ignored) */
 {
-    char* table_name;
     int i = 0;
+    char* table_name;
+	fc_block_t* block = NULL;
     TABLE*  table = (TABLE *) tables->table;
     char*   state[] = {
         "Not Used",
         "Ready For Flush",
         "Read Cache",
-        "Flushed",
-        "Been Attached"
+        "Flushed"
     };
  
     DBUG_ENTER("i_s_flash_cache_fill");
@@ -3732,15 +3732,27 @@ i_s_flash_cache_fill(
     
     RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
-    for(i=0; i<fc->size; i++){
+	i = 0;
+    while (i < fc->size) {
+		rw_lock_s_lock(&fc->hash_rwlock);
+		block = fc_get_block(i);
+
+		if (block == NULL) {
+			i++;
+			continue;
+		}
+
+		flash_block_mutex_enter(block->fil_offset);
+		rw_lock_s_unlock(&fc->hash_rwlock);
+		
         OK(field_store_ulint(table->field[0], i));
-        OK(field_store_string(table->field[1], state[fc->block[i].state]));
-        OK(field_store_ulint(table->field[2], fc->block[i].space));
-        OK(field_store_ulint(table->field[3], fc->block[i].offset));
+        OK(field_store_string(table->field[1], state[block->state]));
+        OK(field_store_ulint(table->field[2], block->space));
+        OK(field_store_ulint(table->field[3], block->offset));
         
-        table_name = fil_space_get_table_name_by_id(fc->block[i].space);
+        table_name = fil_space_get_table_name_by_id(block->space);
         
-        if (fc->block[i].state == BLOCK_NOT_USED){
+        if (block->state == BLOCK_NOT_USED){
             OK(field_store_string(table->field[4],"Not Used"));
         }
         else if (table_name){
@@ -3749,12 +3761,14 @@ i_s_flash_cache_fill(
         else{
             OK(field_store_string(table->field[4],"Unknow"));
         }
-
-
         
         if (schema_table_store_record(thd, table)) {
+			flash_block_mutex_exit(block->fil_offset);
             DBUG_RETURN(1);
         }
+
+		i += fc_block_get_data_size(block);
+		flash_block_mutex_exit(block->fil_offset);
     }
     
     DBUG_RETURN(0);

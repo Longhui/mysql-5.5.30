@@ -3,6 +3,7 @@
 Flash Cache log
 
 Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
+Modified by Thomas Wen (wenzhenghu.zju@gmail.com)
 *******************************************************/
 
 #include "fc0log.h"
@@ -101,7 +102,6 @@ fc_log_create(void)
 /*=====================*/
 {
 	ulint ret;
-	ulint blk_size;
 	
 	fc_log = (fc_log_t*)ut_malloc(sizeof(fc_log_t));
 	memset(fc_log, '0', sizeof(fc_log_t));
@@ -141,8 +141,9 @@ fc_log_create(void)
 		fc_log->dump_stat->write_round = 0;	
 		
 		fc_log->blk_find_skip = 0;	
-
-		fc_log->log_verison = FLASH_CACHE_VERSION_INFO;
+		fc_log->blk_size = srv_flash_cache_block_size;
+		fc_log->log_verison = srv_flash_cache_version;
+		fc_log->compress_algorithm = srv_flash_cache_compress_algorithm;		
 
 		/* log will be flushed when finish fc_start */
 		//os_file_write(srv_flash_cache_log_file_name, fc_log->file, fc_log->buf, 0, 0, 
@@ -166,15 +167,27 @@ fc_log_create(void)
 			 mach_read_from_4(fc_log->buf+FLASH_CACHE_LOG_CHKSUM2));
 
 		/* don't allow to change block size */
-		blk_size = mach_read_from_4(fc_log->buf + FLASH_CACHE_LOG_BLOCK_BYTE_SIZE);
-		if (blk_size == 0) {
-			blk_size = UNIV_PAGE_SIZE;
+		fc_log->blk_size = mach_read_from_4(fc_log->buf + FLASH_CACHE_LOG_BLOCK_BYTE_SIZE);
+		if (fc_log->blk_size == 0) {
+			fc_log->blk_size = UNIV_PAGE_SIZE;
 		}
-		
-		if (srv_flash_cache_block_size != blk_size) {
+
+		/* don't allow to change cache block size */ 
+		if (srv_flash_cache_block_size != fc_log->blk_size) {
 			ut_print_timestamp(stderr);
 			fprintf(stderr," InnoDB: Error!!!cann't change L2 Cache block size from"
-				"%lu to %lu!\n", blk_size, srv_flash_cache_block_size);
+				"%lu to %lu! we can't continue.\n", fc_log->blk_size, 
+				srv_flash_cache_block_size);
+			ut_error;
+		} 
+
+		/* don't allow to change compress algorithm */ 
+		if ((srv_flash_cache_compress == TRUE) && (fc_log->compress_algorithm) 
+			&& (srv_flash_cache_compress_algorithm != fc_log->compress_algorithm)) {
+			ut_print_timestamp(stderr);
+			fprintf(stderr," InnoDB: Error!!!cann't change L2 Cache compress algorithm from"
+				"%lu to %lu! we can't continue.\n", fc_log->compress_algorithm, 
+				srv_flash_cache_compress_algorithm);
 			ut_error;
 		} 
 		
@@ -391,10 +404,13 @@ fc_log_commit(void)
 		0);
 	
 	mach_write_to_4(fc_log->buf + FLASH_CACHE_LOG_VERSION, 
-		FLASH_CACHE_VERSION_INFO);	
+		fc_log->log_verison);	
 	
 	mach_write_to_4(fc_log->buf + FLASH_CACHE_LOG_BEEN_SHUTDOWN, 
 		fc_log->been_shutdown);	
+
+	mach_write_to_4(fc_log->buf + FLASH_CACHE_LOG_COMPRESS_ALGORITHM, 
+		fc_log->compress_algorithm);	
 
 	mach_write_to_4(fc_log->buf + FLASH_CACHE_LOG_CHKSUM2, 
 		FLASH_CACHE_LOG_CHECKSUM);

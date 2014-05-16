@@ -2634,7 +2634,7 @@ public:
 #ifdef MYSQL_SERVER
   Gcid_log_event(THD *thd_arg, uint64 id) : Log_event(thd_arg, 0 , TRUE), 
    group_commit_id(id){}
-  static int get_event_size() {return LOG_EVENT_HEADER_LEN + sizeof(group_commit_id);}
+  static int get_event_size() {return LOG_EVENT_HEADER_LEN + sizeof(ulonglong);}
   bool write(IO_CACHE* file);
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol* protocol);

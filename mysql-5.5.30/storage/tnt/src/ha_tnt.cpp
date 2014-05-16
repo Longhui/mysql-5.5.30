@@ -85,11 +85,9 @@
 #define DBUG_SWITCH_NON_RETURN(thd, fun) \
 	bool _trxConn = THDVAR(thd, is_trx_connection); \
 	if (!_trxConn) { \
-		assert(!m_scan && !m_iuSeq); \
 		fun; \
 		DBUG_VOID_RETURN; \
 	} \
-	assert(!m_ntseScan && !m_ntseIuSeq)
 
 // TODO：所有出错返回MySQL上层的地方，都需要重新验证处理方式，
 // 不能与NTSE完全一致(事务引擎与非事务引擎的区别)
@@ -442,24 +440,6 @@ static int check_command(MYSQL_THD thd, struct st_mysql_sys_var *var,
 	return 0;
 }
 
-static void update_command(MYSQL_THD thd, struct st_mysql_sys_var *var,
-	void *var_ptr, const void *save) {
-	// 这段代码参考update_func_str函数
-	char *cmd = *((char **)save);
-
-	TNTTHDInfo *thdInfo = checkTntTHDInfo(thd);
-	thdInfo->m_cmdInfo->setCommand(cmd);
-	cmd_exec->doCommand(thdInfo, thdInfo->m_cmdInfo);
-
-	if (thdInfo->m_cmdInfo->getStatus() == CS_FAILED) {
-		push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, "%s", thdInfo->m_cmdInfo->getInfo());
-		// 这里没法用my_printf_error，因为本函数无法返回操作失败，因此上层在执行结束时会assert出错标志位
-		// 设置，而调用了my_printf_error后就设置了标志位
-		//my_printf_error(ER_UNKNOWN_ERROR, "%s", MYF(0), thdInfo->m_cmdInfo->getInfo());
-	}
-
-	*(char **)var_ptr = *(char **)save;
-}
 
 #ifdef NTSE_PROFILE
 static void update_ntse_profile_summary(MYSQL_THD thd, struct st_mysql_sys_var *var,
@@ -809,10 +789,6 @@ static MYSQL_SYSVAR_ULONG(sample_max_pages, ntse_sample_max_pages,
 						  "Maximal number of pages used in sampling in obtaining extended status.",
 						  NULL, NULL, 1000, 1, 10000, 0);
 
-static MYSQL_THDVAR_STR(command, PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-						"Used to send command to NTSE kernel.",
-						&check_command, &update_command, NULL);
-
 static MYSQL_SYSVAR_ULONG(incr_size, ntse_incr_size,
 						  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
 						  "Number of pages when heap/index/lob file extends.",
@@ -851,6 +827,29 @@ static MYSQL_SYSVAR_ULONG(system_io_capacity, ntse_system_io_capacity,
 						  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
 						  "Size of log file in bytes.",
 						  NULL, NULL, 256, 0, ~0, 0);
+
+static void update_command(MYSQL_THD thd, struct st_mysql_sys_var *var,
+	void *var_ptr, const void *save) {
+	// 这段代码参考update_func_str函数
+	char *cmd = *((char **)save);
+
+	TNTTHDInfo *thdInfo = checkTntTHDInfo(thd);
+	thdInfo->m_cmdInfo->setCommand(cmd);
+	cmd_exec->doCommand(thdInfo, thdInfo->m_cmdInfo);
+
+	if (thdInfo->m_cmdInfo->getStatus() == CS_FAILED) {
+		push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, "%s", thdInfo->m_cmdInfo->getInfo());
+		// 这里没法用my_printf_error，因为本函数无法返回操作失败，因此上层在执行结束时会assert出错标志位
+		// 设置，而调用了my_printf_error后就设置了标志位
+		//my_printf_error(ER_UNKNOWN_ERROR, "%s", MYF(0), thdInfo->m_cmdInfo->getInfo());
+	}
+
+	*(char **)var_ptr = *(char **)save;
+}
+
+static MYSQL_THDVAR_STR(command, PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
+						"Used to send command to NTSE kernel.",
+						&check_command, &update_command, NULL);
 
 #ifdef NTSE_KEYVALUE_SERVER
 static MYSQL_SYSVAR_INT(keyvalue_port, ntse_keyvalue_port,
@@ -1246,6 +1245,9 @@ int ha_tnt::init(void *p) {
 	tnt_hton->create = tnt_create_handler;
 	tnt_hton->close_connection = tnt_close_connection;
 	tnt_hton->drop_database = tnt_drop_database;
+#ifdef EXTENDED_FOR_COMMIT_ORDERED
+	tnt_hton->commit_ordered=tnt_commit_ordered;
+#endif
 
 	tnt_hton->commit = tnt_commit_trx;
 	tnt_hton->rollback = tnt_rollback_trx;
@@ -3160,10 +3162,6 @@ int ha_tnt::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_in
 			NTSE_THROW(NTSE_EC_NOT_SUPPORT, "Unexpected record size %d, expected %d",
 				table_arg->s->reclength, tableDef->m_maxMysqlRecSize);
 		}
-		if (tableDef->m_maxRecSize >= Limits::MAX_REC_SIZE) {
-			NTSE_THROW(NTSE_EC_NOT_SUPPORT, "Unexpected record size %d, too long, please modify table's definition",
-				tableDef->m_maxRecSize);
-		}
 
 		if (create_info->row_type != ROW_TYPE_DEFAULT) {
 			if (tableDef->m_recFormat == REC_FIXLEN && create_info->row_type != ROW_TYPE_FIXED)
@@ -3639,10 +3637,6 @@ void ha_tnt::optimizeTableReal(bool keepDict, bool waitForFinish) throw(NtseExce
  */
 int ha_tnt::optimize(THD *thd, HA_CHECK_OPT *check_opt) {
 	DBUG_ENTER("ha_tnt::optimize");
-
-	// TODO: 目前暂时不支持含大对象表的optimize
-	if (m_table->getNtseTable()->getTableDef()->hasLob())
-		DBUG_RETURN(HA_ADMIN_OK);
 
 	DBUG_SWITCH_NON_CHECK(thd, ntse_handler::optimize(thd, check_opt));
 
@@ -5416,6 +5410,34 @@ void ha_tnt::tnt_drop_database(handlerton *hton, char* path) {
 	// 同时TNT使用的是NTSE的持久化存储，因此TNT也暂时不支持
 }
 
+
+#ifdef EXTENDED_FOR_COMMIT_ORDERED
+void ha_tnt::tnt_commit_ordered(handlerton *hton, THD* thd, bool all){
+	DBUG_ENTER("tnt_commit_ordered");
+
+	DBUG_SWITCH_NON_RETURN(thd, ntse_handler::ntse_commit_ordered(hton, thd, all));
+
+	TNTTHDInfo *info = getTntTHDInfo(thd);
+	TNTTransaction *trx = info->m_trx;
+	assert(trx != NULL);
+
+	if (all ||
+		(!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
+			trx->setFlushLogLater(true);
+			trx->commitTrx(CS_NORMAL);
+			trx->setFlushLogLater(false);
+
+			trx->setActiveTrans(0);
+			thd->variables.net_wait_timeout = info->m_netWaitTimeout;
+	} else {
+		trx->markSqlStatEnd();
+	}
+
+	DBUG_VOID_RETURN;
+}
+#endif
+
+
 /**
 * 提交事务，或者标识当前statement执行完成
 * @param hton	TNT存储引擎实例
@@ -5443,12 +5465,13 @@ int ha_tnt::tnt_commit_trx(handlerton *hton, THD* thd, bool all) {
 			}*/
 			trx->commitTrx(CS_NORMAL);
 
+#ifndef EXTENDED_FOR_COMMIT_ORDERED
 			// commit完成之后，释放prepare mutex
 			if (trx->getActiveTrans() == 2) {
 				assert(prepareCommitMutex->isLocked());
 				prepareCommitMutex->unlock();
 			}
-
+#endif
 			trx->setActiveTrans(0);
 			// 标识当前事务从MySQL的XA事务中取消注册
 			trxDeregisterFrom2PC(trx);
@@ -5546,7 +5569,9 @@ int ha_tnt::tnt_xa_prepare(handlerton *hton, THD* thd, bool all) {
 
 				if (thd_sql_command(thd) != SQLCOM_XA_PREPARE &&
 					(all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
+#ifndef EXTENDED_FOR_COMMIT_ORDERED
 						prepareCommitMutex->lock(__FILE__, __LINE__);
+#endif
 						// 设置事务当前已经获取prepareCommitMutex状态
 						trx->setActiveTrans(2);
 				}

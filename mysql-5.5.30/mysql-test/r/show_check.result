@@ -1539,14 +1539,14 @@ GET_LOCK('t', 1000)
 SET NAMES latin1;
 SELECT GET_LOCK('t',1000) AS 'óóóó';;
 SHOW PROCESSLIST;
-Id	User	Host	db	Command	Time	State	Info
-###	root	###	test	Query	###	###	SHOW PROCESSLIST
-###	root	###	test	Query	###	###	SELECT GET_LOCK('t',1000) AS 'óóóó'
+Id	User	Host	db	Command	Time	Ack_wait_time 	State	Info
+###	root	###	test	Query	###	###	###	SHOW PROCESSLIST
+###	root	###	test	Query	###	###	###	SELECT GET_LOCK('t',1000) AS 'óóóó'
 SET NAMES utf8;
 SHOW PROCESSLIST;
-Id	User	Host	db	Command	Time	State	Info
-###	root	###	test	Query	###	###	SHOW PROCESSLIST
-###	root	###	test	Query	###	###	SELECT GET_LOCK('t',1000) AS 'Ã³Ã³Ã³Ã³'
+Id	User	Host	db	Command	Time	Ack_wait_time 	State	Info
+###	root	###	test	Query	###	###	###	SHOW PROCESSLIST
+###	root	###	test	Query	###	###	###	SELECT GET_LOCK('t',1000) AS 'Ã³Ã³Ã³Ã³'
 SELECT RELEASE_LOCK('t');
 RELEASE_LOCK('t')
 1

@@ -384,6 +384,11 @@ check_page:
 	liFilePage = (LIFilePageInfo*)liFilePageHdl->getPage();
 	LiFileSlotInfo *slotInfo = m_lobi->getSlot(liFilePage, slotNum);
 	isFree = slotInfo->m_free;
+	if(isFree) {		//如果未找到大对象则返回
+		session->releasePage(&liFilePageHdl);	
+		*size = 0;
+		return NULL;
+	}
 	// 目录项必须是not free
 	assert(!isFree);
 	pageID = slotInfo->u.m_pageId;

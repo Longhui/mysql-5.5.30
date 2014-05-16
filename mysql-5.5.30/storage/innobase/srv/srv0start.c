@@ -1798,11 +1798,6 @@ innobase_start_or_create_for_mysql(void)
 		we have finished the recovery process so that the
 		image of TRX_SYS_PAGE_NO is not stale. */
 		trx_sys_file_format_tag_init();
-
-		if ( access("flash_cache.warmup",F_OK ) != -1 ){
-			//fc_load_warmup_file();
-		}
-
 	}
 
 	if (!create_new_db && sum_of_new_sizes > 0) {
@@ -1886,7 +1881,7 @@ innobase_start_or_create_for_mysql(void)
 	}
 
 	if (fc_is_enabled() && fc_log->first_use && srv_flash_cache_warmup_table){
-		//fc_warmup_tablespaces();
+		fc_warmup_tablespaces();
 	}
 
 	/* Create the master thread which does purge and other utility

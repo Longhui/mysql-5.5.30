@@ -4762,8 +4762,15 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
   if (!ret)
   {
     /* Save the information describing this binlog */
+    /*
+     @raolh
+     we lock data1_lock here because worker thread would access description_event_for_exec
+     in Row_log_event::do_apply_event() in parallel replication;
+    */
+    mysql_rwlock_wrlock(&rli->data1_lock);
     delete rli->relay_log.description_event_for_exec;
     const_cast<Relay_log_info *>(rli)->relay_log.description_event_for_exec= this;
+    mysql_rwlock_unlock(&rli->data1_lock);
   }
 
   DBUG_RETURN(ret);
@@ -5849,7 +5856,6 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
                         rli->group_master_log_name,
                         (ulong) rli->group_master_log_pos));
     mysql_mutex_unlock(&rli->data_lock);
-fprintf(stderr, "rotate_event call flush_relay_log_info");
     flush_relay_log_info(rli);
     
     /*
@@ -7155,7 +7161,6 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
     rgi->inc_event_relay_log_pos();
   else
   {
-fprintf(stderr, "stop_event call flush_relay_log_info");
     rli->inc_group_relay_log_pos(0, rgi, TRUE);
     flush_relay_log_info(rli);
   }

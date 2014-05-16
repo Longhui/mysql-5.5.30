@@ -37,6 +37,9 @@ public:
 
 	static int ntse_close_connection(handlerton *hton, THD* thd);
 	static void ntse_drop_database(handlerton *hton, char* path);
+#ifdef EXTENDED_FOR_COMMIT_ORDERED
+	static void ntse_commit_ordered(handlerton *hton, THD* thd, bool all);
+#endif
 	static int ntse_commit_trx(handlerton *hton, THD* thd, bool all);
 	static int ntse_rollback_trx(handlerton *hton, THD *thd, bool all);
 	static int ntse_xa_prepare(handlerton *hton, THD* thd, bool all);

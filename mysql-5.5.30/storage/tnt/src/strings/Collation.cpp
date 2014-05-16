@@ -25,6 +25,8 @@ int Collation::strcoll(CollType coll, const byte *str1, size_t len1, const byte 
 			return my_strnncollsp_latin1(str1, len1, str2, len2);
 		case COLL_UTF8:
 			return my_strnncollsp_utf8(str1, len1, str2, len2);
+		case COLL_UTF8MB4:
+			return my_strnncollsp_utf8mb4(str1, len1, str2, len2);
 		default:
 			assert(false);
 	}
@@ -51,6 +53,9 @@ size_t Collation::charpos(CollType coll, const char *pos, const char *end, size_
 				break;
 			case COLL_UTF8:
 				pos += (mb_len = ismbchar_utf8(pos, end))? mb_len: 1;
+				break;
+			case COLL_UTF8MB4:
+				pos += (mb_len = ismbchar_utf8mb4(pos, end))? mb_len: 1;
 				break;
 			default:
 				assert(false);
@@ -82,6 +87,10 @@ void Collation::getMinMaxLen(CollType coll, size_t *mbMinLen, size_t *mbMaxLen) 
 		case COLL_UTF8:
 			*mbMinLen = 1;
 			*mbMaxLen = 3;
+			break;
+		case COLL_UTF8MB4:
+			*mbMinLen = 1;
+			*mbMaxLen = 4;
 			break;
 		case COLL_LATIN1:
 			*mbMinLen = 1;

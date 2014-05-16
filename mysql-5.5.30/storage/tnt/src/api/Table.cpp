@@ -1046,7 +1046,7 @@ void Table::resetOnlineAddingIndice(Session *session) {
 TblScan* Table::tableScan(Session *session, OpType opType, u16 numReadCols, u16 *readCols, bool tblLock, MemoryContext *lobCtx) throw(NtseException) {
 	ftrace(ts.dml, tout << session << opType << u16a(numReadCols, readCols));
 	assert(numReadCols && readCols);
-	assert(session->getTrans() != NULL || (tblLock || checkLock(session, opType)));
+	//assert(session->getTrans() != NULL || (tblLock || checkLock(session, opType)));
 
 	PROFILE(PI_Table_tableScan);
 

@@ -4644,7 +4644,6 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
 bool flush_relay_log_info(Relay_log_info* rli)
 {
   DBUG_ENTER("flush_relay_log_info");
-//fprintf(stderr, "flush_relay_log_info:%s %lld\n", rli->group_relay_log_name, rli->group_relay_log_pos);
   bool error=rli->flush_info();
   DBUG_RETURN(error);
 }
@@ -5186,7 +5185,7 @@ end:
 
    @return TRUE if master has the bug, FALSE if it does not.
 */
-bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
+bool rpl_master_has_bug(Relay_log_info *rli, uint bug_id, bool report,
                         bool (*pred)(const void *), const void *param)
 {
   struct st_version_range_for_one_bug {
@@ -5202,10 +5201,20 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
     {33029, { 5, 1,  0 }, { 5, 1, 12 } },
     {37426, { 5, 1,  0 }, { 5, 1, 26 } },
   };
+  /*
+   @raolh
+   we lock data1_lock here for SQL thread may change description_event_for_exec in 
+   Format_description_log_event::do_apply_event.
+  */
+  mysql_rwlock_rdlock(&rli->data1_lock);
+  Format_description_log_event *description_event= rli->relay_log.description_event_for_exec;
+  mysql_rwlock_unlock(&rli->data1_lock);
+
   const uchar *master_ver=
     rli->relay_log.description_event_for_exec->server_version_split;
+  description_event->server_version_split;
 
-  DBUG_ASSERT(sizeof(rli->relay_log.description_event_for_exec->server_version_split) == 3);
+  DBUG_ASSERT(sizeof(description_event->server_version_split) == 3);
 
   for (uint i= 0;
        i < sizeof(versions_for_all_bugs)/sizeof(*versions_for_all_bugs);i++)
@@ -5241,7 +5250,7 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
                       " that master be upgraded to a version at least"
                       " equal to '%d.%d.%d'. Then replication can be"
                       " restarted.",
-                      rli->relay_log.description_event_for_exec->server_version,
+                      description_event->server_version,
                       bug_id,
                       fixed_in[0], fixed_in[1], fixed_in[2]);
       return TRUE;

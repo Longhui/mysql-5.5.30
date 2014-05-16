@@ -893,7 +893,7 @@ flush:
 	
 	if (fc_is_enabled())  /* means not WRITE_BACK mode, or it's WRITE_BACK mode, but enable_write is turned off*/
 		fc_block_remove_from_hash(trx_doublewrite);
-	
+
 	/* We know that the writes have been flushed to disk now
 	and in recovery we will find them in the doublewrite buffer
 	blocks. Next do the writes to the intended positions. */

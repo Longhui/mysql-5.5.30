@@ -2143,8 +2143,7 @@ buf_LRU_block_remove_hashed_page(
              only allow uncompressed page to flash cache 
             */
             buf_pool_mutex_exit(buf_pool);
-			srv_flash_cache_lru_move_batch ? 
-				fc_LRU_move_batch(bpage): fc_LRU_move(bpage);
+			fc_LRU_move(bpage);
 			buf_pool_mutex_enter(buf_pool);
 		}
 		
@@ -2165,8 +2164,7 @@ buf_LRU_block_remove_hashed_page(
             			 move zip page  to flash cache when buf pool also free the compressed page
             			 */
             	buf_pool_mutex_exit(buf_pool);
-				srv_flash_cache_lru_move_batch ? 
-					fc_LRU_move_batch(bpage): fc_LRU_move(bpage);
+				fc_LRU_move(bpage);
 				buf_pool_mutex_enter(buf_pool);
 			}
 			

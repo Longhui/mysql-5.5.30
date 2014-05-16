@@ -3,6 +3,7 @@
 Flash Cache log recovery
 
 Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
+Modified by Thomas Wen (wenzhenghu.zju@gmail.com)
 *******************************************************/
 
 #include "fc0recv.h"
@@ -17,6 +18,9 @@ Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
 
 
 ib_uint64_t* lsns_in_fc;
+/* continue report corrupted count, should inited before use */
+ulint conti_corr_count = 0;
+
 
 /*********************************************************************//**
 Read L2 Cache blocks(8MB at most) to hash table when recovery.*/
@@ -39,15 +43,12 @@ fc_recv_read_block_to_hash_table(
 	ulint block_offset;
 	ulint byte_offset;
 	ulint zip_size = 0; /* for InnoDB compress */
-	ulint compress_size = 0; /* for L2 cache compress */
+	ulint raw_compress_size = 0; /* for L2 cache compress */
 	ulint data_size; /* the data store size */
 	ulint blk_size = fc_get_block_size();
 	fc_block_t* found_block;
 	fc_block_t* wf_block;
 	ibool need_remove;
-	
-	/* continue report corrupted count, should inited before use */
-	ulint conti_corr_count = 0;
 	
 	/* read n_read fc blocks */
 	fc_io_offset(f_offset, &block_offset, &byte_offset);
@@ -64,7 +65,7 @@ fc_recv_read_block_to_hash_table(
 	while (j < n_read) {		
 		/* we reserve 2 UNIV_PAGE_SIZE(32kb) in buf, in order to make the page check more easy */
 		if (((f_offset + n_read) < end_offset) /* not the last batch read */
-			&& ((n_read - j) < 2 * PAGE_SIZE_KB / blk_size) && conti_corr_count == 0) {//FIXME:why =0
+			&& ((n_read - j) < 2 * PAGE_SIZE_KB / blk_size)) {//FIXME:why =0
 			return j;
 		}
 		
@@ -73,22 +74,23 @@ fc_recv_read_block_to_hash_table(
 		/* handle the l2 cache compress page */
 		if (mach_read_from_4(page + FC_ZIP_PAGE_HEADER) == FC_ZIP_PAGE_CHECKSUM) {
 			ulint page_size = mach_read_from_4(page + FC_ZIP_PAGE_SIZE);
+			raw_compress_size = mach_read_from_4(page + FC_ZIP_PAGE_ZIP_RAW_SIZE);			
 			if (page_size <= (UNIV_PAGE_SIZE - fc_get_block_size_byte())) {	
 				ulint checksum2 = mach_read_from_4(page + page_size - FC_ZIP_PAGE_TAILER);
 				ulint page_size_orign = mach_read_from_4(page + FC_ZIP_PAGE_ORIG_SIZE);
 				if ((checksum2 == FC_ZIP_PAGE_CHECKSUM) && (page_size_orign == UNIV_PAGE_SIZE)) {
 					/* we find a L2 cache compress page */
-          ulint sdc;
+          			ulint sdc;
 					space = mach_read_from_4(page + FC_ZIP_PAGE_SPACE);
 					offset = mach_read_from_4(page + FC_ZIP_PAGE_OFFSET);
 
 					/* quicklz check */
 					if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ) {
 						ulint sc = (ulint)fc_qlz_size_compressed((const char*)(page + FC_ZIP_PAGE_DATA));
-						if (page_size < sc) {
+						if (raw_compress_size != sc) {
 							ut_print_timestamp(stderr);
 							fprintf(stderr, "InnoDB:L2 cache: recv compress page size:%d"
-								" orig size:%d is wrong.\n\n\n", (int)sc, (int)page_size);
+								" orig size:%d is wrong.\n\n\n", (int)sc, (int)raw_compress_size);
 							ut_error;
 						}
 
@@ -100,14 +102,18 @@ fc_recv_read_block_to_hash_table(
 							ut_error;
 						}
 					}
-				
-					compress_size = page_size / fc_get_block_size_byte();
-					ut_a((j + compress_size) <= n_read);
+
+					ut_a((page_size / fc_get_block_size_byte()) 
+							== fc_block_compress_align(raw_compress_size));
+
+					ut_a((j +  fc_block_compress_align(raw_compress_size)) <= n_read);
 
 					zip_size = fil_space_get_zip_size(space);
 					if (zip_size != ULINT_UNDEFINED) {
 						ut_a(zip_size == 0);
-						fc_block_do_decompress(DECOMPRESS_RECOVERY, page, fc->recv_dezip_buf);
+						ut_a(UNIV_PAGE_SIZE == 
+							fc_block_do_decompress(DECOMPRESS_RECOVERY, page, raw_compress_size, fc->recv_dezip_buf));
+						
 						if (buf_page_is_corrupted(fc->recv_dezip_buf, zip_size)) {
 							ut_print_timestamp(stderr);
 							fprintf(stderr, "InnoDB:L2 cache: recv find a l2 compress"
@@ -120,9 +126,9 @@ fc_recv_read_block_to_hash_table(
 						ut_print_timestamp(stderr);
 						fprintf(stderr, "InnoDB:L2 cache: recv find a l2 compress"
 							" droped page.space%d, offset%d.skip\n", (int)space, (int)offset);
-						j += compress_size;
+						j += fc_block_compress_align(raw_compress_size);
 						conti_corr_count = 0;
-						compress_size = 0;
+						raw_compress_size = 0;
 						zip_size = 0;
 						continue;
 					}
@@ -140,7 +146,7 @@ fc_recv_read_block_to_hash_table(
 
 		if ((zip_size != ULINT_UNDEFINED) && (FALSE == buf_page_is_corrupted(page, zip_size))) {
 			lsns_in_fc[f_offset + j] = mach_read_from_8(page + FIL_PAGE_LSN);
-			compress_size = 0;
+			raw_compress_size = 0;
 			goto do_next;
 		} else {
 			/* recv find a page belong to droped table or it is invalid block.*/
@@ -153,7 +159,7 @@ fc_recv_read_block_to_hash_table(
 			 * to make sure if we have encounter a corrupted page
 			 */
 			int page_len = -1;
-      ulint block_len;
+      		ulint block_len;
 
 			if ((j + PAGE_SIZE_KB / blk_size) > n_read) {
 				/*
@@ -177,7 +183,7 @@ fc_recv_read_block_to_hash_table(
 				ut_a(block_len >= blk_size);
 				j += block_len / blk_size;
 				conti_corr_count = 0;
-				compress_size = 0;
+				raw_compress_size = 0;
 				zip_size = 0;
 				continue;
 			}
@@ -208,7 +214,7 @@ fc_recv_read_block_to_hash_table(
 			}
 			
 			j++;
-			compress_size = 0;
+			raw_compress_size = 0;
 			zip_size = 0;
 			continue;
 		}
@@ -220,7 +226,7 @@ do_next:
 		 */
 
 		/* if the block is compressed by L2 Cache, it must not compressed by InnoDB */
-		if (compress_size > 0) {
+		if (raw_compress_size > 0) {
 			ut_a(zip_size == 0);
 		}
 
@@ -245,20 +251,19 @@ do_next:
 			}
 
 			fc_block_delete_from_hash(found_block);		
-			fc_block_detach(FALSE, found_block);
+			fc_block_free(found_block);
 			/* for different versions of same page, just count it once */
 			--*n_pages_recovery;	
 		}
 		
 		if(!found_block || need_remove) {
-			wf_block =  &fc->block[f_offset + j];
+			wf_block = fc_block_init(f_offset + j);
+			ut_a(wf_block == fc_get_block(f_offset + j));
 
-			ut_a(wf_block->state == BLOCK_NOT_USED);
 			
 			/* init the block, and insert it to hash table */		
 			wf_block->size = fc_calc_block_size(zip_size) / blk_size;
-			wf_block->zip_size = compress_size;
-			fc_block_attach(FALSE, wf_block);
+			wf_block->raw_zip_size = raw_compress_size;
 
 			wf_block->state = state;		
 			wf_block->space = space;
@@ -282,15 +287,15 @@ do_next:
 			 * there is already have a block with same space and offset in hash table
 			 * that block have newer lsn, so remain current block fil_offset not used
 			 */
-			if (compress_size == 0) { 
+			if (raw_compress_size == 0) { 
 				data_size = fc_calc_block_size(zip_size) / blk_size;
 			} else {
-				data_size = compress_size;
+				data_size = fc_block_compress_align(raw_compress_size);
 			}
 		}
 		
 		j += data_size;
-		compress_size = 0;
+		raw_compress_size = 0;
 		zip_size = 0;
 		conti_corr_count = 0;
 	}
@@ -461,10 +466,11 @@ fc_recv(void)
 	fc_block_t* fc_block;
 	ulint		n_removed_pages_for_wrong_version;
 	fc_block_t** sorted_fc_blocks;
-  ulint invalid_blocks;
+  	ulint invalid_blocks;
 	
 	/* after scanning flash cache file in, the number of page in flash cache hash table */
 	ulint		n_newest_version_in_fcl;
+	
 	if (fc_log->blk_find_skip == 0) {
 		fc_log->blk_find_skip = FC_FIND_BLOCK_SKIP_COUNT + FC_BLOCK_MM_NO_COMMIT;
 	}
@@ -473,6 +479,14 @@ fc_recv(void)
 	
 	ut_a(fc_log->first_use == FALSE);
 	ut_a(fc_log->been_shutdown == FALSE);
+
+	if (fc_log->log_verison != FLASH_CACHE_VERSION_INFO_V5) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr, " InnoDB: L2 Cache: current version is %lu, \n"
+			"  but the Cache need recovery is %lu. please use the same version to do recovery. \n", 
+			FLASH_CACHE_VERSION_INFO_V5, fc_log->log_verison);
+		ut_error;
+	}
 
 #ifdef UNIV_FLASH_CACHE_TRACE
 	ut_print_timestamp(stderr);
@@ -542,7 +556,7 @@ fc_recv(void)
 				  * it only happen when lru move write some clean page to cache, but not commit the log
 				  * after that no doublewrite into cache, so write_off will not be committed, but flush_off
 				  * will committed by each flush, and zero the dirty page. so at this time flush_off in log is
-				  * equal to write_off in memory, but newer than write_off in log. so will should handle it
+				  * equal to write_off in memory, but newer than write_off in log. so we should handle it
 				  */
 				ut_a(write_offset + FC_BLOCK_MM_NO_COMMIT >= flush_offset);
 				fc->write_off = write_offset = flush_offset;
@@ -626,12 +640,17 @@ fc_recv(void)
 
 	n_newest_version_in_fcl = 0;
 
-	/* compare all used blocks in ssd with disk datas */
-	for(i = 0; i < block_num; ++i) {
-		if ((fc->block[i].state == BLOCK_NOT_USED)
-			|| (fc->block[i].state == BLOCK_BEEN_ATTACHED))
-		continue;
-		sorted_fc_blocks[n_newest_version_in_fcl++] = fc->block + i;
+	/* compare all used blocks in ssd with disk data */
+	i = 0;
+	while (i < block_num) {
+		fc_block = fc_get_block(i);
+		if (fc_block == NULL) {
+			i++;
+			continue;
+		}
+		
+		sorted_fc_blocks[n_newest_version_in_fcl++] = fc_block;
+		i += fc_block_get_data_size(fc_block);
 	}
 	
     if (n_newest_version_in_fcl > 0) {
@@ -674,7 +693,6 @@ fc_recv(void)
 			} 
 			
 			fc_block_delete_from_hash(fc_block);
-			fc_block_detach(FALSE, fc_block);
 			++n_removed_pages_for_wrong_version;
 			
 #ifdef UNIV_FLASH_CACHE_TRACE_RECV

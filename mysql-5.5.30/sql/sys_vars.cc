@@ -3011,7 +3011,7 @@ static bool fix_log(char** logname, const char* default_logname,
 static Sys_var_charptr Sys_user_list_string(
   "user_list_string", "users can't be deleted or dropped",
   PREALLOCATED READ_ONLY GLOBAL_VAR(user_list_string), CMD_LINE(REQUIRED_ARG),
-  IN_FS_CHARSET, DEFAULT("rdsadmin@localhost"), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+  IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 static void reopen_general_log(char* name)
 {
@@ -3641,6 +3641,8 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 #ifndef EMBEDDED_LIBRARY
       delete thd->rli_fake;
       thd->rli_fake= NULL;
+      delete thd->rgi_fake;
+      thd->rgi_fake = NULL;
 #endif
     }
     else if (previous_val && val)
@@ -3679,6 +3681,30 @@ static Sys_var_mybool Sys_pseudo_slave_mode(
        "Format_description_event is sent through the session.",
        SESSION_ONLY(pseudo_slave_mode), NO_CMD_LINE, DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_pseudo_slave_mode));
+
+static Sys_var_charptr Sys_ha_partner_host(
+       "ha_partner_host",
+       "vsr ha suite partner's host ",
+       READ_ONLY GLOBAL_VAR(ha_partner_host),
+       CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(0));
+
+static Sys_var_uint Sys_ha_partner_port(
+       "ha_partner_port", 
+       "vsr ha suite partner's port ",
+       GLOBAL_VAR(ha_partner_port), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_charptr Sys_ha_partner_user(
+       "ha_partner_user",
+       "vsr ha suite partner's user ",
+       READ_ONLY GLOBAL_VAR(ha_partner_user),
+       CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(0));
+
+static Sys_var_charptr Sys_ha_partner_password(
+       "ha_partner_password",
+       "vsr ha suite partner's password ",
+       READ_ONLY GLOBAL_VAR(ha_partner_password),
+       CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(0));
 
 #ifdef WITH_TOKUDB_STORAGE_ENGINE
 static bool update_backup_throttle(sys_var *self, THD *thd, enum_var_type type)

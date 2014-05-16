@@ -936,6 +936,9 @@ void TableOnlineMaintain::processLogToTable(Session *session, LogReplay *replay,
 
 	u64 sp = session->getMemoryContext()->setSavepoint();
 
+	// 用于读取大对象
+	MemoryContext lobCtx(Limits::PAGE_SIZE, 1);
+
 	Record rec; // 从log中构造的记录，不拷贝数据，为REC_VARLEN或者REC_FIXLEN格式
 	rec.m_format = origTbdef->m_recFormat;
 
@@ -1095,6 +1098,7 @@ void TableOnlineMaintain::processLogToTable(Session *session, LogReplay *replay,
 					if (rid != INVALID_ROW_ID) {
 						// 解析update日志
 						u64 sp = session->getMemoryContext()->setSavepoint();
+						u64 lobSp = lobCtx.setSavepoint();
 
 						PreUpdateLog *puLog = NULL;
 						for(LogCopy *logCopy = txnList->m_first; logCopy != NULL; logCopy = logCopy->m_next) {
@@ -1104,18 +1108,48 @@ void TableOnlineMaintain::processLogToTable(Session *session, LogReplay *replay,
 							}
 						}
 
-						// 只处理非大对象
 						mysqlRec.m_data = puLog->m_subRec->m_data;
 
-						for (u16 i = 0; i < puLog->m_numLobs; ++i) {
-							u16 col = puLog->m_lobCnos[i];
-							ColumnDef *colDef = origTbdef->m_columns[col];
-							assert(colDef->isLob());
-							uint lobSize = puLog->m_lobSizes[i];
-							byte *lobdata = puLog->m_lobs[i];
-							RecordOper::writeLobSize(mysqlRec.m_data, colDef, lobSize);
-							RecordOper::writeLob(mysqlRec.m_data, colDef, lobdata);
+
+						// 处理大对象内容
+						if (puLog->m_numLobs == 0) {
+							// TNT的purge在构建预更新日志时不会记录大对象内容
+							for (u16 i = 0; i < puLog->m_subRec->m_numCols; i++) {
+								u16 col = puLog->m_subRec->m_columns[i];
+								ColumnDef *colDef = origTbdef->m_columns[col];
+								if (!colDef->isLob())
+									continue;
+								byte *lob = NULL;
+								uint lobSize = 0;
+								bool isNull = RecordOper::isNullR(m_table->getTableDef(), &mysqlRec, col);
+								if(!isNull) {
+									LobId lid = RecordOper::readLobId(mysqlRec.m_data, colDef);
+									lob = m_table->getLobStorage()->get(session, &lobCtx, lid, &lobSize, false);
+								}
+								// 如果原列是Null或者读取不到大对象，则把该列置为Null，去更新临时表
+								if (isNull || (lob == NULL && lobSize == 0)) {
+									RecordOper::setNullR(destTbdef, &mysqlRec, col, true);
+									RecordOper::writeLobSize(mysqlRec.m_data, colDef, 0);
+									RecordOper::writeLob(mysqlRec.m_data, colDef, NULL);
+								} else {
+									RecordOper::writeLobSize(mysqlRec.m_data, colDef, lobSize);
+									RecordOper::writeLob(mysqlRec.m_data, colDef, lob);
+								}
+
+							}
+						} else {
+							// 为兼容ntse单元测试
+							for (u16 i = 0; i < puLog->m_numLobs; ++i) {
+								u16 col = puLog->m_lobCnos[i];
+								ColumnDef *colDef = origTbdef->m_columns[col];
+								assert(colDef->isLob());
+								uint lobSize = puLog->m_lobSizes[i];
+								byte *lobdata = puLog->m_lobs[i];
+								RecordOper::writeLobSize(mysqlRec.m_data, colDef, lobSize);
+								RecordOper::writeLob(mysqlRec.m_data, colDef, lobdata);
+							}
 						}
+						
 
 						// 转换记录
 						u16 outNumCols;
@@ -1141,12 +1175,14 @@ void TableOnlineMaintain::processLogToTable(Session *session, LogReplay *replay,
 						NTSE_ASSERT(destTb->updateCurrent(posScan, converted, true, &dupIndex)); // 不抛异常，记录超长问题在转换时已解决。
 
 						destTb->endScan(posScan);
+						lobCtx.resetToSavepoint(lobSp);
 						session->getMemoryContext()->resetToSavepoint(sp);
 					} // else of if (rid == INVALID_ROW_ID) {
 				}
 				break;
-                            default:
-                                assert(false);
+				
+			default:
+				assert(false);
 		} // switch (txnlist->m_type) {
 
 	}
@@ -1872,6 +1908,7 @@ bool TblMntAlterColumn::alterTable(Session *session) throw(NtseException) {
 
 	SYNCHERE(SP_TBL_ALTCOL_AFTER_GET_LSNSTART);
 
+
 	//表拷贝
 	string basePath = string(m_db->getConfig()->m_basedir);
 	string origTablePath = string(m_table->getPath());
@@ -2173,9 +2210,13 @@ void TblMntAlterColumn::copyTable(Session *session, Table *tmpTb, NtseRidMapping
 void TblMntAlterColumn::copyRowsByScan(Session *session, Table *tmpTb, 
 									   NtseRidMapping *ridmap) throw(NtseException) {
 	MemoryContext *mtx = session->getMemoryContext();
-
+	
 	bool connAccuScan = session->getConnection()->getLocalConfig()->m_accurateTblScan;
 	session->getConnection()->getLocalConfig()->m_accurateTblScan = true;
+
+	// 暂时将session中的事务置为NULL，读原表记录时需要读取大对象
+	TNTTransaction *trx = session->getTrans();
+	session->setTrans(NULL);
 
 	//记录旧TableDef的列
 	u16 *columns = (u16 *)mtx->alloc(sizeof(u16) * m_table->getTableDef(true, session)->m_numCols);
@@ -2215,6 +2256,8 @@ void TblMntAlterColumn::copyRowsByScan(Session *session, Table *tmpTb,
 
 	m_db->getSessionManager()->freeSession(tmpSess);
 	tmpSess = NULL;
+
+	session->setTrans(trx);
 
 	if (isCancel()) {
 		NTSE_THROW(NTSE_EC_CANCELED, "Table maintain operation on table %s is canceled", m_table->getPath());

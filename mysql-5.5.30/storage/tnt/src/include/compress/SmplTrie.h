@@ -38,13 +38,11 @@ namespace ntse {
 			byte *m_data; //页面数据起始地址
 		};
 
-		#pragma pack(1)
 		struct ObjSlot {
 			T           m_obj;        //对象
 			LogicalAddr m_address;    //逻辑地址
 			u8          m_isFree : 1; //是否可用
 		} ;
-		#pragma pack()
 
 	public:
 		/**

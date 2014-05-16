@@ -1462,6 +1462,8 @@ CollType ntse_handler::getCollation(CHARSET_INFO *charset) throw(NtseException) 
 		return COLL_GBK;
 	else if (charset == &my_charset_utf8_general_ci)
 		return COLL_UTF8;
+	else if (charset == &my_charset_utf8mb4_general_ci)
+		return COLL_UTF8MB4;
 	else if (charset == &my_charset_latin1)
 		return COLL_LATIN1;
 	else
@@ -1954,7 +1956,11 @@ int ntse_handler::ntse_close_connection(handlerton *hton, THD* thd) {
 void ntse_handler::ntse_drop_database(handlerton *hton, char* path) {
 	return;
 }
-
+#ifdef EXTENDED_FOR_COMMIT_ORDERED
+void ntse_handler::ntse_commit_ordered(handlerton *hton, THD *thd, bool all) {
+	return;
+}
+#endif
 int ntse_handler::ntse_commit_trx(handlerton *hton, THD* thd, bool all) {
 	return 0;
 }

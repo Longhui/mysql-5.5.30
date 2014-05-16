@@ -221,7 +221,7 @@ SET(INNOBASE_SOURCES	btr/btr0btr.c btr/btr0cur.c btr/btr0pcur.c btr/btr0sea.c
 			dyn/dyn0dyn.c
 			eval/eval0eval.c eval/eval0proc.c
 			fc/fc0fc.c fc/fc0log.c fc/fc0recv.c fc/fc0fill.c fc/fc0flu.c 
-			fc/fc0warmup.c fc/fc0backup.c fc/fc0quicklz.c
+			fc/fc0warmup.c fc/fc0backup.c fc/fc0quicklz.c fc/fc0snappy.c
 			fil/fil0fil.c
 			fsp/fsp0fsp.c
 			fut/fut0fut.c fut/fut0lst.c

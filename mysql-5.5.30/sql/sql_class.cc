@@ -3386,16 +3386,22 @@ void thd_increment_bytes_sent(ulong length)
   }
 }
 
-
 void thd_increment_bytes_received(ulong length)
 {
-  current_thd->status_var.bytes_received+= length;
+  THD *thd=current_thd;
+  if (likely(thd != 0))
+  {
+    thd->status_var.bytes_received+= length;
+  }
 }
-
 
 void thd_increment_net_big_packet_count(ulong length)
 {
-  current_thd->status_var.net_big_packet_count+= length;
+  THD *thd=current_thd;
+  if (likely(thd != 0))
+  {
+    thd->status_var.net_big_packet_count+= length;
+  }
 }
 
 
@@ -5520,9 +5526,6 @@ void THD::update_relay_table()
 {
   if (rgi_slave)
   {
-//fprintf(stderr, "update_relay_table %s: %lld \n", rgi_slave->event_relay_log_name,
-//    rgi_slave->future_event_relay_log_pos);
-
     Relay_log_info *rli= rgi_slave->rli; 
     rli->handler->set_sync_period(sync_relayloginfo_period);
     mysql_mutex_lock(&rli->table_lock); 

@@ -12284,17 +12284,12 @@ static MYSQL_SYSVAR_STR(flash_cache_file, srv_flash_cache_file,
   PLUGIN_VAR_READONLY,
   "Flash cache file location.",
   NULL, NULL, NULL);
-/*
+
 static MYSQL_SYSVAR_STR(flash_cache_warmup_table, srv_flash_cache_warmup_table,
   PLUGIN_VAR_READONLY,
   "Flash cache warm up from table.",
   NULL, NULL, NULL);
 
-static MYSQL_SYSVAR_STR(flash_cache_warmup_file, srv_flash_cache_warmup_file,
-  PLUGIN_VAR_READONLY,
-  "Flash cache warm up from file.",
-  NULL, NULL, NULL);
-*/
 static MYSQL_SYSVAR_LONGLONG(flash_cache_size, innobase_flash_cache_size,
   PLUGIN_VAR_READONLY,
   "The size of the SSD buffer InnoDB uses to cache data and indexes of its tables.",
@@ -12355,7 +12350,7 @@ static MYSQL_SYSVAR_ULONG(flash_cache_move_limit, srv_flash_cache_move_limit,
 static MYSQL_SYSVAR_ULONG(flash_cache_io_capacity, srv_fc_io_capacity,
   PLUGIN_VAR_RQCMDARG,
   "Number of IOPs the flash cache can do. Tunes the background IO rate",
-  NULL, innodb_flash_cache_io_capacity_update, 10000, 100, 16000000, 0);
+  NULL, innodb_flash_cache_io_capacity_update, 10000L, 100L, 16000000L, 0);
 
 static MYSQL_SYSVAR_BOOL(flash_cache_enable_write, srv_flash_cache_enable_write,
   PLUGIN_VAR_RQCMDARG,
@@ -12372,15 +12367,15 @@ static MYSQL_SYSVAR_STR(flash_cache_backup_dir, srv_flash_cache_backup_dir,
   "which directory to store ib_fc_file",
   NULL, NULL, NULL);
 
-static MYSQL_SYSVAR_BOOL(flash_cache_lru_move_batch, srv_flash_cache_lru_move_batch,
-  PLUGIN_VAR_READONLY,
-  "use fc_LRU_move_batch if TRUE, otherwise use fc_LRU_move",
-  NULL, NULL, FALSE);
-
 static MYSQL_SYSVAR_BOOL(flash_cache_enable_compress, srv_flash_cache_enable_compress,
   PLUGIN_VAR_READONLY,
   "use L2 Cache compress method to compress the page data when it written to SSD",
   NULL, NULL, TRUE);
+
+static MYSQL_SYSVAR_ULONG(flash_cache_compress_algorithm, srv_flash_cache_compress_algorithm,
+  PLUGIN_VAR_READONLY,
+  "choose a compress algorithm to compress the L2 Cache data, must be quicklz or snappy",
+  NULL, NULL, 2L, 1L, 5L, 0);
 
 static MYSQL_SYSVAR_BOOL(flash_cache_decompress_use_malloc, srv_flash_cache_decompress_use_malloc,
   PLUGIN_VAR_READONLY,
@@ -12405,14 +12400,13 @@ static MYSQL_SYSVAR_BOOL(flash_cache_safest_recovery, srv_flash_cache_safest_rec
 static MYSQL_SYSVAR_ULONG(file_flush_sleep_time, srv_file_flush_sleep_time,
 PLUGIN_VAR_RQCMDARG,
 "Time(ms) current fil_flush should wait for last fil_flush to finish",
-NULL, NULL, 20, 1, 40, 0);
+NULL, NULL, 20L, 1L, 40L, 0);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(flash_cache_fast_shutdown),
   MYSQL_SYSVAR(flash_cache_io_capacity),
   MYSQL_SYSVAR(flash_cache_write_mode),
   MYSQL_SYSVAR(flash_cache_enable_write),
-  MYSQL_SYSVAR(flash_cache_lru_move_batch),
   MYSQL_SYSVAR(flash_cache_backuping),
   MYSQL_SYSVAR(flash_cache_backup_dir),
   MYSQL_SYSVAR(flash_cache_is_raw),
@@ -12422,16 +12416,14 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(flash_cache_enable_dump),
 */
   MYSQL_SYSVAR(flash_cache_enable_compress),
+  MYSQL_SYSVAR(flash_cache_compress_algorithm),
   MYSQL_SYSVAR(flash_cache_write_cache_pct),
   MYSQL_SYSVAR(flash_cache_do_full_io_pct),
   MYSQL_SYSVAR(flash_cache_full_flush_pct),
   MYSQL_SYSVAR(flash_cache_small_flush_pct),
   MYSQL_SYSVAR(flash_cache_move_limit),
   MYSQL_SYSVAR(flash_cache_file),
-  /*
   MYSQL_SYSVAR(flash_cache_warmup_table),
-  MYSQL_SYSVAR(flash_cache_warmup_file),
-  */
   MYSQL_SYSVAR(flash_cache_size),
   MYSQL_SYSVAR(flash_cache_block_size),
   MYSQL_SYSVAR(flash_cache_safest_recovery),

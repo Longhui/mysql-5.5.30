@@ -185,7 +185,7 @@ bool show_master_info(THD* thd, Master_info* mi);
 bool show_slave_sql_thread(THD* thd);
 bool mysql_show_binlog_events(THD *thd, Master_info* mi);
 bool show_binlog_info(THD* thd);
-bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
+bool rpl_master_has_bug(Relay_log_info *rli, uint bug_id, bool report,
                         bool (*pred)(const void *), const void *param);
 bool rpl_master_erroneous_autoinc(THD* thd);
 

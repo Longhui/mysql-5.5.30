@@ -160,6 +160,13 @@ my_bool thr_alarm(thr_alarm_t *alrm, uint sec, ALARM *alarm_data)
   DBUG_ENTER("thr_alarm");
   DBUG_PRINT("enter",("thread: %s  sec: %d",my_thread_name(),sec));
 
+#ifdef SAFE_MUTEX
+  if (!LOCK_alarm.m_mutex.file)
+  {
+    DBUG_RETURN(1);
+  } 
+#endif
+
   now= my_time(0);
 #ifndef USE_ONE_SIGNAL_HAND
   pthread_sigmask(SIG_BLOCK,&full_signal_set,&old_mask);
@@ -250,6 +257,12 @@ void thr_end_alarm(thr_alarm_t *alarmed)
   uint i, found=0;
   DBUG_ENTER("thr_end_alarm");
 
+#ifdef SAFE_MUTEX
+  if (!LOCK_alarm.m_mutex.file)
+  {
+    DBUG_VOID_RETURN;;
+  } 
+#endif
 #ifndef USE_ONE_SIGNAL_HAND
   pthread_sigmask(SIG_BLOCK,&full_signal_set,&old_mask);
 #endif

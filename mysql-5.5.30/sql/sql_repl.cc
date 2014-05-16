@@ -885,6 +885,12 @@ impossible position";
             thd->enter_cond(log_cond, log_lock,
                             "Master has sent all binlog to slave; "
                             "waiting for binlog to be updated");
+			// repeat check the thd->killed
+			if (thd->killed) {
+				thd->exit_cond(old_msg);
+				goto end;
+			}
+
             ret= mysql_bin_log.wait_for_update_bin_log(thd, heartbeat_ts);
             DBUG_ASSERT(ret == 0 || (heartbeat_period != 0));
             if (ret == ETIMEDOUT || ret == ETIME)

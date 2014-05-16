@@ -2728,6 +2728,8 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -2901,6 +2903,8 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -3073,6 +3077,8 @@ BEGIN
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -3247,6 +3253,8 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -3420,6 +3428,8 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -3512,6 +3522,8 @@ BEGIN
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -3606,6 +3618,8 @@ BEGIN
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
 # at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
+# at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
 BEGIN
@@ -3698,6 +3712,8 @@ BEGIN
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Xid = #
 COMMIT/*!*/;
+# at #
+#010909  4:46:40 server id 1  end_log_pos # 	gcid=0 
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;

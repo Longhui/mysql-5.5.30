@@ -76,7 +76,6 @@ fc_flush_to_disk(
 	ulint start_offset;
    	ulint data_size;
 	fc_block_t *flush_block = NULL;
-	ulint n_flush = 0;
 	ulint c_flush = 0;
     
 	ut_ad(!mutex_own(&fc->mutex));
@@ -93,11 +92,11 @@ fc_flush_to_disk(
 		return 0;
 	} else if ( recv_recovery_on ) {
 		if ( distance < (( 1.0 * srv_flash_cache_write_cache_pct /100 ) * fc_size)) {
-			n_flush = 0;
+			fc->n_flush_cur = 0;
 		} else if ( distance < ( ( 1.0*srv_flash_cache_do_full_io_pct /100 ) * fc_size)) {
-			n_flush = ut_min(PCT_IO_FC(10), distance);
+			fc->n_flush_cur = ut_min(PCT_IO_FC(10), distance);
 		} else {
-			n_flush = ut_min(PCT_IO_FC(100), distance);
+			fc->n_flush_cur = ut_min(PCT_IO_FC(100), distance);
 		}
 	} else if ( distance < (( 1.0 * srv_flash_cache_write_cache_pct /100 ) * fc_size)
 		&& !do_full_io ) {
@@ -105,38 +104,42 @@ fc_flush_to_disk(
 		return 0;
 	} else if ( distance < (( 1.0 * srv_flash_cache_do_full_io_pct/100 ) * fc_size)
 		&& !do_full_io ) {
-		n_flush = PCT_IO_FC(srv_fc_write_cache_flush_pct);
+		fc->n_flush_cur = PCT_IO_FC(srv_fc_write_cache_flush_pct);
 	} else {
 		ut_ad((distance > ( 1.0 * srv_flash_cache_do_full_io_pct/100 ) * fc_size) 
 			|| do_full_io );
-		n_flush = ut_min(PCT_IO_FC(srv_fc_full_flush_pct), distance);
+		fc->n_flush_cur = ut_min(PCT_IO_FC(srv_fc_full_flush_pct), distance);
 	}
 
 	flash_cache_mutex_exit();
 
 	/* step 2: start to flush blocks use async io, set block io_fix IO_FIX_FLUSH */
 	i = 0;
-	while (i < n_flush) { 
+	while (i < fc->n_flush_cur) {
+		ulint b_space;
+		ulint b_offset;
+		ulint raw_zip_size;
+		ulint size;
+		ulint fil_offset;
+#ifdef UNIV_FLASH_CACHE_TRACE
+		ulint is_v4_blk;
+#endif
+		byte* page_io;
 
-    ulint b_space;
-    ulint b_offset;
-    ulint blk_zip_size;
-    ulint size;
-    byte *page_io;
-
+		flash_cache_mutex_enter();
 		pos = ( start_offset + i ) % fc_size;
-		flush_block = &(fc->block[pos]);
+		flush_block = fc_get_block(pos);
+
+		if (flush_block == NULL) {
+			i++;
+			flash_cache_mutex_exit();
+			continue;
+		}
 
 		/* we should get the mutex, as doublewrite may hit this block and invalid the block */
-		flash_block_mutex_enter(flush_block->fil_offset);	
+		flash_block_mutex_enter(flush_block->fil_offset);
 
-#ifdef UNIV_FLASH_CACHE_TRACE
-		/* we need not to handle the block is doublewrite io fixed, as it been locked */
-		if (flush_block->state == BLOCK_BEEN_ATTACHED) {
-			fc_block_print(flush_block);
-			ut_error;
-		}
-#endif
+		flash_cache_mutex_exit();
 		
 		data_size = fc_block_get_data_size(flush_block);
 
@@ -147,7 +150,13 @@ fc_flush_to_disk(
 				|| flush_block->state == BLOCK_FLUSHED);
 			
 			i += data_size;
+
 			flash_block_mutex_exit(flush_block->fil_offset);
+			if (flush_block->state == BLOCK_NOT_USED) {
+				//fc_block_detach(FALSE, flush_block);
+				fc_block_free(flush_block);
+			}
+			
 			continue;
 		}
 
@@ -185,9 +194,13 @@ fc_flush_to_disk(
 		/* save the block info, as the block may be invalided by doublewrite after release mutex */
 		b_space = flush_block->space;
 		b_offset = flush_block->offset;
-		blk_zip_size = flush_block->zip_size;
-		size = flush_block->size;
 
+		raw_zip_size = flush_block->raw_zip_size;
+		size = flush_block->size;
+		fil_offset = flush_block->fil_offset;
+#ifdef UNIV_FLASH_CACHE_TRACE
+		is_v4_blk = flush_block->is_v4_blk;
+#endif
 		/* release the block now, so read can hit in this blocks and read the data */
 		flash_block_mutex_exit(flush_block->fil_offset);
 		
@@ -197,14 +210,14 @@ fc_flush_to_disk(
 		 */
 		page = fc->flush_buf->buf + fc->flush_buf->free_pos * fc_blk_size;
 
-		if (blk_zip_size > 0) {
+		if (raw_zip_size > 0) {
 			ut_a((size * fc_blk_size) == UNIV_PAGE_SIZE);
 			page_io = fc->flush_zip_read_buf;
 		} else {
 			page_io = page;
 		}
 
-		fc_io_offset(flush_block->fil_offset, &block_offset, &byte_offset);
+		fc_io_offset(fil_offset, &block_offset, &byte_offset);
 		ret = fil_io(OS_FILE_READ, TRUE, FLASH_CACHE_SPACE, 0,
 				block_offset, byte_offset, data_size * fc_blk_size,
 				page_io, NULL);
@@ -216,10 +229,21 @@ fc_flush_to_disk(
 			ut_error;
 		}		
 
+		if ((flush_block != NULL) && (flush_block->state == BLOCK_NOT_USED)) {
+			goto skip;
+		}
+
 		/* decompress the compress data */
-		if (blk_zip_size > 0) {
+		if (raw_zip_size > 0) {
 #ifdef UNIV_FLASH_CACHE_TRACE
-			ulint blk_zip_size_byte = blk_zip_size * fc_get_block_size_byte();
+			ulint blk_zip_size_byte;
+			if (is_v4_blk) {
+				blk_zip_size_byte = raw_zip_size * fc_get_block_size_byte();
+			} else {
+				blk_zip_size_byte = fc_block_compress_align(raw_zip_size) * fc_get_block_size_byte();
+				ut_a((ulint)mach_read_from_4(page_io + FC_ZIP_PAGE_ZIP_RAW_SIZE) == raw_zip_size);				
+			} 
+
 			ut_a(page_io);
 			ut_a(page);
 			ut_a((ulint)mach_read_from_4(page_io + FC_ZIP_PAGE_HEADER) == FC_ZIP_PAGE_CHECKSUM);
@@ -229,13 +253,21 @@ fc_flush_to_disk(
 			ut_a((ulint)mach_read_from_4(page_io + FC_ZIP_PAGE_ORIG_SIZE) == UNIV_PAGE_SIZE);		
 			ut_a((ulint)mach_read_from_4(page_io + FC_ZIP_PAGE_SPACE) == b_space);
 			ut_a((ulint)mach_read_from_4(page_io + FC_ZIP_PAGE_OFFSET) == b_offset);	
+
 			/* only qlz can do this check  */
 			if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ) {
-				ut_a(blk_zip_size_byte >= (ulint)fc_qlz_size_compressed((const char *)(page_io + FC_ZIP_PAGE_DATA)));
+				if (is_v4_blk) {
+					ut_a(raw_zip_size * fc_get_block_size_byte()
+						>= (ulint)fc_qlz_size_compressed((const char *)(page_io + FC_ZIP_PAGE_DATA)));
+				} else {
+					ut_a(raw_zip_size 
+						== (ulint)fc_qlz_size_compressed((const char *)(page_io + FC_ZIP_PAGE_DATA)));
+				}
+				
 				ut_a(UNIV_PAGE_SIZE == fc_qlz_size_decompressed((const char *)(page_io + FC_ZIP_PAGE_DATA)));
 			}
 #endif
-			fc_block_do_decompress(DECOMPRESS_FLUSH, page_io, page);
+			fc_block_do_decompress(DECOMPRESS_FLUSH, page_io, raw_zip_size, page);
 		}
 
 		space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -269,12 +301,13 @@ fc_flush_to_disk(
 		/* add  UNIV_PAGE_SIZE / fc_blk_size for safe */
 		fc->flush_buf->free_pos += UNIV_PAGE_SIZE / fc_blk_size;	
 
+skip:
 		i += data_size;
 		c_flush += data_size;	
 
 		if ((fc->flush_buf->free_pos + UNIV_PAGE_SIZE / fc_blk_size) >= fc->flush_buf->size) {
 			/* FIXME: is it safe to change n_flush, as step 3 will use n_flush */
-			n_flush = i;
+			fc->n_flush_cur = i;
 			break;
 		}	
 	}
@@ -284,21 +317,32 @@ fc_flush_to_disk(
 
 	/* step 3: all the flush blocks have sync to disk,  update the state and io_fix */
 	j = 0;
-	while (j < n_flush) {
+	while (j < fc->n_flush_cur) {
+
+		flash_cache_mutex_enter();
 		pos = (start_offset + j) % fc_size;
-		flush_block = &(fc->block[pos]);
+		flush_block = fc_get_block(pos);
+
+		if (flush_block  == NULL) {
+			j++;
+			flash_cache_mutex_exit();
+			continue;
+		}
 		/* block state and io_fix may be changed by doublewrite and lru move */
 		flash_block_mutex_enter(flush_block->fil_offset);
+		flash_cache_mutex_exit();
 		if (flush_block->io_fix & IO_FIX_FLUSH) {
 			/* the block is already in BLOCK_FLUSHED state */
 			flush_block->io_fix &= ~IO_FIX_FLUSH;
 		} 
 		
-		data_size = fc_block_get_data_size(flush_block);		
-		flash_block_mutex_exit(flush_block->fil_offset);		
+		data_size = fc_block_get_data_size(flush_block);
+		flash_block_mutex_exit(flush_block->fil_offset);	
+		
 		j += data_size;
 	}
 
+	
 	/*
 	 * i and j may be different, as the last been flushed block may be invalid by doublewrite,
 	 * so maybe i > j
@@ -328,6 +372,9 @@ fc_flush_to_disk(
 		
 		srv_fc_flush_should_commit_log_flush++;
 		os_event_set(fc->wait_space_event);	
+
+		fc->n_flush_cur = 0;
+		
 		flash_cache_mutex_exit();		
 	}
 

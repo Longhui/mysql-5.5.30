@@ -3,6 +3,7 @@
 Flash Cache log
 
 Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
+Modified by Thomas Wen (wenzhenghu.zju@gmail.com)
 *******************************************************/
 
 #ifndef fc0log_h
@@ -43,12 +44,13 @@ Created	24/4/2012 David Jiang (jiangchengyao@gmail.com)
 #define FLASH_CACHE_LOG_VERSION				56
 #define FLASH_CACHE_LOG_BEEN_SHUTDOWN		60
 #define FLASH_CACHE_LOG_SKIPED_BLOCKS		64
+#define FLASH_CACHE_LOG_COMPRESS_ALGORITHM	68
 
-
-#define FLASH_CACHE_LOG_CHKSUM2			( FLASH_CACHE_BUFFER_SIZE - 4 )
+#define FLASH_CACHE_LOG_CHKSUM2			(FLASH_CACHE_BUFFER_SIZE - 4)
 
 #define FLASH_CACHE_LOG_CHECKSUM		4294967291UL
-#define FLASH_CACHE_VERSION_INFO	55304UL
+#define FLASH_CACHE_VERSION_INFO_V4	55304UL
+#define FLASH_CACHE_VERSION_INFO_V5	55305UL
 
 
 typedef struct fc_log_stat_struct		 fc_log_stat_t;
@@ -94,6 +96,9 @@ struct fc_log_struct
 	ulint 		blk_find_skip;	/* <! how many blocks have been skip for aio read when write page to cache a time, for recovery */   
 	ulint		log_verison;	/* <! log verison, start from innosql-5.5.30-v4,
 									before this the version is zero */
+
+	/* <! compress algorithm, start from innosql-5.5.30-v5, before this the value is zero */								
+	ulint		compress_algorithm;
 
 	/*<!if L2 Cache shutdown correctly, this value is  TRUE, else is FALSE,
 	 	set it TRUE when shutdown*/
