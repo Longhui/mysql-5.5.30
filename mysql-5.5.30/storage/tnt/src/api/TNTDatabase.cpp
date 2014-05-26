@@ -2633,9 +2633,6 @@ void TNTDatabase::purgeTNTTable(Session *session, TNTTable *table, PurgeTarget p
 						
 	if (purgeTarget >= PT_PURGEPHASE2) {
 		table->writePurgePhase2(session, trx->getTrxId(), trx->getTrxLastLsn());
-		if (lsn != INVALID_LSN) {
-			m_tntTxnLog->flush(lsn, FS_PURGE);
-		}
 		//删去等待活跃事务的流程，因为现在purge有ntse行锁保护，具体参见#104906->#7
 		/*if (likely(m_dbStat == DB_RUNNING)) {
 			purgeWaitTrx(trx->getTrxId());
@@ -2645,9 +2642,6 @@ void TNTDatabase::purgeTNTTable(Session *session, TNTTable *table, PurgeTarget p
 		lsn = table->writePurgeTableEnd(session, trx->getTrxId(), trx->getTrxLastLsn());
 	}
 
-	if (lsn != INVALID_LSN) {
-		m_tntTxnLog->flush(lsn, FS_PURGE);
-	}
 }
 
 /** TNT回收内存索引页面操作入口

@@ -39,22 +39,25 @@ fc_block_do_compress_warmup(
 		 * we compress the page data to the buf offset  FC_ZIP_PAGE_DATA, so when we do pack,
 		 * the compressed data need not to be moved, and avoid a memcpy operation
 		 */
-		return fc_qlz_compress(page, buf + FC_ZIP_PAGE_DATA, UNIV_PAGE_SIZE, fc->dw_zip_state);
+		return fc_qlz_compress(page, (char*)buf + FC_ZIP_PAGE_DATA, UNIV_PAGE_SIZE, (fc_qlz_state_compress*)fc->dw_zip_state);
 		
 	} else if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_SNAPPY) {
+#ifndef _WIN32
 		/*
 		 * we compress the page data to the buf offset  FC_ZIP_PAGE_DATA, so when we do pack,
 		 * the compressed data need not to be moved, and avoid a memcpy operation
 		 */
 		if (0 != snappy_compress((struct snappy_env*)fc->dw_zip_state, (const char*)page, 
-				UNIV_PAGE_SIZE, buf + FC_ZIP_PAGE_DATA, &cp_size)) {
+				UNIV_PAGE_SIZE, (char*)buf + FC_ZIP_PAGE_DATA, &cp_size)) {
 			ut_print_timestamp(stderr);
 			fprintf(stderr, " InnoDB: [warning]L2 Cache snappy when compress page. \n");
 			return UNIV_PAGE_SIZE;
 		}
 
 		return (ulint)cp_size;
-		
+#else
+		return UNIV_PAGE_SIZE;
+#endif
 	} else if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_ZLIB) {
 		//FIXME:if use zlib, how to compress the page;
 		return UNIV_PAGE_SIZE;
@@ -151,7 +154,7 @@ fc_warmup_tablespace(
 		}
 			
 		for (j = 0; j < 2 * FSP_EXTENT_SIZE; j++) {
-			page = buf + j * zip_size;
+			page = (unsigned char*)buf + j * zip_size;
 			if ((fil_page_get_type(page) != FIL_PAGE_INDEX)
 					&& (fil_page_get_type(page) != FIL_PAGE_INODE)) {
 				continue;

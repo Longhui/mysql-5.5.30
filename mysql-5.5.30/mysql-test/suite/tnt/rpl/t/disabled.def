@@ -11,3 +11,4 @@
 ##############################################################################
 
 rpl_row_create_table : Bug#51574 Feb 27 2010 andrei failed different way than earlier with bug#45576
+rpl_row_until : Relay_Log_Pos not equal the Master_Exec_Log_Pos

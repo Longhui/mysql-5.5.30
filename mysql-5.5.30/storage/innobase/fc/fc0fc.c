@@ -267,8 +267,10 @@ fc_create(void)
 	/* we malloc flush_compress_read_buf only when the enable_compress is work */
 	if (srv_flash_cache_enable_compress == TRUE) {
 		if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_SNAPPY) {
+#ifndef _WIN32
 			fc->dw_zip_state = ut_malloc(sizeof(struct snappy_env));
 			snappy_init_env(fc->dw_zip_state);
+#endif
 		} else if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ){
 #ifdef UNIV_FLASH_CACHE_TRACE
 			ut_print_timestamp(stderr);
@@ -469,8 +471,10 @@ fc_destroy(void)
 
 	if (srv_flash_cache_enable_compress == TRUE) {
 		if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_SNAPPY) {
+#ifndef _WIN32
 			snappy_free_env((struct snappy_env*)fc->dw_zip_state);
 			ut_free(fc->dw_zip_state);
+#endif
 		} else if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ) {
 			ut_free(fc->dw_zip_state);
 			ut_free(fc->flush_dezip_state);
@@ -1377,13 +1381,13 @@ fc_complete_read(
 		if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ) {
 			if (fb->is_v4_blk) {
 				ut_a(fb->raw_zip_size * fc_get_block_size_byte()
-					>= (ulint)fc_qlz_size_compressed((const char *)(read_buf + FC_ZIP_PAGE_DATA)));
+					>= (ulint)fc_qlz_size_compressed(((const char *)read_buf + FC_ZIP_PAGE_DATA)));
 			} else {
 				ut_a(fb->raw_zip_size 
-					== (ulint)fc_qlz_size_compressed((const char *)(read_buf + FC_ZIP_PAGE_DATA)));
+					== (ulint)fc_qlz_size_compressed(((const char *)read_buf + FC_ZIP_PAGE_DATA)));
 			}
 			ut_a(UNIV_PAGE_SIZE 
-				== fc_qlz_size_decompressed((const char *)(read_buf + FC_ZIP_PAGE_DATA)));
+				== fc_qlz_size_decompressed(((const char *)read_buf + FC_ZIP_PAGE_DATA)));
 		}
 #endif
 
@@ -1475,7 +1479,7 @@ fc_block_do_compress_quicklz(
 	 *  we compress the page data to the buf offset  FC_ZIP_PAGE_DATA, so when we do pack,
 	 * the compressed data need not to be moved, and avoid a memcpy operation
 	 */
-	cp_size = fc_qlz_compress(((buf_block_t*)bpage)->frame, buf + FC_ZIP_PAGE_DATA, 
+	cp_size = fc_qlz_compress((const void*)((buf_block_t*)bpage)->frame, ((char *)buf + FC_ZIP_PAGE_DATA), 
 					page_size, state_compress);
 
 	if (is_dw == FALSE) {
@@ -1514,6 +1518,7 @@ fc_block_do_compress_zlib(
 	return UNIV_PAGE_SIZE;
 }
 
+#ifndef _WIN32
 /********************************************************************//**
 Compress the buf page bpage with snappy, return the size of compress data.
  the buf memory has alloced
@@ -1551,7 +1556,7 @@ fc_block_do_compress_snappy(
 	 * the compressed data need not to be moved, and avoid a memcpy operation
 	 */
 	if (0 != snappy_compress(compress_env, (const char*)((buf_block_t*)bpage)->frame, page_size,
-					buf + FC_ZIP_PAGE_DATA, &cp_size)) {
+					(char *)buf + FC_ZIP_PAGE_DATA, &cp_size)) {
 		ut_print_timestamp(stderr);
 		fprintf(stderr, " InnoDB: [warning]L2 Cache snappy when compress page:(%lu,%lu)\n",
 			(ulong)bpage->space, (ulong)bpage->offset);
@@ -1581,6 +1586,7 @@ exit:
 	return cp_size;
 
 }
+#endif
 
 /********************************************************************//**
 Compress the buf page bpage, return the size of compress data.
@@ -1601,7 +1607,11 @@ fc_block_do_compress(
 		return fc_block_do_compress_quicklz(is_dw, bpage, buf);
 		
 	} else if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_SNAPPY) {
-		return fc_block_do_compress_snappy(is_dw, bpage, buf);
+#ifndef _WIN32
+    return fc_block_do_compress_snappy(is_dw, bpage, buf);
+#else
+    return UNIV_PAGE_SIZE;
+#endif
 		
 	} else if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_ZLIB) {
 		return fc_block_do_compress_zlib(is_dw, bpage, buf);
@@ -1627,7 +1637,7 @@ fc_block_do_decompress_quicklz(
 
 	ut_a(buf_compressed);
 	ut_a(buf_decompressed);
-	ut_a(UNIV_PAGE_SIZE == fc_qlz_size_decompressed(buf_compressed + FC_ZIP_PAGE_DATA));
+	ut_a(UNIV_PAGE_SIZE == fc_qlz_size_decompressed((const char *)buf_compressed + FC_ZIP_PAGE_DATA));
 
 	if (decompress_type == DECOMPRESS_READ_SSD) {
 retry:
@@ -1655,7 +1665,7 @@ retry:
 
 	ut_a(state_decompress);
 
-	decp_size = fc_qlz_decompress(buf_compressed + FC_ZIP_PAGE_DATA,
+	decp_size = fc_qlz_decompress((const char *)buf_compressed + FC_ZIP_PAGE_DATA,
 					buf_decompressed, state_decompress);
 
 	if (decompress_type == DECOMPRESS_READ_SSD) {
@@ -1672,6 +1682,7 @@ retry:
 	return decp_size;
 }
 
+#ifndef _WIN32
 /********************************************************************//**
 Decompress the page in the block with snappy, return the decompressed data size. */
 static
@@ -1688,7 +1699,7 @@ fc_block_do_decompress_snappy(
 	ut_a(buf_compressed);
 	ut_a(buf_decompressed);
 	
-	snappy_uncompressed_length(buf_compressed + FC_ZIP_PAGE_DATA, 
+	snappy_uncompressed_length((const char *)buf_compressed + FC_ZIP_PAGE_DATA, 
 		compressed_size, &decp_size);
 	
 	if (UNIV_PAGE_SIZE != decp_size) {
@@ -1697,7 +1708,7 @@ fc_block_do_decompress_snappy(
 		ut_error;
 	}
 	
-	ret = snappy_uncompress(buf_compressed + FC_ZIP_PAGE_DATA,
+	ret = snappy_uncompress((const char *)buf_compressed + FC_ZIP_PAGE_DATA,
 				compressed_size, buf_decompressed);
 		
 	if (ret != 0) {
@@ -1709,6 +1720,7 @@ fc_block_do_decompress_snappy(
 	return decp_size;
 
 }
+#endif
 
 /********************************************************************//**
 Decompress the page in the block with zlib, return the decompressed data size. */
@@ -1744,8 +1756,12 @@ fc_block_do_decompress(
 					buf_compressed, buf_decompressed);
 		
 	} else if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_SNAPPY) {
+#ifndef _WIN32
 		return fc_block_do_decompress_snappy(buf_compressed, 
 			compressed_size, buf_decompressed);
+#else
+    return UNIV_PAGE_SIZE;
+#endif
 		
 	} else if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_ZLIB) {
 		return fc_block_do_decompress_zlib(decompress_type,
@@ -1765,7 +1781,7 @@ fc_block_write_compress_alg(
 	ulint compress_algrithm,/*!< in: the compress algrithm to write */
 	void *buf)				/*!< in/out: the compressed data buf need to write */
 {
-	mach_write_to_4(buf + FC_ZIP_PAGE_ZIP_ALG, compress_algrithm);
+	mach_write_to_4((unsigned char*)buf + FC_ZIP_PAGE_ZIP_ALG, compress_algrithm);
 	//FIXME: add some debug code here
 }
 
@@ -1778,7 +1794,7 @@ fc_block_read_compress_alg(
 /*==================*/
 	void *buf)				/*!< in: the compressed data buf */
 {
-	return mach_read_from_4(buf + FC_ZIP_PAGE_ZIP_ALG);
+	return mach_read_from_4((unsigned char*)buf + FC_ZIP_PAGE_ZIP_ALG);
 	//FIXME: add some debug code here
 }
 
@@ -1800,13 +1816,13 @@ fc_block_pack_compress(
 	ulint zip_size = fil_space_get_zip_size(block->space);	
 	fc_block_do_decompress(DECOMPRESS_READ_SSD, buf, block->raw_zip_size, tmp);
 
-	if (buf_page_is_corrupted(tmp, zip_size)) {
+	if (buf_page_is_corrupted((const char*)tmp, zip_size)) {
 		ut_error;
 	} 
 	
 	if (srv_flash_cache_compress_algorithm == FC_BLOCK_COMPRESS_QUICKLZ) {
 		if(fc_block_get_data_size(block) * fc_get_block_size_byte()
-			< (fc_qlz_size_compressed(buf + FC_ZIP_PAGE_DATA) + FC_ZIP_PAGE_META_SIZE)){
+			< (fc_qlz_size_compressed((const char *)buf + FC_ZIP_PAGE_DATA) + FC_ZIP_PAGE_META_SIZE)){
 			//printf("block size %lu, compressed size %lu \n", 
 			//	fc_block_get_data_size(block) * fc_get_block_size_byte(),
 			//	fc_qlz_size_compressed(buf + FC_ZIP_PAGE_DATA));
@@ -1823,24 +1839,24 @@ fc_block_pack_compress(
 	  *  do malloc and memcpy the page data to tmp buf
 	  */
 
-	mach_write_to_4(buf + FC_ZIP_PAGE_HEADER, FC_ZIP_PAGE_CHECKSUM);
-	mach_write_to_4(buf + FC_ZIP_PAGE_SIZE, page_size);
-	mach_write_to_4(buf + FC_ZIP_PAGE_SPACE, block->space);
-	mach_write_to_4(buf + FC_ZIP_PAGE_OFFSET, block->offset);
-	mach_write_to_4(buf + page_size - FC_ZIP_PAGE_TAILER, FC_ZIP_PAGE_CHECKSUM);
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_HEADER, FC_ZIP_PAGE_CHECKSUM);
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_SIZE, page_size);
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_SPACE, block->space);
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_OFFSET, block->offset);
+	mach_write_to_4((unsigned char *)buf + page_size - FC_ZIP_PAGE_TAILER, FC_ZIP_PAGE_CHECKSUM);
 
 	/* calc the original size of the block */
 	page_size = block->size * fc_get_block_size_byte();
 	ut_a(page_size == UNIV_PAGE_SIZE);
-	mach_write_to_4(buf + FC_ZIP_PAGE_ORIG_SIZE, UNIV_PAGE_SIZE);
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_ORIG_SIZE, UNIV_PAGE_SIZE);
 
-	mach_write_to_4(buf + FC_ZIP_PAGE_ZIP_RAW_SIZE, block->raw_zip_size);
+	mach_write_to_4((unsigned char *)buf + FC_ZIP_PAGE_ZIP_RAW_SIZE, block->raw_zip_size);
 
 #ifdef UNIV_FLASH_CACHE_TRACE
-	fc_block_compress_check(buf, block);
+	fc_block_compress_check((unsigned char *)buf, block);
 	fc_block_do_decompress(DECOMPRESS_READ_SSD, buf, block->raw_zip_size, tmp);
 	
-	if (buf_page_is_corrupted(tmp, zip_size)) {
+	if (buf_page_is_corrupted((const unsigned char *)tmp, zip_size)) {
 		ut_error;
 	}
 

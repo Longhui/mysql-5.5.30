@@ -684,6 +684,7 @@ fc_recv(void)
 
 #ifdef UNIV_FLASH_CACHE_TRACE
 			fc_print_used();
+      fc_block_print(fc_block);
 #endif
 			srv_flash_cache_used -= data_size;
 
@@ -695,7 +696,7 @@ fc_recv(void)
 			fc_block_delete_from_hash(fc_block);
 			++n_removed_pages_for_wrong_version;
 			
-#ifdef UNIV_FLASH_CACHE_TRACE_RECV
+#ifdef UNIV_FLASH_CACHE_TRACE
 			fprintf(stderr, "InnoDB: space_id: %.10lu page_no: %.10lu lsn_in_fc: %.20llu"
 				"  lsn_in_disk: %.20llu\n", (ulong)space_id, (ulong)page_no,
 				(ulonglong)lsns_in_fc[fc_block->fil_offset], (ulonglong)lsn_in_disk);

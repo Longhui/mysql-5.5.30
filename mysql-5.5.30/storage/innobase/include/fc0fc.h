@@ -17,7 +17,10 @@ Modified by Thomas Wen (wenzhenghu.zju@gmail.com)
 #include "trx0sys.h"
 #include "buf0buf.h"
 #include "fc0quicklz.h"
+
+#ifndef _WIN32
 #include "fc0snappy.h"
+#endif
 
 #define KILO_BYTE 					1024
 #define PAGE_SIZE_KB				(UNIV_PAGE_SIZE / KILO_BYTE)
