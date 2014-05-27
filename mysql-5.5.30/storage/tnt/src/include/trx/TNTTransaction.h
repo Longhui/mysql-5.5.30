@@ -258,6 +258,7 @@ public:
 	void startTrxIfNotStarted(Connection *conn = NULL, bool inner = false);
 	bool isTrxStarted();
 	bool commitTrx(CommitStat stat);
+	bool commitTrxOrdered(CommitStat stat);
 	bool commitCompleteForMysql();
 	bool rollbackTrx(RollBackStat rollBackStat, Session *session = NULL);
 	bool rollbackLastStmt(RollBackStat rollBackStat, Session *session = NULL);
@@ -640,8 +641,16 @@ public:
 		return getHoldingLockCnt() > 1000;
 	}
 
-	inline void setFlushLogLater(bool flushLogLater) {
-		m_flushLogLater = flushLogLater;
+	inline bool isInnerTrx() {
+		return m_inner;
+	}
+
+	inline bool getCalledCommitOrdered() {
+		return m_calledCommitOrdered;
+	}
+
+	inline void setCalledCommitOrdered(bool calledCommitOrdered) {
+		m_calledCommitOrdered = calledCommitOrdered;
 	}
 
 #ifdef NTSE_UNIT_TEST
@@ -741,6 +750,7 @@ private:
 
 	// 标识当前事务是否被注册到MySQL内部XA事务中，true表示已注册；false表示未注册
 	bool			m_trxIsRegistered;
+	bool			m_inner; // 是否是内部事务
 
 	size_t          m_trxPoolId;// 用于表示事务在事务对象池中的ID
 	//bool            m_isPurge;  // 是否是Purge事务
@@ -761,7 +771,8 @@ private:
 	bool            m_hangByRecover; //是否为recover后的悬挂事务，即外部xa parepre事务在recover后首先表现为悬挂
 	u32             m_hangTime;
 
-	bool			m_flushLogLater;
+	bool			m_calledCommitOrdered; //是否已经调用过commitOrdered操作
+
 	friend class TNTTrxSys;
 };
 
@@ -912,13 +923,14 @@ private:
 	bool startTrx(TNTTransaction *trx, bool inner);
 	void prepareTrxLow(TNTTransaction *trx);
 	void commitTrxLow(TNTTransaction *trx, CommitStat stat);
+	void commitTrxOrderedLow(TNTTransaction *trx, CommitStat stat);
 	bool rollbackLow(TNTTransaction *trx, Session *session, RollBackStat rollBackStat, bool partial = false);
 	bool rollbackForRecoverLow(TNTTransaction *trx, Session *session, DList<LogEntry *> *logs);
 
 	TNTTransaction* doAllocTrx(TrxId trxId) throw(NtseException);
 	ReadView* openReadViewNow(TrxId trxId, MemoryContext *memCtx) throw(NtseException);
 	ReadView* createReadView(TrxId trxId, MemoryContext *memCtx) throw(NtseException);
-	bool startTrxLow(TNTTransaction* trx);
+	bool startTrxLow(TNTTransaction* trx, bool inner = false);
 	u8 assignVersionPool();
 	TrxId getNewTrxId();
 	void finishRollbackAll(bool needLog, TNTTransaction *trx);

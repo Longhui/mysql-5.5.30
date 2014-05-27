@@ -665,7 +665,7 @@ void TNTTable::alterSupportTrxStatus(Session *session, TableStatus tableStatus, 
 
 	//因为此时session中没有trx，所以可以使用TblLockGuard，否则unlock会无效
 	TblLockGuard guard;
-	m_tab->lockMeta(session, IL_X, timeout, __FILE__, __LINE__);
+	m_tab->lockMeta(session, IL_X, timeout * 1000, __FILE__, __LINE__);
 	guard.attach(session, m_tab);
 
 	if (inLockTables) {

@@ -1622,11 +1622,14 @@ int	ha_tnt::info(uint flag) {
 
 	if (flag & HA_STATUS_VARIABLE) {
 		stats.records = ntseTable->getRows();
+		ha_rows estimateRecords = 0;
 		stats.deleted = 0;
 		if (m_session && m_table->getMetaLock(m_session) != IL_NO) {
 			// 一般情况下如进行正常的查询处理时是加了表锁的
 			stats.data_file_length = ntseTable->getDataLength(m_session);
 			stats.index_file_length = ntseTable->getIndexLength(m_session, false);
+			// 按照堆页面数除以最长长度得到一个预估的记录数
+			estimateRecords = ntseTable->getRecords()->getHeap()->getUsedSize() / ntseTable->getTableDef()->m_maxRecSize;
 		} else {
 			// SHOW TABLE STATUS时没有加表锁
 			stats.data_file_length = 0;
@@ -1645,6 +1648,8 @@ int	ha_tnt::info(uint flag) {
 					m_table->lockMeta(session, IL_S, 1000, __FILE__, __LINE__);
 					stats.data_file_length = ntseTable->getDataLength(session);
 					stats.index_file_length = ntseTable->getIndexLength(session, false);
+					// 按照堆页面数除以最长长度得到一个预估的记录数
+					estimateRecords = ntseTable->getRecords()->getHeap()->getUsedSize() / ntseTable->getTableDef()->m_maxRecSize;
 					m_table->unlockMeta(session, IL_S);
 				} catch (NtseException &) {
 					// 忽略异常
@@ -1657,6 +1662,9 @@ int	ha_tnt::info(uint flag) {
 		}
 		stats.delete_length = 0;
 		stats.check_time = 0;
+		// 为了防止大量删除操作使得页面采样的时候采到大量空页估错表内记录数，从而导致执行计划走错
+		// 这里需要取采样统计值和 堆文件大小/最大记录长度 的较大值
+		stats.records = max(stats.records, estimateRecords);
 		if (stats.records == 0) {
 			stats.mean_rec_length = 0;
 		} else {
@@ -1966,10 +1974,12 @@ int ha_tnt::external_lock(THD *thd, int lock_type) {
 
 		// 若当前查询需要对行记录加锁，则判断是否需要处理lock tables逻辑
 		if (m_opInfo.m_selLockType != TL_NO) {
-			if (thd_sql_command(thd) == SQLCOM_LOCK_TABLES
+			if ((thd_sql_command(thd) == SQLCOM_LOCK_TABLES
 				// && THDVAR(thd, table_locks)
 				&& thd_test_options(thd, OPTION_NOT_AUTOCOMMIT)
-				&& thd_in_lock_tables(thd)) {
+				&& thd_in_lock_tables(thd)) 
+				|| thd_sql_command(thd) == SQLCOM_ALTER_TABLE 
+				|| thd_sql_command(thd) == SQLCOM_CREATE_TABLE) {
 					// 加表锁，此时的表锁模式，即为select lock type，不需要转换
 					try {
 						// 直接读取m_id，因为已经加上meta S锁
@@ -2093,6 +2103,7 @@ void ha_tnt::trxRegisterFor2PC(TNTTransaction *trx) {
 */
 void ha_tnt::trxDeregisterFrom2PC(TNTTransaction *trx) {
 	trx->setTrxRegistered(false);
+	trx->setCalledCommitOrdered(false);
 }
 
 /**	将上层定义的隔离级别，转化为TNT层面的事务隔离级别
@@ -2141,7 +2152,12 @@ TNTTransaction* ha_tnt::getTransForCurrTHD(THD *thd) {
 	}
 
 	// TODO：TNT的实现，暂时在创建事务的时候直接将事务开始
-	trx->startTrxIfNotStarted(info->m_conn);
+	bool innerTrx = false;
+	if (thd_sql_command(thd) == SQLCOM_CREATE_TABLE || thd_sql_command(thd) == SQLCOM_CREATE_INDEX
+		|| thd_sql_command(thd) == SQLCOM_ALTER_TABLE || thd_sql_command(thd) == SQLCOM_TRUNCATE 
+		|| thd_sql_command(thd) == SQLCOM_DROP_INDEX)
+		innerTrx = true;
+	trx->startTrxIfNotStarted(info->m_conn, innerTrx);
 	// 将事务注册到MySQL 2PC
 	tntRegisterTrx(tnt_hton, thd, trx);
 	// 将事务和当前thd绑定
@@ -2454,16 +2470,18 @@ int ha_tnt::write_row(uchar *buf) {
 	DBUG_SWITCH_NON_CHECK(m_thd, ntse_handler::write_row(buf));
 
 	int code = 0;
-	if (System::fastTime() - m_trans->getBeginTime() > tnt_db->getTNTConfig()->m_maxTrxRunTime || m_trans->getHoldingLockCnt() > tnt_db->getTNTConfig()->m_maxTrxLocks) {
-			char errMsg[100];
-			if (m_trans->getHoldingLockCnt() > tnt_db->getTNTConfig()->m_maxTrxLocks) {
-				System::snprintf_mine(errMsg, 100, "TNT Transaction can't hold over %d lock", tnt_db->getTNTConfig()->m_maxTrxLocks);
-			} else {
-				System::snprintf_mine(errMsg, 100, "TNT Transaction can't run over %d s time", tnt_db->getTNTConfig()->m_maxTrxRunTime);
-			}
-			code = reportError(NTSE_EC_TRX_ABORT, errMsg, m_thd, false);
-			DBUG_RETURN(code);
-	}
+	if (!m_trans->isInnerTrx()) {
+		if (System::fastTime() - m_trans->getBeginTime() > tnt_db->getTNTConfig()->m_maxTrxRunTime || m_trans->getHoldingLockCnt() > tnt_db->getTNTConfig()->m_maxTrxLocks) {
+				char errMsg[100];
+				if (m_trans->getHoldingLockCnt() > tnt_db->getTNTConfig()->m_maxTrxLocks) {
+					System::snprintf_mine(errMsg, 100, "TNT Transaction can't hold over %d lock", tnt_db->getTNTConfig()->m_maxTrxLocks);
+				} else {
+					System::snprintf_mine(errMsg, 100, "TNT Transaction can't run over %d s time", tnt_db->getTNTConfig()->m_maxTrxRunTime);
+				}
+				code = reportError(NTSE_EC_TRX_ABORT, errMsg, m_thd, false);
+				DBUG_RETURN(code);
+		}
+	}	
 
 	assert(m_thd->lex->sql_command != SQLCOM_SELECT);
 	ha_statistic_increment(&SSV::ha_write_count);
@@ -4528,11 +4546,12 @@ int ha_tnt::fetchNext(uchar *buf) {
 	 ** 逻辑二：根据getNext函数的throw Exception，判断出错类型，并作相应处理
 	*/
 	try {
-		
-		if (System::fastTime() - m_trans->getBeginTime() > tnt_db->getTNTConfig()->m_maxTrxRunTime){
-			NTSE_THROW(NTSE_EC_TRX_ABORT, "TNT Transaction can't run over %d s time", tnt_db->getTNTConfig()->m_maxTrxRunTime);
-		} else if (m_trans->getHoldingLockCnt() > tnt_db->getTNTConfig()->m_maxTrxLocks) {
-			NTSE_THROW(NTSE_EC_TRX_ABORT, "TNT Transaction can't hold over %d lock", tnt_db->getTNTConfig()->m_maxTrxLocks);
+		if (!m_trans->isInnerTrx()) {
+			if (System::fastTime() - m_trans->getBeginTime() > tnt_db->getTNTConfig()->m_maxTrxRunTime){
+				NTSE_THROW(NTSE_EC_TRX_ABORT, "TNT Transaction can't run over %d s time", tnt_db->getTNTConfig()->m_maxTrxRunTime);
+			} else if (m_trans->getHoldingLockCnt() > tnt_db->getTNTConfig()->m_maxTrxLocks) {
+				NTSE_THROW(NTSE_EC_TRX_ABORT, "TNT Transaction can't hold over %d lock", tnt_db->getTNTConfig()->m_maxTrxLocks);
+			}
 		}
 		hasNext = m_table->getNext(m_scan, buf, INVALID_ROW_ID, true);
 		if (!hasNext) {
@@ -5423,16 +5442,14 @@ void ha_tnt::tnt_commit_ordered(handlerton *hton, THD* thd, bool all){
 
 	if (all ||
 		(!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
-			trx->setFlushLogLater(true);
-			trx->commitTrx(CS_NORMAL);
-			trx->setFlushLogLater(false);
-
+			trx->commitTrxOrdered(CS_NORMAL);
 			trx->setActiveTrans(0);
 			thd->variables.net_wait_timeout = info->m_netWaitTimeout;
 	} else {
 		trx->markSqlStatEnd();
 	}
-
+	// 设置事务已经调用过commitOrdered，在之后的commit阶段只需要刷日志即可
+	trx->setCalledCommitOrdered(true);
 	DBUG_VOID_RETURN;
 }
 #endif
@@ -5463,9 +5480,14 @@ int ha_tnt::tnt_commit_trx(handlerton *hton, THD* thd, bool all) {
 			/*if (trx->getTrxState() == TRX_ACTIVE || 
 				trx->getTrxState() == TRX_PREPARED) {
 			}*/
-			trx->commitTrx(CS_NORMAL);
 
-#ifndef EXTENDED_FOR_COMMIT_ORDERED
+#ifdef EXTENDED_FOR_COMMIT_ORDERED
+			// 如果没有调用过commitOrdered（例如binlog没有开的情况）需要先做commit in memory的相关工作
+			if (!trx->getCalledCommitOrdered())	
+				trx->commitTrxOrdered(CS_NORMAL);
+			trx->commitCompleteForMysql();
+#else
+			trx->commitTrx(CS_NORMAL);
 			// commit完成之后，释放prepare mutex
 			if (trx->getActiveTrans() == 2) {
 				assert(prepareCommitMutex->isLocked());

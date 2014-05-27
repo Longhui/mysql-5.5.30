@@ -157,13 +157,13 @@ EXPLAIN SELECT a4 FROM t1 WHERE
 #a6=NULL AND
 a4='UNcT5pIde4I6c2SheTo4gt92OV1jgJCVkXmzyf325R1DwLURkbYHwhydANIZMbKTgdcR5xS';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	0	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	40	Using where
 EXPLAIN SELECT t1.a4 FROM t1, t1 t WHERE
 #t.a6=t.a6 AND t1.a6=NULL AND
 t1.a4='UNcT5pIde4I6c2SheTo4gt92OV1jgJCVkXmzyf325R1DwLURkbYHwhydANIZMbKTgdcR5xS';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	0	Using where
-1	SIMPLE	t	index	NULL	idx	176	NULL	0	Using index; Using join buffer
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	40	Using where
+1	SIMPLE	t	index	NULL	idx	176	NULL	40	Using index; Using join buffer
 DROP TABLE t1;
 create table t1m (a int) engine = MEMORY;
 create table t1i (a int);
@@ -183,7 +183,7 @@ min(7)
 explain select min(7) from t2i join t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1638	Using join buffer
 select min(7) from t2i join t1i;
 min(7)
 NULL
@@ -199,7 +199,7 @@ max(7)
 explain select max(7) from t2i join t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1638	Using join buffer
 select max(7) from t2i join t1i;
 max(7)
 NULL
@@ -237,7 +237,7 @@ count(*)	min(7)	max(7)
 explain select count(*), min(7), max(7) from t1m, t2i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1m	system	NULL	NULL	NULL	NULL	0	const row not found
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1638	
 select count(*), min(7), max(7) from t1m, t2i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
@@ -333,10 +333,10 @@ insert into t1 values ( 1,"e"),(2,"a"),( 3,"c"),(4,"d");
 alter table t1 drop primary key, add primary key (f2, f1);
 explain select distinct f1 a, f1 b from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	5	NULL	4	Using index; Using temporary
+1	SIMPLE	t1	index	NULL	PRIMARY	5	NULL	1365	Using index; Using temporary
 explain select distinct f1, f2 from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	5	NULL	4	Using index
+1	SIMPLE	t1	range	NULL	PRIMARY	5	NULL	10	Using index for group-by; Using temporary
 drop table t1;
 CREATE TABLE t1 (id int(11) NOT NULL PRIMARY KEY, name varchar(20),
 INDEX (name));
@@ -349,12 +349,12 @@ SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id
 WHERE t1.name LIKE 'A%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY,name	name	23	NULL	2	Using where
-1	SIMPLE	t2	ref	fkey	fkey	5	test.t1.id	2	Using where; Using index
+1	SIMPLE	t2	ref	fkey	fkey	5	test.t1.id	11	Using where; Using index
 EXPLAIN
 SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id
 WHERE t1.name LIKE 'A%' OR FALSE;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	fkey	5	NULL	5	Using index
+1	SIMPLE	t2	index	NULL	fkey	5	NULL	910	Using index
 1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.fkey	1	Using where
 DROP TABLE t1,t2;
 CREATE TABLE t1 (
@@ -768,10 +768,10 @@ INSERT INTO t1 SELECT  a + 32, MOD(a + 32, 20), 1 FROM t1;
 INSERT INTO t1 SELECT  a + 64, MOD(a + 64, 20), 1 FROM t1;
 EXPLAIN SELECT b, SUM(c) FROM t1 GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	128	Using temporary; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	630	Using temporary; Using filesort
 EXPLAIN SELECT SQL_BIG_RESULT b, SUM(c) FROM t1 GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	128	Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	630	Using filesort
 DROP TABLE t1;
 drop table if exists t1;
 show variables like 'tnt_rollback_on_timeout';
@@ -854,10 +854,10 @@ EXPLAIN SELECT * FROM t1 WHERE b BETWEEN 1 AND 2 ORDER BY a;
 id	1
 select_type	SIMPLE
 table	t1
-type	ALL
+type	range
 possible_keys	bkey
-key	NULL
-key_len	NULL
+key	bkey
+key_len	5
 ref	NULL
 rows	32
 Extra	Using where; Using filesort
@@ -899,10 +899,10 @@ EXPLAIN SELECT * FROM t1 WHERE b BETWEEN 1 AND 2 ORDER BY b,a;
 id	1
 select_type	SIMPLE
 table	t1
-type	ALL
+type	range
 possible_keys	bkey
-key	NULL
-key_len	NULL
+key	bkey
+key_len	5
 ref	NULL
 rows	32
 Extra	Using where; Using filesort
@@ -1105,7 +1105,7 @@ UNIQUE KEY (c,b)
 INSERT INTO t1 VALUES (1,1,1,50), (1,2,3,40), (2,1,3,4);
 EXPLAIN SELECT c,b,d FROM t1 GROUP BY c,b,d;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	481	Using filesort
 SELECT c,b,d FROM t1 GROUP BY c,b,d;
 c	b	d
 1	1	50
@@ -1113,7 +1113,7 @@ c	b	d
 3	2	40
 EXPLAIN SELECT c,b,d FROM t1 GROUP BY c,b,d ORDER BY NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	481	
 SELECT c,b,d FROM t1 GROUP BY c,b,d ORDER BY NULL;
 c	b	d
 1	1	50
@@ -1121,7 +1121,7 @@ c	b	d
 3	1	4
 EXPLAIN SELECT c,b,d FROM t1 ORDER BY c,b,d;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	481	Using filesort
 SELECT c,b,d FROM t1 ORDER BY c,b,d;
 c	b	d
 1	1	50
@@ -1129,7 +1129,7 @@ c	b	d
 3	2	40
 EXPLAIN SELECT c,b,d FROM t1 GROUP BY c,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	481	Using filesort
 SELECT c,b,d FROM t1 GROUP BY c,b;
 c	b	d
 1	1	50
@@ -1137,7 +1137,7 @@ c	b	d
 3	2	40
 EXPLAIN SELECT c,b   FROM t1 GROUP BY c,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	c	8	NULL	3	Using index
+1	SIMPLE	t1	range	NULL	c	8	NULL	10	Using index for group-by
 SELECT c,b   FROM t1 GROUP BY c,b;
 c	b
 1	1
@@ -1185,7 +1185,7 @@ possible_keys	NULL
 key	NULL
 key_len	NULL
 ref	NULL
-rows	3
+rows	910
 Extra	Using filesort
 SELECT * FROM t1 ORDER BY b ASC, a ASC;
 a	b
@@ -1201,7 +1201,7 @@ possible_keys	NULL
 key	NULL
 key_len	NULL
 ref	NULL
-rows	3
+rows	910
 Extra	Using filesort
 SELECT * FROM t1 ORDER BY b DESC, a DESC;
 a	b
@@ -1217,7 +1217,7 @@ possible_keys	NULL
 key	NULL
 key_len	NULL
 ref	NULL
-rows	3
+rows	910
 Extra	Using filesort
 SELECT * FROM t1 ORDER BY b ASC, a DESC;
 a	b
@@ -1233,7 +1233,7 @@ possible_keys	NULL
 key	NULL
 key_len	NULL
 ref	NULL
-rows	3
+rows	910
 Extra	Using filesort
 SELECT * FROM t1 ORDER BY b DESC, a ASC;
 a	b
@@ -1412,7 +1412,7 @@ INSERT INTO t1 VALUES
 (2,1,4,'c_extra',NULL),(3,1,4,'c_extra',NULL);
 EXPLAIN SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE tid = 1 AND vid = 3 ORDER BY idx DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	12	NULL	16	Using where
+1	SIMPLE	t1	index	NULL	PRIMARY	12	NULL	90	Using where
 SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE tid = 1 AND vid = 3 ORDER BY idx DESC;
 vid	tid	idx	name	type
 3	1	4	c_extra	NULL
@@ -1437,7 +1437,7 @@ SELECT 1 FROM (SELECT COUNT(DISTINCT c1)
 FROM t1 WHERE c2 IN (1, 1) AND c3 = 2 GROUP BY c2) x;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	1	
-2	DERIVED	t1	ALL	c3,c2	c3	5		5	Using where; Using filesort
+2	DERIVED	t1	ALL	c3,c2	c3	5		630	Using where; Using filesort
 DROP TABLE t1;
 CREATE TABLE t1 (c1 REAL, c2 REAL, c3 REAL, KEY (c3), KEY (c2, c3))
 ENGINE=tnt;
@@ -1451,7 +1451,7 @@ SELECT 1 FROM (SELECT COUNT(DISTINCT c1)
 FROM t1 WHERE c2 IN (1, 1) AND c3 = 2 GROUP BY c2) x;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	1	
-2	DERIVED	t1	ALL	c3,c2	c3	9		5	Using where; Using filesort
+2	DERIVED	t1	ALL	c3,c2	c3	9		327	Using where; Using filesort
 DROP TABLE t1;
 CREATE TABLE t1 (c1 DECIMAL(12,2), c2 DECIMAL(12,2), c3 DECIMAL(12,2), 
 KEY (c3), KEY (c2, c3))
@@ -1466,7 +1466,7 @@ SELECT 1 FROM (SELECT COUNT(DISTINCT c1)
 FROM t1 WHERE c2 IN (1, 1) AND c3 = 2 GROUP BY c2) x;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	1	
-2	DERIVED	t1	ALL	c3,c2	c3	7		5	Using where; Using filesort
+2	DERIVED	t1	ALL	c3,c2	c3	7		431	Using where; Using filesort
 DROP TABLE t1;
 End of 5.1 tests
 drop table if exists t1, t2, t3;
@@ -1564,7 +1564,7 @@ possible_keys	PRIMARY
 key	NULL
 key_len	NULL
 ref	NULL
-rows	6
+rows	431
 Extra	Using where
 EXPLAIN SELECT c FROM foo2 WHERE c>2;;
 id	1
@@ -1575,7 +1575,7 @@ possible_keys	PRIMARY
 key	PRIMARY
 key_len	10
 ref	NULL
-rows	6
+rows	431
 Extra	Using where; Using index
 DROP TABLE foo, bar, foo2;
 DROP TABLE IF EXISTS t1,t3,t2;
@@ -1693,7 +1693,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	i2	i2	8	const,const	1	Using where; Using filesort
 EXPLAIN SELECT * FROM t1 FORCE INDEX(PRIMARY) WHERE b=1 AND c=1 ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	128	Using where
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	1068	Using where
 DROP TABLE t1;
 #
 # Bug #47963: Wrong results when index is used
@@ -1777,8 +1777,8 @@ insert into t1 values (1,1),(2,2),(3,3);
 insert into t2 values (1),(2),(3);
 explain select t1.* from t1 left join t2 using(f1) group by t1.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
-1	SIMPLE	t2	ref	f1	f1	4	test.t1.f1	2	Using index
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	910	Using temporary; Using filesort
+1	SIMPLE	t2	ref	f1	f1	4	test.t1.f1	12	Using index
 drop table t1,t2;
 #
 #
@@ -1800,7 +1800,7 @@ possible_keys	NULL
 key	PRIMARY
 key_len	4
 ref	NULL
-rows	10
+rows	327
 Extra	Using index
 DROP TABLE t1;
 #
@@ -1878,7 +1878,7 @@ EXPLAIN SELECT t1.id,t2.id FROM t2 LEFT JOIN t1 ON t1.id>=74 AND t1.id<=0
 WHERE t2.id=75 AND t1.id IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1638	Using where
 DROP TABLE t1,t2;
 #
 # Bug #53830: !table || (!table->read_set || bitmap_is_set(table->read_set, field_index))

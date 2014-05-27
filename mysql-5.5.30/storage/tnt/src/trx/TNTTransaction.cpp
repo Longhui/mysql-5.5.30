@@ -135,8 +135,8 @@ void TNTTransaction::init(TNTTrxSys *trxSys, Txnlog *tntLog, MemoryContext *ctx,
 	m_redoCnt = 0;
 	m_hangByRecover = false;
 	m_hangTime = 0;
-	
-	m_flushLogLater = false;
+	m_inner = false;
+	m_calledCommitOrdered = false;
 }	
 
 /**
@@ -176,7 +176,8 @@ void TNTTransaction::reset() {
 	m_hangByRecover = false;
 	m_hangTime = 0;
 	m_thd = NULL;
-	m_flushLogLater = false;
+	m_inner = false;
+	m_calledCommitOrdered = false;
 }
 
 /**
@@ -242,6 +243,30 @@ bool TNTTransaction::commitTrx(CommitStat stat) {
 	return true;
 }
 
+
+/**
+ * group commit 实现事务commit in memory
+ * @throw NtseException
+ * @return 
+ */
+bool TNTTransaction::commitTrxOrdered(CommitStat stat) {
+	if (TRX_NOT_START == m_trxState)
+		return true;
+
+	m_opInfo = "commit ordered";
+
+	//如果此时事务还未start，那说明该事务肯定为readOnly，
+	//所以rollback是不做任何事，故connection可以为NULL
+	startTrxIfNotStarted();
+
+	m_tranSys->commitTrxOrderedLow(this, stat);
+
+	m_opInfo = "";
+
+	return true;
+}
+
+
 /**
  * MySQL上层会在事务结束的时候再次确认事务的提交并调用这一接口
  * @return 
@@ -251,6 +276,9 @@ bool TNTTransaction::commitCompleteForMysql() {
 
 	if (m_commitLsn != INVALID_LSN)
 		flushTNTLog(m_commitLsn, FS_COMMIT);
+
+	// 重置事务
+	reset();
 
 	m_opInfo = "";
 
@@ -632,7 +660,13 @@ LsnType TNTTransaction::writeTNTLog(LogType logType, u16 tableId, byte *data, si
  */
 void TNTTransaction::flushTNTLog(LsnType lsn, FlushSource fs) {
 	assert(m_valid);
-	if (m_flushLogLater || m_flushMode == TFM_NOFLUSH) {
+	// 三种情况不需要刷日志到日志文件中
+	// 1. tnt_flush_at_trx_commit = 0
+	// 2. group commit 在 commitOrdered 阶段
+	// 3. 开启group commit， 并且tnt_flush_at_trx_commit = 1 时，
+	//    事务提交也不需要刷日志，由prepare日志和binlog来持久化事务
+	if (m_flushMode == TFM_NOFLUSH
+		 || (m_calledCommitOrdered && m_flushMode == TFM_FLUSH_SYNC)) {
 		return;
 	}
 	m_tntLog->flush(lsn, fs);
@@ -924,7 +958,7 @@ bool TNTTrxSys::startTrx(TNTTransaction *trx, bool inner) {
 	assert(trx->getTrxState() != TRX_ACTIVE);
 
 	MutexGuard mutexGuard(&m_transMutex, __FILE__, __LINE__);
-	bool ret = startTrxLow(trx);
+	bool ret = startTrxLow(trx, inner);
 	if (inner)
 		trx->relatedWithTrxList(&m_activeInnerTrxs);
 	else
@@ -1021,6 +1055,61 @@ void TNTTrxSys::commitTrxLow(TNTTransaction *trx, CommitStat stat) {
 
 	trx->reset();
 }
+
+/**
+ * commitOrdered事务, 用于group commit
+ * @param trx
+ */
+void TNTTrxSys::commitTrxOrderedLow(TNTTransaction *trx, CommitStat stat) {
+	assert(trx != NULL);
+
+	if (CS_NORMAL == stat) {
+		m_stat.m_commit_normal++;
+	} else if (CS_INNER == stat) {
+		m_stat.m_commit_inner++;
+	} 
+	LOCK(&m_transMutex);
+
+	// FIXME: 本来这里应该持久化已写入版本池的信息, 由于版本池本身就使用了NTSE表，
+	// 所以这里可以不用做什么事情
+	LsnType lsn = INVALID_LSN;
+	if (!trx->m_readOnly) {
+		lsn = trx->writeCommitTrxLog();
+	}
+
+	// 更新事务状态
+	assert(TRX_ACTIVE == trx->getTrxState() || TRX_PREPARED == trx->getTrxState());
+	assert(m_transMutex.isLocked());
+	trx->setTrxState(TRX_COMMITTED_IN_MEMORY);
+
+	if (CS_NORMAL == stat) {
+		m_trxCnt++;
+		sampleLockAndRedo(trx);
+	}
+
+	// 释放所有的事务锁
+	trx->releaseLocks();
+
+	// 关闭视图
+	if (NULL != trx->getGlobalReadView()) {
+		trx->getGlobalReadView()->excludeFromList();
+		trx->setGlobalReadView(NULL);
+	}
+	trx->setReadView(NULL);
+
+	if (lsn != INVALID_LSN) {
+		trx->m_commitLsn = lsn;	
+	}
+
+	// 将事务从活跃事务列表中剔除
+	trx->excludeFromTrxList();
+	UNLOCK(&m_transMutex);
+
+	if (CS_NORMAL == stat) {
+		sampleExecuteTime(trx);
+	}
+}
+
 
 /**
  * 事务回滚
@@ -1632,7 +1721,7 @@ DList<TNTTransaction *> *TNTTrxSys::getActiveInnerTrxs() {
  * 开始事务
  * @return 
  */
-bool TNTTrxSys::startTrxLow(TNTTransaction* trx) {
+bool TNTTrxSys::startTrxLow(TNTTransaction* trx, bool inner) {
 	assert(m_transMutex.isLocked());
 
 	//purge事务必须分配一个事务号，否则恢复的时候，对于没事务号的begin日志需要特殊处理
@@ -1663,6 +1752,7 @@ bool TNTTrxSys::startTrxLow(TNTTransaction* trx) {
 	trx->m_flushMode = m_trxFlushMode;
 
 	trx->m_realStartLsn = trx->m_tntLog->tailLsn();
+	trx->m_inner = inner;
 
 	return true;
 }
