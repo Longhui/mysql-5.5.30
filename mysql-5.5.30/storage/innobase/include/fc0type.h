@@ -20,6 +20,7 @@ typedef struct fc_block_struct	fc_block_t;
 typedef struct fc_block_array_struct	fc_block_array_t;
 
 typedef struct fc_page_info_struct	fc_page_info_t;
+typedef struct flash_cache_stat_struct flash_cache_stat_t;
 typedef struct fc_struct		fc_t;
 
 //#define UNIV_FLASH_CACHE_TRACE	//should undefine in release

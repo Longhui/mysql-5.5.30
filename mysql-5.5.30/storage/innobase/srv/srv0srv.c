@@ -2070,6 +2070,7 @@ srv_export_innodb_status(void)
 {
 	buf_pool_stat_t		stat;
 	buf_pools_list_size_t	buf_pools_list_size;
+	
 	ulint			LRU_len;
 	ulint			free_len;
 	ulint			flush_list_len;
@@ -2084,15 +2085,120 @@ srv_export_innodb_status(void)
 	export_vars.innodb_flush_sync = srv_sync_flush;
 
 	if (fc_is_enabled()){
+		ulint i;
+		ulint distance;
+		ulint fc_size = fc_get_size();
+		ulint buf_read_delta = 0;
+		
+		time_t cur_time = ut_time();		
+
+		buf_read_delta = stat.n_pages_read - flash_cache_stat_global.n_buf_pages_read;
+
+		export_vars.innodb_flash_cache_write_off = fc->write_off;
+		export_vars.innodb_flash_cache_write_round = fc->write_round;		
+
+		export_vars.innodb_flash_cache_flush_off = fc->flush_off;
+		export_vars.innodb_flash_cache_flush_round = fc->flush_round;	
+
+		if (fc->write_round == fc->flush_round) {
+			distance = fc->write_off - fc->flush_off;
+		} else {
+			distance = fc_get_size() + fc->write_off - fc->flush_off;
+		}
+		export_vars.innodb_flash_cache_distance = distance;
+		export_vars.innodb_flash_cache_distance_ratio 
+			= (ulong)((distance * 100.0) / fc_size);	
+		
+		export_vars.innodb_flash_cache_dirty = srv_flash_cache_dirty;
+		export_vars.innodb_flash_cache_dirty_pct 
+			= (ulong)((srv_flash_cache_dirty * 100.0) / fc_size);
+
 		export_vars.innodb_flash_cache_pages_used = srv_flash_cache_used;
-		export_vars.innodb_flash_cache_pages_flush = srv_flash_cache_flush;
+		export_vars.innodb_flash_cache_pages_used_pct 
+			= (ulong)((srv_flash_cache_used * 100.0) / fc_size); 
+
 		export_vars.innodb_flash_cache_pages_read = srv_flash_cache_read;
-		export_vars.innodb_flash_cache_pages_write = srv_flash_cache_write;
-		export_vars.innodb_flash_cache_pages_merge_write = srv_flash_cache_merge_write;
+
+		if (buf_read_delta != 0) {
+			export_vars.innodb_flash_cache_pages_read_hit_pct 
+				= (ulong)(100.0*(srv_flash_cache_read - flash_cache_stat_global.n_pages_read)
+					/ buf_read_delta);
+		} else {
+			export_vars.innodb_flash_cache_pages_read_hit_pct = 0;
+		}
+		if ((stat.n_pages_read + stat.n_ra_pages_read) != 0) {
+			export_vars.innodb_flash_cache_pages_read_hit_pct_total
+				= (ulong)((100.0*srv_flash_cache_read)
+					/ (stat.n_pages_read + stat.n_ra_pages_read));
+		} else {
+			export_vars.innodb_flash_cache_pages_read_hit_pct_total = 0;
+		}
+		if ((srv_flash_cache_read - flash_cache_stat_global.n_pages_read) > 0) {
+			export_vars.innodb_flash_cache_pages_read_per_second 
+				= (ulong)((srv_flash_cache_read - flash_cache_stat_global.n_pages_read) 
+					/ difftime(cur_time, flash_cache_stat_global.last_printout_time));
+		} else {
+			export_vars.innodb_flash_cache_pages_read_per_second = 0;	
+		}
 		export_vars.innodb_flash_cache_aio_read = srv_flash_cache_aio_read;
-		export_vars.innodb_flash_cache_wait_for_aio = srv_flash_cache_wait_aio;
+		if (srv_flash_cache_read) {		
+			export_vars.innodb_flash_cache_compress_read_pct 
+				= (ulong)((srv_flash_cache_decompress * 100.0) / srv_flash_cache_read);
+		} else {
+			export_vars.innodb_flash_cache_compress_read_pct = 0;
+		}
+
+		export_vars.innodb_flash_cache_pages_write = srv_flash_cache_write;
+
+		if ((srv_flash_cache_write - flash_cache_stat_global.n_pages_write) > 0) {
+			export_vars.innodb_flash_cache_pages_write_per_second 
+				= (ulong)((srv_flash_cache_write - flash_cache_stat_global.n_pages_write) 
+					/ difftime(cur_time, flash_cache_stat_global.last_printout_time));
+		} else {
+			export_vars.innodb_flash_cache_pages_write_per_second = 0;
+		}
+		if (srv_flash_cache_used_nocompress) {
+			export_vars.innodb_flash_cache_compress_pct 
+				= (ulong)(100 - (srv_flash_cache_used * 100.0) / srv_flash_cache_used_nocompress);
+		} else {
+			export_vars.innodb_flash_cache_compress_pct = 0;
+		}
+
+		export_vars.innodb_flash_cache_pages_flush = srv_flash_cache_flush;
+
+		if ((srv_flash_cache_flush - flash_cache_stat_global.n_pages_flush) > 0) {
+			export_vars.innodb_flash_cache_pages_flush_per_second 
+				= (ulong)((srv_flash_cache_flush - flash_cache_stat_global.n_pages_flush) 
+					/ difftime(cur_time, flash_cache_stat_global.last_printout_time));
+		} else {
+			export_vars.innodb_flash_cache_pages_flush_per_second = 0;
+		}
+		
+		export_vars.innodb_flash_cache_pages_merge_write = srv_flash_cache_merge_write;
+		
 		export_vars.innodb_flash_cache_pages_migrate = srv_flash_cache_migrate;
+
+		if ((srv_flash_cache_migrate - flash_cache_stat_global.n_pages_migrate) > 0) {
+			export_vars.innodb_flash_cache_pages_migrate_per_second 
+				= (ulong)((srv_flash_cache_migrate - flash_cache_stat_global.n_pages_migrate) 
+					/ difftime(cur_time, flash_cache_stat_global.last_printout_time));
+		} else {
+			export_vars.innodb_flash_cache_pages_migrate_per_second = 0;
+		}
 		export_vars.innodb_flash_cache_pages_move = srv_flash_cache_move;
+
+		if ((srv_flash_cache_move - flash_cache_stat_global.n_pages_move) > 0) {
+			export_vars.innodb_flash_cache_pages_move_per_second 
+				= (ulong)((srv_flash_cache_move - flash_cache_stat_global.n_pages_move) 
+					/ difftime(cur_time, flash_cache_stat_global.last_printout_time));
+		} else {
+			export_vars.innodb_flash_cache_pages_move_per_second = 0;
+		}
+
+		export_vars.innodb_flash_cache_wait_for_aio = srv_flash_cache_wait_aio;
+
+		fc_update_status(UPDATE_GLOBAL_STATUS);
+		flash_cache_stat_global.n_buf_pages_read = stat.n_pages_read;
 	}
 
 	export_vars.innodb_data_pending_reads

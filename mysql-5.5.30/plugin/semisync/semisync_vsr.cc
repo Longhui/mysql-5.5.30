@@ -14,7 +14,7 @@ void sql_print_warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 void sql_print_information(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 
 static int get_slave_sync_info(char *host, uint port, char *user, char* passwd, 
-                               char* fname __attribute__((unused)), 
+                               char** fname __attribute__((unused)), 
                                ulonglong* pos __attribute__((unused)))
 {
   MYSQL *mysql;
@@ -58,8 +58,7 @@ static int get_slave_sync_info(char *host, uint port, char *user, char* passwd,
   }
   buf= (const char*)mysql->net.read_pos;
   *pos= uint8korr(buf);
-  fname= my_strdup(buf+8, MYF(MY_WME));
-  
+  *fname= my_strdup(buf+8, MYF(MY_WME));
 err:
   if(mysql)
   {
@@ -85,9 +84,7 @@ static int truncate_file(const char *fname, my_off_t len)
     return -1;
   }
   my_close(fd, MYF(MY_WME));
-  {
-    return -1;
-  }
+  return 0;
 }
 
 static int append_rollback_event(const char *fname)
@@ -95,7 +92,7 @@ static int append_rollback_event(const char *fname)
   IO_CACHE log;
   File fd;
   my_off_t end;
-  fd=my_open(fname, O_RDWR | O_BINARY | O_SHARE, MYF(MY_WME));
+  fd= my_open(fname, O_RDWR | O_BINARY | O_SHARE, MYF(MY_WME));
   if (fd < 0 )
   {
     return -1;
@@ -119,29 +116,27 @@ void adjust_binlog_with_slave(char *host, uint port, char *user, char* passwd, c
 {
   my_off_t len;
   char* binlog= NULL;
-  if (-1 == get_slave_sync_info(host, port, user ,passwd, binlog, &len))
+  if (-1 == get_slave_sync_info(host, port, user ,passwd, &binlog, &len))
   {
     goto over;
   }
-  sql_print_information("VSR HA : slave recive master binlog %s %lld", binlog, len);  
+  sql_print_information("VSR HA : slave receive master binlog %s %lld", binlog, len);  
   if (0 != strncmp(last_binlog, binlog, strlen(last_binlog)))
   {
     sql_print_information("VSR HA : Don't truncate master's last binlog %s"
-                          "for slave recive binlog %s", last_binlog, binlog);
+                          "for slave receive binlog %s", last_binlog, binlog);
     goto over;
   }
   if (-1 == truncate_file(binlog, len))
   {
     goto over;
   }
-
   sql_print_information("VSR HA : truncate binlog %s length to %lld", binlog, len);
   if (-1 == append_rollback_event(binlog))
   {
     goto over;
   }
   sql_print_information("VSR HA : append rollback to %s", binlog);
-
 over:
   if (NULL != binlog)
     my_free(binlog);
@@ -166,7 +161,7 @@ void send_slave_sync_info(NET *net, char* fname, my_off_t pos)
    else
    {
      sql_print_warning("VSR HA : slave send reply failed: %s (%d)",
-                       net->last_error, net->last_errno);
+                     net->last_error, net->last_errno);
    }
    sql_print_information("VSR HA : send replication information (%s, %lld)", fname, pos);
 }

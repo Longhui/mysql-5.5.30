@@ -76,6 +76,10 @@ Modified by Thomas Wen (wenzhenghu.zju@gmail.com)
 #define 	DECOMPRESS_BACKUP	3	/*!< decompress for backup compress dirty page */
 #define 	DECOMPRESS_RECOVERY	4	/*!< decompress when recovery */
 
+/** flash cache block decompress state when doing decompress */
+#define  UPDATE_GLOBAL_STATUS  1 /*!< for 'show global status' */
+#define  UPDATE_INNODB_STATUS  2 /*!< for 'show engine innodb status' */
+
 /** flash cache variables */
 extern ulint	srv_flash_cache_size;
 extern ulint	srv_flash_cache_block_size;
@@ -93,6 +97,7 @@ extern my_bool  srv_flash_cache_enable_write;
 extern my_bool  srv_flash_cache_safest_recovery;
 extern my_bool  srv_flash_cache_backuping;
 extern char*    srv_flash_cache_backup_dir;
+extern char*    srv_flash_cache_log_dir;
 extern ulong  	srv_flash_cache_write_mode;
 extern my_bool  srv_flash_cache_fast_shutdown;
 extern ulint 	srv_fc_flush_last_commit;
@@ -134,6 +139,9 @@ extern ulint	srv_flash_cache_compress_pack;
 extern my_bool		srv_flash_cache_load_from_dump_file;
 extern const char 	srv_flash_cache_log_file_name[16];
 extern const char*	srv_flash_cache_thread_op_info;
+
+extern flash_cache_stat_t flash_cache_stat_global;
+extern flash_cache_stat_t flash_cache_stat;
 
 extern fc_t*	fc;
 
@@ -239,6 +247,18 @@ struct fc_struct{
 	FILE*	f_debug;
 #endif
 };
+
+struct flash_cache_stat_struct{
+  ulint n_pages_write;
+  ulint n_pages_flush;
+  ulint n_pages_merge_write;
+  ulint n_pages_read;
+  ulint n_pages_migrate;
+  ulint n_pages_move;
+  ulint n_buf_pages_read;
+  time_t last_printout_time;
+};
+
 
 #define flash_cache_mutex_enter() (mutex_enter(&fc->mutex))
 #define flash_cache_mutex_exit()  (mutex_exit(&fc->mutex))
@@ -624,6 +644,14 @@ fc_block_get_orig_size(
 /*=======================*/
 	fc_block_t* block); /*!< in: the L2 Cache block we want to
 							get its original size */
+
+/******************************************************************//**
+Update L2 Cache status for innodb status or global status */
+UNIV_INLINE
+void
+fc_update_status(
+/*==================*/
+  ulint status_type); /*<! in: innodb status or global status*/
 
 /**************************************************************//**
 Initialize flash cache struct.*/

@@ -940,4 +940,31 @@ fc_round_print(void)
 		(ulong)fc->write_round, (ulong)fc->flush_round, 
 		(ulong)fc->write_off, (ulong)fc->flush_off);
 }
+
+/******************************************************************//**
+Update L2 Cache status for innodb status or global status */
+UNIV_INLINE
+void
+fc_update_status(
+/*==================*/
+ ulint status_type) /*<! in: innodb status or global status*/
+
+{
+  flash_cache_stat_t* stat;
+  
+  if (status_type == UPDATE_GLOBAL_STATUS) {
+    stat = &flash_cache_stat_global;
+  } else {
+    stat= &flash_cache_stat;
+  }
+  
+  stat->n_pages_write = srv_flash_cache_write;
+  stat->n_pages_flush = srv_flash_cache_flush;
+  stat->n_pages_merge_write = srv_flash_cache_merge_write;
+  stat->n_pages_read = srv_flash_cache_read;
+  stat->n_pages_move = srv_flash_cache_move;
+  stat->n_pages_migrate = srv_flash_cache_migrate;
+  stat->last_printout_time = ut_time(); 
+}
+
 #endif

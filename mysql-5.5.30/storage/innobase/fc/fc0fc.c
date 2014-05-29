@@ -70,6 +70,8 @@ UNIV_INTERN my_bool srv_flash_cache_enable_write = TRUE;
 UNIV_INTERN my_bool srv_flash_cache_backuping = FALSE;
 /* which directory to store  ib_fc_file, must including the terminating '/' */
 UNIV_INTERN char*  	srv_flash_cache_backup_dir = NULL;
+/* which directory to store  flash_cache.log, must including the terminating '/' */
+UNIV_INTERN char*    srv_flash_cache_log_dir = NULL;
 /* write-back: WRITE_BACK, write-through: WRITE_THROUGH*/
 UNIV_INTERN ulong  	srv_flash_cache_write_mode = WRITE_BACK;
 /* whether use fast shutdown when MySQL is close */
@@ -133,26 +135,13 @@ UNIV_INTERN my_bool srv_flash_cache_load_from_dump_file = FALSE;
 /* flash cache structure */
 UNIV_INTERN fc_t* fc = NULL;
 
-typedef struct flash_cache_stat_struct flash_cache_stat_t;
-struct flash_cache_stat_struct{
-	ulint write_off;
-	ulint write_round;
-	ulint flush_off;
-	ulint flush_round;
-	ulint n_pages_write;
-	ulint n_pages_flush;
-	ulint n_pages_merge_write;
-	ulint n_pages_read;
-	ulint n_pages_migrate;
-	ulint n_pages_move;
-	time_t last_printout_time;
-};
-
-/** flash cache status info */
+/** flash cache status info for 'show engine innodb status' */
 UNIV_INTERN flash_cache_stat_t flash_cache_stat;
 
+/** flash cache status info for 'show global status' */
+UNIV_INTERN flash_cache_stat_t flash_cache_stat_global;
 
-/**************************************************************//**
+/****************************************************************//**
 Initialize flash cache struct.*/
 UNIV_INTERN
 void
@@ -1882,8 +1871,8 @@ fc_status(
 	ulint fc_read_point = 0;
 	ulint fc_size_mb = fc_size * fc_get_block_size() / KILO_BYTE;
 	ulint can_cache = fc_size_mb;
-	float pack_pst	= 0;
-	float compress_ratio = 0;
+	double pack_pst	= 0;
+	double compress_ratio = 0;
 	ulint z;
 
 #ifdef UNIV_FLASH_CACHE_TRACE
@@ -1999,17 +1988,8 @@ fc_status(
 					( srv_flash_cache_move - flash_cache_stat.n_pages_move ) / difftime(cur_time,flash_cache_stat.last_printout_time)
 		);
 
-	flash_cache_stat.flush_off = fc->flush_off;
-	flash_cache_stat.flush_round = fc->flush_round;
-	flash_cache_stat.write_off = fc->write_off;
-	flash_cache_stat.write_round = fc->write_round;
-	flash_cache_stat.n_pages_write = srv_flash_cache_write;
-	flash_cache_stat.n_pages_flush = srv_flash_cache_flush;
-	flash_cache_stat.n_pages_merge_write = srv_flash_cache_merge_write;
-	flash_cache_stat.n_pages_read = srv_flash_cache_read;
-	flash_cache_stat.n_pages_move = srv_flash_cache_move;
-	flash_cache_stat.n_pages_migrate = srv_flash_cache_migrate;
-	flash_cache_stat.last_printout_time = ut_time();
+  fc_update_status(UPDATE_INNODB_STATUS);
+
 
 #ifdef UNIV_FLASH_CACHE_TRACE
   {

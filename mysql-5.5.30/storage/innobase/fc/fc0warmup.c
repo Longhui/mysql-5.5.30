@@ -30,7 +30,9 @@ fc_block_do_compress_warmup(
 	void* buf)	/*!< out: the buf contain the compressed data,
 							must be the size of frame + 400 */
 {
+#ifndef _WIN32
 	size_t cp_size; 
+#endif
 
 	srv_flash_cache_compress++;	
 	

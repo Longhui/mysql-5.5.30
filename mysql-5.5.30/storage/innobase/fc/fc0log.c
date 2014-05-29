@@ -13,6 +13,7 @@ Modified by Thomas Wen (wenzhenghu.zju@gmail.com)
 #endif
 
 #include "fc0fc.h"
+#include "srv0start.h"
 
 /* flash cache log structure */
 UNIV_INTERN fc_log_t* fc_log = NULL;
@@ -102,6 +103,8 @@ fc_log_create(void)
 /*=====================*/
 {
 	ulint ret;
+  ulint path_len;
+  char* log_dir;
 	
 	fc_log = (fc_log_t*)ut_malloc(sizeof(fc_log_t));
 	memset(fc_log, '0', sizeof(fc_log_t));
@@ -116,8 +119,17 @@ fc_log_create(void)
 	fc_log->buf = (byte*)ut_align(fc_log->buf_unaligned,FLASH_CACHE_BUFFER_SIZE);
 
 	mutex_create(PFS_NOT_INSTRUMENTED, &fc_log->log_mutex, SYNC_DOUBLEWRITE);
-	
-	fc_log->file = os_file_create(innodb_file_data_key, srv_flash_cache_log_file_name,
+
+  log_dir = srv_flash_cache_log_dir ? srv_flash_cache_log_dir : srv_data_home;
+  path_len = strlen(log_dir) + strlen(srv_flash_cache_log_file_name) + 2;
+
+  fc_log->log_file_path_name = (char *)ut_malloc(path_len);
+  ut_snprintf(fc_log->log_file_path_name, path_len, 
+    "%s%s", log_dir, srv_flash_cache_log_file_name);
+
+  srv_normalize_path_for_win(fc_log->log_file_path_name);
+
+	fc_log->file = os_file_create(innodb_file_data_key, fc_log->log_file_path_name,
 						OS_FILE_CREATE, OS_FILE_NORMAL, OS_DATA_FILE, &ret);
 	
 	if (ret) {
@@ -146,7 +158,7 @@ fc_log_create(void)
 		fc_log->compress_algorithm = srv_flash_cache_compress_algorithm;		
 
 		/* log will be flushed when finish fc_start */
-		//os_file_write(srv_flash_cache_log_file_name, fc_log->file, fc_log->buf, 0, 0, 
+		//os_file_write(fc_log->log_file_path_name, fc_log->file, fc_log->buf, 0, 0, 
 		//	FLASH_CACHE_BUFFER_SIZE);
 		//os_file_flush(fc_log->file);
 		
@@ -154,7 +166,7 @@ fc_log_create(void)
 
 	} else {
 		/* we need to open the file */
-		fc_log->file = os_file_create(innodb_file_data_key, srv_flash_cache_log_file_name,
+		fc_log->file = os_file_create(innodb_file_data_key, fc_log->log_file_path_name,
 							OS_FILE_OPEN, OS_FILE_NORMAL, OS_DATA_FILE, &ret);
 		if (!ret) {
 			ut_print_timestamp(stderr);
@@ -360,6 +372,7 @@ fc_log_destroy(void)
 	mutex_free(&fc_log->log_mutex);
 	ut_free(fc_log->buf_unaligned);
 	os_file_close(fc_log->file);
+  ut_free((char*)fc_log->log_file_path_name);
 	ut_free(fc_log);
 }
 
@@ -415,7 +428,7 @@ fc_log_commit(void)
 	mach_write_to_4(fc_log->buf + FLASH_CACHE_LOG_CHKSUM2, 
 		FLASH_CACHE_LOG_CHECKSUM);
 
-	os_file_write(srv_flash_cache_log_file_name, fc_log->file, fc_log->buf, 
+	os_file_write(fc_log->log_file_path_name, fc_log->file, fc_log->buf, 
 		0, 0, FLASH_CACHE_BUFFER_SIZE);
 	os_file_flush(fc_log->file);
 
@@ -431,7 +444,7 @@ fc_log_commit_for_skip_block(void)
 	mach_write_to_4(fc_log->buf + FLASH_CACHE_LOG_SKIPED_BLOCKS, 
 		fc_log->blk_find_skip);
 	
-	os_file_write(srv_flash_cache_log_file_name, fc_log->file, fc_log->buf, 
+	os_file_write(fc_log->log_file_path_name, fc_log->file, fc_log->buf, 
 		0, 0, FLASH_CACHE_BUFFER_SIZE);
 	os_file_flush(fc_log->file);
 }
@@ -449,7 +462,7 @@ fc_log_commit_when_update_flushoff(void)
 	mach_write_to_4(fc_log->buf + FLASH_CACHE_LOG_FLUSH_ROUND, 
 		fc_log->current_stat->flush_round);
 	
-	os_file_write(srv_flash_cache_log_file_name, fc_log->file, fc_log->buf, 
+	os_file_write(fc_log->log_file_path_name, fc_log->file, fc_log->buf, 
 		0, 0, FLASH_CACHE_BUFFER_SIZE);
 	os_file_flush(fc_log->file);
 	srv_fc_flush_should_commit_log_flush = 0;

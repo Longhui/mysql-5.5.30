@@ -769,6 +769,25 @@ struct export_var_struct{
 	ulint innodb_flash_cache_pages_move;
 	ulint innodb_flash_cache_wait_for_aio;
 	ulint innodb_flash_cache_aio_read;
+	ulint innodb_flash_cache_write_off;
+	ulint innodb_flash_cache_flush_off;
+	ulint innodb_flash_cache_write_round;
+	ulint innodb_flash_cache_flush_round;
+	ulint innodb_flash_cache_distance;
+	ulint innodb_flash_cache_distance_ratio;
+	ulint innodb_flash_cache_dirty;
+	ulint innodb_flash_cache_dirty_pct;
+	ulint innodb_flash_cache_pages_used_pct;
+	ulint innodb_flash_cache_pages_read_hit_pct;
+	ulint innodb_flash_cache_pages_read_hit_pct_total;
+	ulint innodb_flash_cache_pages_read_per_second;
+	ulint innodb_flash_cache_compress_read_pct;
+	ulint innodb_flash_cache_pages_write_per_second;
+	ulint innodb_flash_cache_compress_pct;
+	ulint innodb_flash_cache_pages_flush_per_second;
+	ulint innodb_flash_cache_pages_migrate_per_second;
+	ulint innodb_flash_cache_pages_move_per_second;
+
 	ibool innodb_have_atomic_builtins;	/*!< HAVE_ATOMIC_BUILTINS */
 	ulint innodb_log_waits;			/*!< srv_log_waits */
 	ulint innodb_log_write_requests;	/*!< srv_log_write_requests */
