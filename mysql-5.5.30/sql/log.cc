@@ -1719,8 +1719,18 @@ binlog_commit_flush_stmt_cache(THD *thd,
 
 int binlog_rollback_append(IO_CACHE *log)
 {
-  Query_log_event evt(current_thd, STRING_WITH_LEN("ROLLBACK"),
+  THD *thd;
+  thd= current_thd;
+  if (NULL == thd)
+  {
+    thd =new THD;
+  }
+  Query_log_event evt(thd, STRING_WITH_LEN("ROLLBACK"),
                           TRUE, FALSE, TRUE, 0);
+  if (NULL == current_thd)
+  {
+    delete thd;
+  }
   return evt.write(log);
 }
 
