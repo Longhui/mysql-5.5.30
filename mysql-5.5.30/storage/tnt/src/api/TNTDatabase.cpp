@@ -839,7 +839,7 @@ void TNTDatabase::recover(int recover) throw(NtseException)
 
 	// 4. TNT数据库需要进行crash recover
 	dumppointLsn = m_tntCtrlFile->getDumpLsn();
-	m_tntSyslog->log(EL_LOG, "Start database recover from LSN: "I64FORMAT"d.", dumppointLsn);
+	m_tntSyslog->log(EL_WARN, "Start tnt database recover from LSN: "I64FORMAT"d.", dumppointLsn);
 	
 	// 4.1. NTSE进行recover，可以通过创建线程的形式并行执行
 
@@ -873,7 +873,7 @@ void TNTDatabase::recover(int recover) throw(NtseException)
 		// 最多每10秒打印一次TNT恢复进度信息
 		int percent = (int)((lsn - dumppointLsn) * 100 / lsnRange);
 		if (percent > oldPercent && (System::fastTime() - oldTime) > 10) {
-			m_tntSyslog->log(EL_LOG, "Done replay of %d%% logs.", percent);
+			m_tntSyslog->log(EL_WARN, "Done replay of %d%% tnt logs.", percent);
 			oldPercent = percent;
 			oldTime = System::fastTime();
 		}
@@ -1026,6 +1026,7 @@ void TNTDatabase::recover(int recover) throw(NtseException)
 		purgeAndDumpTntim(PT_PURGEPHASE2, false, true, false);
 	}
 	
+	m_tntSyslog->log(EL_WARN, "Tnt database recovery finished.");
 	// 关闭打印恢复日志的临时log(需要打印恢复日志时)
 	//delete redoSyslog;
 }

@@ -92,9 +92,13 @@ public:
 			m_db->getPageBuffer()->resetFlushStatus();	
 
 			// 如果当前日志已超过检查点LSN 一半的logCapacity的大小，则强制推进一次检查点
-			LsnType logCapacity = m_db->getConfig()->m_logFileCntHwm * m_db->getConfig()->m_logFileSize;
-			if(m_db->getTxnlog()->tailLsn() - m_db->getControlFile()->getCheckpointLSN() < logCapacity / 2)
-			return;
+			//LsnType logCapacity = m_db->getConfig()->m_logFileCntHwm * m_db->getConfig()->m_logFileSize;
+			//if(m_db->getTxnlog()->tailLsn() - m_db->getControlFile()->getCheckpointLSN() < logCapacity / 2)
+			//return;
+
+			// 如果当前日志超过检查点Lsn 50M，那么强制推进一次检查点
+			if(m_db->getTxnlog()->tailLsn() - m_db->getControlFile()->getCheckpointLSN() < 50 * 1024 * 1024)
+				return;
 		}
 		m_instant = false;
 		m_lastNtseLogSize = m_db->getTxnlog()->getStatus().m_ntseLogSize;
@@ -2096,7 +2100,7 @@ void Database::recover() throw(NtseException) {
 	m_stat = DB_RECOVERING;
 	u64 checkpointLsn = m_ctrlFile->getCheckpointLSN();
 
-	m_syslog->log(EL_LOG, "Start database recovery from LSN: "I64FORMAT"d.", checkpointLsn);
+	m_syslog->log(EL_WARN, "Start ntse database recovery from LSN: "I64FORMAT"d.", checkpointLsn);
 
 	m_activeTransactions = new Hash<u16, Transaction *>(m_config->m_maxSessions * 2);
 
@@ -2120,7 +2124,7 @@ void Database::recover() throw(NtseException) {
 		// 最多每10秒打印一次恢复进度信息
 		int percent = (int)((lsn - checkpointLsn) * 100 / lsnRange);
 		if (percent > oldPercent && (System::fastTime() - oldTime) > 10) {
-			m_syslog->log(EL_LOG, "Done replay of %d%% logs.", percent);
+			m_syslog->log(EL_WARN, "Done replay of %d%% ntse logs.", percent);
 			oldPercent = percent;
 			oldTime = System::fastTime();
 		}
@@ -2185,7 +2189,7 @@ void Database::recover() throw(NtseException) {
 	}
 	m_txnlog->endScan(logScan);
 
-	m_syslog->log(EL_LOG, "Reconstruct some meta information of all tables.", (int)m_idToTables->getSize());
+	m_syslog->log(EL_WARN, "Reconstruct some meta information of all tables.", (int)m_idToTables->getSize());
 	// 非正常关闭时堆需要进行重建中央位图等工作
 	u16 numTables = m_ctrlFile->getNumTables();
 	u16 *tableIds = new u16[numTables];
@@ -2208,7 +2212,7 @@ void Database::recover() throw(NtseException) {
 
 	delete [] tableIds;
 
-	m_syslog->log(EL_LOG, "Replay log finished, complete %d active transactions(phase 1).", (int)m_activeTransactions->getSize());
+	m_syslog->log(EL_WARN, "Replay log finished, complete %d active transactions(phase 1).", (int)m_activeTransactions->getSize());
 
 	size_t numActiveTrans = m_activeTransactions->getSize();
 	Transaction **txnArr = new Transaction *[numActiveTrans];
@@ -2222,7 +2226,7 @@ void Database::recover() throw(NtseException) {
 	}
 	delete []txnArr;
 
-	m_syslog->log(EL_LOG, "Complete %d active transactions(phase 2).", (int)m_activeTransactions->getSize());
+	m_syslog->log(EL_WARN, "Complete %d active transactions(phase 2).", (int)m_activeTransactions->getSize());
 	numActiveTrans = m_activeTransactions->getSize();
 	txnArr = new Transaction *[numActiveTrans];
 	m_activeTransactions->values(txnArr);
@@ -2235,13 +2239,13 @@ void Database::recover() throw(NtseException) {
 	m_activeTransactions->clear();
 	delete m_activeTransactions;
 	
-	m_syslog->log(EL_LOG, "Flush dirty data of %d tables.", m_idToTables->getSize());
+	m_syslog->log(EL_WARN, "Flush dirty data of %d tables.", m_idToTables->getSize());
 	closeOpenTables(true);
 	m_ctrlFile->cleanUpTempFiles();
 
 	m_mms->endRedo();
 
-	m_syslog->log(EL_LOG, "Database recovery finished.");
+	m_syslog->log(EL_WARN, "Database recovery finished.");
 }
 
 /** 验证数据库正确性
