@@ -1317,6 +1317,7 @@ my_bool acl_profiler_record(THD *thd)
   my_bool return_val = TRUE;
   READ_RECORD read_record_info;
   my_bool record_exists = FALSE;
+  ulonglong save_thd_options = 0;
   const USER_CONN *uc = thd->get_user_connect();
   DBUG_ENTER("acl_profiler_record");
   if(!opt_use_profile_limitted || uc == NULL 
@@ -1325,6 +1326,8 @@ my_bool acl_profiler_record(THD *thd)
   {
     goto err;
   }
+  save_thd_options = thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_BIN_LOG;
   /* current_user_exhaust will not record in binlog */
   tables.init_one_table(C_STRING_WITH_LEN("mysql"),
   C_STRING_WITH_LEN("current_user_exhaust"), 
@@ -1391,6 +1394,7 @@ my_bool acl_profiler_record(THD *thd)
   }
 end:
   close_mysql_tables(thd);
+  thd->variables.option_bits = save_thd_options;
 err:
   DBUG_RETURN(return_val);
 }

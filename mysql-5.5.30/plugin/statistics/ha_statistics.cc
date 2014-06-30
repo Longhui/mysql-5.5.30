@@ -45,8 +45,8 @@ const char *sql_command[] = {
   "SQLCOM_COMMIT", "SQLCOM_SAVEPOINT", "SQLCOM_RELEASE_SAVEPOINT",
   "SQLCOM_SLAVE_START", "SQLCOM_SLAVE_STOP","SQLCOM_BEGIN", "SQLCOM_CHANGE_MASTER",
   "SQLCOM_RENAME_TABLE","SQLCOM_RESET", "SQLCOM_PURGE", "SQLCOM_PURGE_BEFORE", "SQLCOM_SHOW_BINLOGS",
-  "SQLCOM_SHOW_OPEN_TABLES","SQLCOM_HA_OPEN", "SQLCOM_HA_CLOSE", "SQLCOM_HA_READ",
-  "SQLCOM_SHOW_SLAVE_HOSTS", "SQLCOM_DELETE_MULTI", "SQLCOM_UPDATE_MULTI",
+  "SQLCOM_SHOW_OPEN_TABLES","SQLCOM_HA_OPEN", "SQLCOM_HA_CLOSE", "SQLCOM_HA_READ", "SQLCOM_SHOW_SLAVE_HOSTS", 
+  "SQLCOM_SHOW_SLAVE_SQL_THREAD", "SQLCOM_SHOW_SLAVE_MASTER_LOG_POS", "SQLCOM_DELETE_MULTI", "SQLCOM_UPDATE_MULTI",
   "SQLCOM_SHOW_BINLOG_EVENTS", "SQLCOM_DO","SQLCOM_SHOW_WARNS", "SQLCOM_EMPTY_QUERY", "SQLCOM_SHOW_ERRORS",
   "SQLCOM_SHOW_STORAGE_ENGINES", "SQLCOM_SHOW_PRIVILEGES","SQLCOM_HELP", "SQLCOM_CREATE_USER", 
   "SQLCOM_DROP_USER", "SQLCOM_RENAME_USER","SQLCOM_ALTER_USER_PROFILE","SQLCOM_REVOKE_ALL", "SQLCOM_CHECKSUM",
@@ -1025,6 +1025,12 @@ void compute_query_digest(char digest[], unsigned char *query, int length)
 static void
 stat_start_sql_statement(THD *thd)
 {
+
+}
+
+static void
+start_table_stat(THD *thd)
+{
   TABLE_LIST *table;
   if ((thd->lex->sql_command != SQLCOM_SELECT &&
       thd->lex->sql_command != SQLCOM_INSERT &&
@@ -1038,7 +1044,7 @@ stat_start_sql_statement(THD *thd)
   {
     int i = 0;
     dbname = table->db;
-    tablename = table->alias;
+    tablename = table->table_name;
     while(sys_database[i] != NULL)
     {
       if (strcmp(sys_database[i],table->db) == 0)
@@ -1067,13 +1073,11 @@ stat_start_sql_statement(THD *thd)
 }
 
 static void
-stat_end_sql_statement(THD *thd)
+start_sql_stat(THD *thd)
 {
   SQLInfo *info = thd->m_sql_info;
-  if (info == NULL) return;
-  DBUG_ENTER("stat end sql statement");
   if (info->is_stopped || stat_shutdown || info->is_full 
-        || info->exclude || statistics_plugin_status == 0)
+    || info->exclude || statistics_plugin_status == 0)
   {
     if (info->exclude)
     {
@@ -1083,7 +1087,7 @@ stat_end_sql_statement(THD *thd)
     {
       sql_print_warning("too long sql statement:%s",thd->query());
     }
-    DBUG_VOID_RETURN;
+    return;
   }
   Statistics *s = new Statistics(info);
   s->m_exec_times = GET_QUERY_EXEC_TIME(info);
@@ -1111,6 +1115,15 @@ stat_end_sql_statement(THD *thd)
     }
   }
   mysql_mutex_unlock(&hash_sql_lock);
+}
+
+static void
+stat_end_sql_statement(THD *thd)
+{
+  if (thd->m_sql_info == NULL || thd->is_error()) return;
+  DBUG_ENTER("stat end sql statement");
+  start_table_stat(thd);
+  start_sql_stat(thd);
   DBUG_VOID_RETURN;
 }
 
@@ -1187,6 +1200,7 @@ store_sql_stats()
   
   if (!(thd = new THD)) return;
 
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
@@ -1289,6 +1303,7 @@ store_table_stats()
 
   if (!(thd = new THD)) return;
 
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
 

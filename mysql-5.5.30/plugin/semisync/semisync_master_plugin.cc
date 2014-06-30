@@ -169,6 +169,15 @@ C_MODE_END
 /*
   semisync system variables
  */
+static void fix_rpl_semi_sync_master_keepsyncrepl(MYSQL_THD thd,
+            SYS_VAR *var,
+            void *ptr,
+            const void *val);
+
+static void fix_rpl_semi_sync_master_trysyncrepl(MYSQL_THD thd,
+            SYS_VAR *var,
+            void *ptr,
+            const void *val);
 static void fix_rpl_semi_sync_master_timeout(MYSQL_THD thd,
 				      SYS_VAR *var,
 				      void *ptr,
