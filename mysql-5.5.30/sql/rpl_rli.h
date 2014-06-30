@@ -240,6 +240,13 @@ public:
   time_t last_master_timestamp;
 
   /*
+    The SQL driver thread sets this true while it is waiting at the end of the
+    relay log for more events to arrive. SHOW SLAVE STATUS uses this to report
+    Seconds_Behind_Master as zero while the SQL thread is so waiting.
+  */
+  bool sql_thread_caught_up;
+
+  /*
     When it commits, InnoDB internally stores the master log position it has
     processed so far; the position to store is the one of the end of the
     committing event (the COMMIT query event, or the event if in autocommit

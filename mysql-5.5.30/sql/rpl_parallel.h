@@ -290,6 +290,7 @@ public:
   ~rpl_parallel();
   void reset();
   virtual void wait_for_done()=0;
+  virtual bool workers_idle()=0;
   virtual bool do_event(rpl_group_info *serial_rgi, Log_event *ev, size_t event_size)=0;
 };
 
@@ -309,6 +310,7 @@ public:
     current_trans(NULL), pool(&global_rpl_thread_pool), rpt_cur(NULL)
   {}
   void wait_for_done();
+  bool workers_idle(){};
   bool do_event(rpl_group_info *serial_rgi, Log_event *ev, size_t event_size);
 };
 
@@ -327,6 +329,7 @@ public:
   choose_thread(Relay_log_info *rli, bool reuse);
   void reset();
   void wait_for_done();
+  bool workers_idle();
   bool do_event(rpl_group_info *serial_rgi, Log_event *ev, size_t event_size);
 };
 

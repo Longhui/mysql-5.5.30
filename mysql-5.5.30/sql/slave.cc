@@ -1989,8 +1989,24 @@ bool show_master_info(THD* thd, Master_info* mi)
     if ((mi->slave_running == MYSQL_SLAVE_RUN_CONNECT) &&
         mi->rli.slave_running)
     {
-      long time_diff= ((long)(time(0) - mi->rli.last_master_timestamp)
-                       - mi->clock_diff_with_master);
+      long time_diff;
+      bool idle;
+      time_t stamp= mi->rli.last_master_timestamp;
+
+      if (!stamp)
+        idle= true;
+      else
+      {
+        idle= mi->rli.sql_thread_caught_up;
+        if (opt_slave_parallel_threads > 0 && idle &&
+            !mi->rli.parallel->workers_idle())
+          idle= false;
+      }
+      if (idle)
+        time_diff= 0;
+      else
+      {
+        time_diff= ((long)(time(0) - stamp) - mi->clock_diff_with_master);
       /*
         Apparently on some systems time_diff can be <0. Here are possible
         reasons related to MySQL:
@@ -2006,13 +2022,16 @@ bool show_master_info(THD* thd, Master_info* mi)
         slave is 2. At SHOW SLAVE STATUS time, assume that the difference
         between timestamp of slave and rli->last_master_timestamp is 0
         (i.e. they are in the same second), then we get 0-(2-1)=-1 as a result.
-        This confuses users, so we don't go below 0: hence the max().
+        This confuses users, so we don't go below 0.
 
         last_master_timestamp == 0 (an "impossible" timestamp 1970) is a
         special marker to say "consider we have caught up".
       */
-      protocol->store((longlong)(mi->rli.last_master_timestamp ?
-                                 max(0, time_diff) : 0));
+        if (time_diff < 0)
+          time_diff= 0;
+      }
+      protocol->store((longlong)time_diff);
+
     }
     else
     {
@@ -4787,6 +4806,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
 	 	*event_size= rli->future_event_relay_log_pos - old_pos;
       if (hot_log)
         mysql_mutex_unlock(log_lock);
+      rli->sql_thread_caught_up= false;
       DBUG_RETURN(ev);
     }
     if (opt_reckless_slave)                     // For mysql-test
@@ -4828,8 +4848,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
           waiting for the following event) reset whenever EOF is
           reached.
         */
-        time_t save_timestamp= rli->last_master_timestamp;
-        rli->last_master_timestamp= 0;
+        rli->sql_thread_caught_up=true;
 
         DBUG_ASSERT(rli->relay_log.get_open_count() ==
                     rli->cur_log_old_open_count);
@@ -4924,7 +4943,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         rli->relay_log.wait_for_update_relay_log(rli->sql_thd);
         // re-acquire data lock since we released it earlier
         mysql_mutex_lock(&rli->data_lock);
-        rli->last_master_timestamp= save_timestamp;
+        rli->sql_thread_caught_up= false;
         continue;
       }
       /*

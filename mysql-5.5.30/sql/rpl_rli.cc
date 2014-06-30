@@ -58,7 +58,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, bool is_rli_table)
    is_fake(FALSE),
 #endif
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
-   last_master_timestamp(0), slave_skip_counter(0),
+   last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_thd(0),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), parallel(NULL), m_flags(0)

@@ -2025,3 +2025,12 @@ void rpl_group_parallel::wait_for_done()
   mysql_mutex_unlock(&LOCK_rpl_parallel);
 }
 
+bool
+rpl_group_parallel::workers_idle()
+{
+    bool active;
+    mysql_mutex_lock(&LOCK_rpl_parallel);
+    active= current_sub_id > last_committed_sub_id;
+    mysql_mutex_unlock(&LOCK_rpl_parallel);
+    return !active;
+}
