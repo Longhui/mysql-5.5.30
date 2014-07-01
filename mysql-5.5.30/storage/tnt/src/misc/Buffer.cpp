@@ -2611,9 +2611,11 @@ void Scavenger::runIt() {
  */
 Scavenger::~Scavenger() {
 #ifndef WIN32
-	u64 errCode = m_aioArray.aioDeInit();
-	if (File::E_NO_ERROR != errCode) {
-		m_db->getSyslog()->fopPanic(errCode, "System AIO DeInit Error");
+	if (m_useAio) {
+		u64 errCode = m_aioArray.aioDeInit();
+		if (File::E_NO_ERROR != errCode) {
+			m_db->getSyslog()->fopPanic(errCode, "System AIO DeInit Error");
+		}
 	}
 #endif
 }

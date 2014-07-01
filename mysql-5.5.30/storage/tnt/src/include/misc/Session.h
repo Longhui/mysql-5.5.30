@@ -187,7 +187,8 @@ public:
 	 * @param id 线程ID，必须为正整数
 	 */
 	void setThdID(uint id) {
-		assert(!m_thdId && id > 0);
+		// Top Sql thread has no valid id
+		//assert(!m_thdId && id > 0);
 		m_thdId = id;
 	}
 	/** 获取使用该连接的线程ID
