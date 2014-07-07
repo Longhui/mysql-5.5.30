@@ -306,15 +306,13 @@ BufferPageHandle* VariableLengthRecordHeap::findFreePage(Session *session, u16 s
 	if (lastFalse == *pageNum) goto findFreePage_search_bitmap;
 	if (*pageNum > m_maxPageNum) goto findFreePage_search_central_bmp;
 findFreePage_check_page_usability:
+	if (*pageNum > m_maxUsedPageNum) {
+		RWLOCK(&m_posLock, Exclusived);
+		if (*pageNum > m_maxUsedPageNum)
+			m_maxUsedPageNum = *pageNum;
+		RWUNLOCK(&m_posLock, Exclusived);
+	}
 	if (lockMode == None) {
-		if (newPos) {
-			if (*pageNum > m_maxUsedPageNum) {
-				RWLOCK(&m_posLock, Exclusived);
-				if (*pageNum > m_maxUsedPageNum)
-					m_maxUsedPageNum = *pageNum;
-				RWUNLOCK(&m_posLock, Exclusived);
-			}
-		}
 		nftrace(ts.hp, tout << *pageNum);
 		return NULL;
 	}
@@ -335,8 +333,6 @@ findFreePage_check_page_usability:
 				m_position[i].m_bitmapIdx = bmpIdx;
 				m_position[i].m_pageIdx = pageIdx;
 			}
-			if (*pageNum > m_maxUsedPageNum)
-				m_maxUsedPageNum = *pageNum;
 			RWUNLOCK(&m_posLock, Exclusived);
 		}
 	}
