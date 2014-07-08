@@ -23,8 +23,7 @@ mysql.proxies_priv                                 OK
 mysql.roles_priv                                   OK
 mysql.servers                                      OK
 mysql.slave_relay_log_info                         OK
-mysql.slow_log
-note     : The storage engine for the table doesn't support analyze
+mysql.slow_log                                     OK
 mysql.sql_stats                                    OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -59,8 +58,7 @@ mysql.servers                                      OK
 mysql.slave_relay_log_info
 note     : Table does not support optimize, doing recreate + analyze instead
 status   : OK
-mysql.slow_log
-note     : The storage engine for the table doesn't support optimize
+mysql.slow_log                                     OK
 mysql.sql_stats                                    OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -91,8 +89,7 @@ mysql.proxies_priv                                 OK
 mysql.roles_priv                                   OK
 mysql.servers                                      OK
 mysql.slave_relay_log_info                         OK
-mysql.slow_log
-note     : The storage engine for the table doesn't support analyze
+mysql.slow_log                                     OK
 mysql.sql_stats                                    OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -125,8 +122,7 @@ mysql.servers                                      Table is already up to date
 mysql.slave_relay_log_info
 note     : Table does not support optimize, doing recreate + analyze instead
 status   : OK
-mysql.slow_log
-note     : The storage engine for the table doesn't support optimize
+mysql.slow_log                                     Table is already up to date
 mysql.sql_stats                                    Table is already up to date
 mysql.table_stats                                  Table is already up to date
 mysql.tables_priv                                  Table is already up to date

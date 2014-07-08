@@ -84,7 +84,7 @@ slow_log	CREATE TABLE `slow_log` (
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Slow log'
 show fields from mysql.slow_log;
 Field	Type	Null	Key	Default	Extra
 start_time	timestamp	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
@@ -191,7 +191,7 @@ slow_log	CREATE TABLE `slow_log` (
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Slow log'
 alter table mysql.general_log engine=myisam;
 alter table mysql.slow_log engine=myisam;
 show create table mysql.general_log;

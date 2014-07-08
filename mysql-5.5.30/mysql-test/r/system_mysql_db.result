@@ -274,6 +274,6 @@ slow_log	CREATE TABLE `slow_log` (
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Slow log'
 show tables;
 Tables_in_test
