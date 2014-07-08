@@ -799,6 +799,8 @@ THD::THD()
    first_successful_insert_id_in_cur_stmt(0),
    stmt_depends_on_first_successful_insert_id_in_prev_stmt(FALSE),
    examined_row_count(0),
+   physical_reads(0),
+   logical_reads(0),
    warning_info(&main_warning_info),
    stmt_da(&main_da),
    is_fatal_error(0),

@@ -835,7 +835,7 @@ bool Log_to_csv_event_handler::
     if (table->field[6]->store((longlong) thd->logical_reads, TRUE))
       goto err;
     /* physical_reads */
-    if (table->field[7]->store((longlong) thd->logical_reads, TRUE))
+    if (table->field[7]->store((longlong) thd->physical_reads, TRUE))
       goto err;
   }
   else
