@@ -198,7 +198,7 @@ int Rpl_info_table_access::find_info_for_server_id(ulong server_id,
   {
     DBUG_RETURN(FOUND_ID);
   }
-  if(HA_ERR_KEY_NOT_FOUND == error)
+  if(HA_ERR_KEY_NOT_FOUND == error || HA_ERR_END_OF_FILE == error)
   {
 	DBUG_RETURN(NOT_FOUND_ID);
   }
