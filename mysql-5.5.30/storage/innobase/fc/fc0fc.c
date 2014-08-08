@@ -79,7 +79,7 @@ UNIV_INTERN my_bool srv_flash_cache_fast_shutdown = TRUE;
 /* whether use quicklz or zlib to compress the uncompress InnoDB data page */
 UNIV_INTERN my_bool srv_flash_cache_enable_compress = TRUE;
 /* snappy, quicklz or zlib use to compress the uncompress InnoDB data page */
-UNIV_INTERN ulint 	srv_flash_cache_compress_algorithm = FC_BLOCK_COMPRESS_SNAPPY;
+UNIV_INTERN ulint 	srv_flash_cache_compress_algorithm = FC_BLOCK_COMPRESS_QUICKLZ;
 /* whether use malloc or buf_block_alloc to buffer the compress InnoDB data page */
 UNIV_INTERN my_bool srv_flash_cache_decompress_use_malloc = FALSE;
 /* flash cache version info */
@@ -586,7 +586,7 @@ fc_load(void)
 			dump_n++;
 		}	
 
-		if (fc_log->log_verison < FLASH_CACHE_VERSION_INFO_V5) {
+		if (fc_log->log_verison == FLASH_CACHE_VERSION_INFO_V4) {
 			is_v4_dump_file = TRUE;
 			ut_a(srv_flash_cache_compress_algorithm <= FC_BLOCK_COMPRESS_QUICKLZ);
 		}
@@ -614,11 +614,17 @@ fc_load(void)
 	fprintf(stderr, "InnoDB: L2 Cache loading %d L2 Cache blocks from dump file.\n", (int)dump_n);
 #endif
 
+	if (fc_log->log_verison == 0) {
+		size = PAGE_SIZE_KB / fc_get_block_size();
+		compress_size = 0;
+	}
+
 	for (i = 0; i < dump_n; i++) {
 		if (fc_log->log_verison == 0) {
 			fscanf_ret = fscanf(f, "%lu,%lu,%lu,%lu", 
 				&space_id, &page_no, &fil_offset, &state);
-			size = 1;
+			fil_offset *= size;
+			//size = 1;
 		} else {
 			fscanf_ret = fscanf(f, "%lu,%lu,%lu,%lu,%lu,%lu",
 				&space_id, &page_no, &fil_offset, &state, &size, &compress_size);
@@ -687,7 +693,7 @@ fc_load(void)
 	 * no need to do recovery job
 	 */
 	flash_cache_log_mutex_enter();
-	if (fc_log->been_shutdown == TRUE) {
+	if ((fc_log->been_shutdown == TRUE) || (fc_log->log_verison== 0)) {
 		srv_flash_cache_load_from_dump_file = TRUE;		
 
 #ifdef UNIV_FLASH_CACHE_TRACE

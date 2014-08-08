@@ -166,7 +166,7 @@ fc_backup(
 			len_final = strlen(bkp_dir) + sizeof("/ib_fc_backup");
 			bkp_file_path = (char *)ut_malloc(len_tmp);
 			bkp_file_path_final = (char *)ut_malloc(len_final);
-			ut_snprintf(bkp_file_path, len_final, 
+			ut_snprintf(bkp_file_path, len_tmp, 
 				"%s/%s", bkp_dir, "ib_fc_backup_creating");
 			ut_snprintf(bkp_file_path_final, len_final, 
 				"%s/%s", bkp_dir, "ib_fc_backup");

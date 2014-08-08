@@ -2085,7 +2085,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_flush_sync = srv_sync_flush;
 
 	if (fc_is_enabled()){
-		ulint i;
 		ulint distance;
 		ulint fc_size = fc_get_size();
 		ulint buf_read_delta = 0;

@@ -93,7 +93,7 @@ struct fc_log_struct
 	/*<! current enable_write value, update when enable_write is changed */
 	ulint		enable_write_curr;
 
-	ulint 		blk_size;		/* <! flash cache block size in KB */
+	ulint 		blk_size;		/* <! flash cache block size in Byte */
 	ulint 		blk_find_skip;	/* <! how many blocks have been skip for aio read when write page to cache a time, for recovery */   
 	ulint		log_verison;	/* <! log verison, start from innosql-5.5.30-v4,
 									before this the version is zero */
@@ -102,7 +102,7 @@ struct fc_log_struct
 	ulint		compress_algorithm;
 
 	/*<!if L2 Cache shutdown correctly, this value is  TRUE, else is FALSE,
-	 	set it TRUE when shutdown*/
+	 	set it TRUE when shutdown, start from innosql-5.5.30-v4, before this the value is zero */
 	ibool		been_shutdown;
 
 	/*<! whether flash cache is used the first time.

@@ -1497,7 +1497,6 @@ bool Relay_log_info::write_table_trans()
       handler->set_info(group_master_log_name) ||
       handler->set_info((ulong) group_master_log_pos))
   {
-    mysql_mutex_unlock(&table_lock);
     rev= TRUE;
   }
   else if (handler->flush_info(TRUE))

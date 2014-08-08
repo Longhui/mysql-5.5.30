@@ -95,6 +95,19 @@ fc_open_or_create_file(void)
 	return(DB_SUCCESS);
 }
 
+/********************************************************************//**
+Change the round/offset in log for L2 Cache version update.
+@return:NULL*/
+static
+void
+fc_log_update_for_upgrade(
+/*===========================*/
+	ulint blk_size_ratio) 	/*!< in: ori_size / new_size */
+{
+	fc_log->current_stat->flush_offset *= blk_size_ratio;
+	fc_log->current_stat->write_offset *= blk_size_ratio;
+}
+
 /****************************************************************//**
 Initialize flash cache log.*/
 UNIV_INTERN
@@ -187,12 +200,17 @@ fc_log_create(void)
 		/* don't allow to change cache block size */ 
 		if (srv_flash_cache_block_size != fc_log->blk_size) {
 			ut_print_timestamp(stderr);
-			fprintf(stderr," InnoDB: Error!!!cann't change L2 Cache block size from"
-				"%lu to %lu! we can't continue.\n", fc_log->blk_size, 
+			fprintf(stderr," InnoDB:   !!!Warning!!! L2 Cache block size changed from"
+				"%lu to %lu!!!! \n", fc_log->blk_size, 
 				srv_flash_cache_block_size);
-			ut_error;
+			ut_print_timestamp(stderr);
+			fprintf(stderr," InnoDB:   !!!MAKE SURE YOU ARE DOING UPDATE!!!\n");
+			//ut_error;
+			//fc_log->blk_size = srv_flash_cache_block_size;
 		} 
 
+		fc_log->compress_algorithm = 
+			mach_read_from_4(fc_log->buf + FLASH_CACHE_LOG_COMPRESS_ALGORITHM);
 		/* don't allow to change compress algorithm */ 
 		if ((srv_flash_cache_compress == TRUE) && (fc_log->compress_algorithm) 
 			&& (srv_flash_cache_compress_algorithm != fc_log->compress_algorithm)) {
@@ -257,6 +275,18 @@ fc_log_create(void)
 			mach_read_from_4(fc_log->buf + FLASH_CACHE_LOG_SKIPED_BLOCKS);	
 		
 		fc_log->first_use = FALSE;
+
+		/*
+		  * when update L2 Cache from InnoSQL V3 the block size is changed , 
+		  * we should change round/offset in log
+		  */
+		if (srv_flash_cache_block_size != fc_log->blk_size) {
+			fc_log_update_for_upgrade(fc_log->blk_size / srv_flash_cache_block_size);
+			fc_log->blk_size = srv_flash_cache_block_size;
+			// still should use old verison in dump cache blocks in fc_load
+			//fc_log->log_verison = FLASH_CACHE_VERSION_INFO_V5;
+			fc_log->compress_algorithm = srv_flash_cache_compress_algorithm;
+		}	
 
 		/* use fc_log in memory object to init the fc memory object */
 		fc->write_round = fc_log->current_stat->write_round;
@@ -417,7 +447,7 @@ fc_log_commit(void)
 		0);
 	
 	mach_write_to_4(fc_log->buf + FLASH_CACHE_LOG_VERSION, 
-		fc_log->log_verison);	
+		FLASH_CACHE_VERSION_INFO_V5);	
 	
 	mach_write_to_4(fc_log->buf + FLASH_CACHE_LOG_BEEN_SHUTDOWN, 
 		fc_log->been_shutdown);	
