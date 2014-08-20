@@ -1928,31 +1928,6 @@ THD* ntse_handler::getTHD() {
 	return code;
 }*/
 
-/**
- * 关闭连接时通知NTSE。该函数只有在连接信息不为NULL时才会调用
- *
- * @param hton NTSE存储引擎实例
- * @param thd 要关闭的连接
- * @return 总是返回0
- */
-int ntse_handler::ntse_close_connection(handlerton *hton, THD* thd) {
-	ftrace(ts.mysql, tout << hton << thd);
-	DBUG_ENTER("ntse_close_connection");
-
-	THDInfo *info = getTHDInfo(thd);
-	assert(info);
-	if (info->m_pendingOper) {
-		if (info->m_pendingOpType == POT_BACKUP) {
-			BackupProcess *backup = (BackupProcess *)info->m_pendingOper;
-			ntse_db->doneBackup(backup);
-			info->resetPendingOper();
-		}
-	}
-	delete info;
-
-	DBUG_RETURN(0);
-}
-
 void ntse_handler::ntse_drop_database(handlerton *hton, char* path) {
 	return;
 }

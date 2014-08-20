@@ -5376,7 +5376,6 @@ int ha_tnt::tnt_close_connection(handlerton *hton, THD* thd) {
 	ftrace(ts.mysql, tout << hton << thd);
 	DBUG_ENTER("tnt_close_connection");
 
-	DBUG_SWITCH_NON_CHECK(thd, ntse_handler::ntse_close_connection(hton, thd));
 	NTSE_ASSERT(hton == tnt_hton);
 
 	TNTTHDInfo *info = getTntTHDInfo(thd);
