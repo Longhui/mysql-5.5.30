@@ -392,6 +392,14 @@ static void update_scavenger_pages(MYSQL_THD thd, struct st_mysql_sys_var *var,
 										ntse_db->getPageBuffer()->setMaxScavengerPages(scavengerPages);
 }
 
+static void update_system_io_capacity(MYSQL_THD thd, struct st_mysql_sys_var *var,
+									void *var_ptr, const void *save) {
+										  ulong system_io_capacity = *((ulong *)save);
+										  *((ulong *)var_ptr) = system_io_capacity;
+										  Database *ntse_db = tnt_db->getNtseDb();
+										  ntse_db->getConfig()->m_systemIoCapacity = system_io_capacity;
+}
+
 /** ntse_command配置检查函数，检查命令及调用次序是否正确
  *
  * @param thd 发起命令的线程
@@ -527,6 +535,40 @@ static void update_tnt_connection(MYSQL_THD thd, struct st_mysql_sys_var *var,
 	}
 	thdInfo->m_conn->setTrx(isTrx);
 	*((bool *)var_ptr) = isTrx;
+}
+
+static void update_tnt_max_trx_run_time(MYSQL_THD thd, struct st_mysql_sys_var *var,
+										void *var_ptr, const void *save) {
+	ulong max_trx_run_time = *((ulong *)save);
+	*((ulong *)var_ptr) = max_trx_run_time;	
+
+	tnt_db->getTNTConfig()->m_maxTrxRunTime = max_trx_run_time;
+}
+
+
+static void update_tnt_max_trx_locks(MYSQL_THD thd, struct st_mysql_sys_var *var,
+									 void *var_ptr, const void *save) {
+	ulong max_trx_locks = *((ulong *)save);
+	*((ulong *)var_ptr) = max_trx_locks;	
+
+	tnt_db->getTNTConfig()->m_maxTrxLocks = max_trx_locks;
+}
+
+
+static void update_tnt_max_trx_common_idle_time(MYSQL_THD thd, struct st_mysql_sys_var *var,
+												void *var_ptr, const void *save) {
+	ulong max_trx_common_idle_time = *((ulong *)save);
+	*((ulong *)var_ptr) = max_trx_common_idle_time;	
+
+	tnt_db->getTNTConfig()->m_maxTrxCommonIdleTime = max_trx_common_idle_time;
+}
+
+static void update_tnt_max_trx_prepare_idle_time(MYSQL_THD thd, struct st_mysql_sys_var *var,
+												void *var_ptr, const void *save) {
+	ulong max_trx_prepare_idle_time = *((ulong *)save);
+	*((ulong *)var_ptr) = max_trx_prepare_idle_time;	
+
+	tnt_db->getTNTConfig()->m_maxTrxPrepareIdleTime = max_trx_prepare_idle_time;
 }
 
 static void update_tnt_mindex_reclaim_hwm(MYSQL_THD thd, struct st_mysql_sys_var *var,
@@ -693,24 +735,24 @@ static MYSQL_THDVAR_BOOL(support_xa, PLUGIN_VAR_OPCMDARG,
 						 NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_ULONG(tnt_max_trx_run_time, tnt_max_trx_run_time, 
-						  PLUGIN_VAR_READONLY, 
+						  PLUGIN_VAR_RQCMDARG, 
 						  "max time tnt transaction can run",
-						  NULL, NULL, 3600, 0, ~0, 0);
+						  NULL, update_tnt_max_trx_run_time, 3600, 0, ~0, 0);
 
 static MYSQL_SYSVAR_ULONG(tnt_max_trx_locks, tnt_max_trx_locks, 
-						  PLUGIN_VAR_READONLY, 
+						  PLUGIN_VAR_RQCMDARG, 
 						  "max transaction locks per tnt transaction can hold",
-						  NULL, NULL, 200000, 0, ~0, 0);
+						  NULL, update_tnt_max_trx_locks, 200000, 0, ~0, 0);
 
 static MYSQL_SYSVAR_ULONG(tnt_max_trx_common_idle_time, tnt_max_trx_common_idle_time, 
-						  PLUGIN_VAR_READONLY, 
+						  PLUGIN_VAR_RQCMDARG, 
 						  "max time tnt transaction can idle",
-						  NULL, NULL, 600, 0, ~0, 0);
+						  NULL, update_tnt_max_trx_common_idle_time, 600, 0, ~0, 0);
 
 static MYSQL_SYSVAR_ULONG(tnt_max_trx_prepare_idle_time, tnt_max_trx_prepare_idle_time, 
-						  PLUGIN_VAR_READONLY, 
+						  PLUGIN_VAR_RQCMDARG, 
 						  "max time tnt prepared transaction can idle",
-						  NULL, NULL, 1200, 0, ~0, 0);
+						  NULL, update_tnt_max_trx_prepare_idle_time, 1200, 0, ~0, 0);
 
 static MYSQL_SYSVAR_ULONG(tnt_mem_index_reclaim_hwm, tnt_mem_index_reclaim_hwm,
 						  PLUGIN_VAR_RQCMDARG,
@@ -824,9 +866,9 @@ static MYSQL_SYSVAR_BOOL(aio, ntse_aio,
 						 NULL, NULL, true);
 
 static MYSQL_SYSVAR_ULONG(system_io_capacity, ntse_system_io_capacity,
-						  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-						  "Size of log file in bytes.",
-						  NULL, NULL, 256, 0, ~0, 0);
+						  PLUGIN_VAR_RQCMDARG,
+						  "max number of dirty pages flushed per sec.",
+						  NULL, &update_system_io_capacity, 256, 0, ~0, 0);
 
 static void update_command(MYSQL_THD thd, struct st_mysql_sys_var *var,
 	void *var_ptr, const void *save) {
