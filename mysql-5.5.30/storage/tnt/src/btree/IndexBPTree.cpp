@@ -536,7 +536,10 @@ bool DrsBPTreeIndex::del(Session *session, const SubRecord *key) {
 	scanInfo->m_cKey3 = IndexKey::allocSubRecord(memoryContext, m_indexDef, KEY_COMPRESS);
 
 	bool result;
-	NTSE_ASSERT(fetchUnique(scanInfo, &DrsBPTreeIndex::deleteIndexEntry, &result));
+	if(!fetchUnique(scanInfo, &DrsBPTreeIndex::deleteIndexEntry, &result)) {	
+		cout << "TNT: Table:" << m_tableDef->m_name << " Index: "
+			<< m_indexDef->m_name << " could not delete key" << endl;
+	}
 
 	memoryContext->resetToSavepoint(savePoint);
 
@@ -1382,7 +1385,10 @@ bool DrsBPTreeIndex::fetchUnique(DrsIndexScanHandleInfo *info, IndexScanCallBack
 
 FetchStart:
 	if (!locateLeafPageAndFindKey(info, &needFetchNext, &result)) {
-		NTSE_ASSERT(scanCallBack == NULL);
+		if (scanCallBack != NULL) {
+			cout << "TNT: Table:" << m_tableDef->m_name << " Index: "
+				<< m_indexDef->m_name << " May be Broken, Need Reconstruct" << endl;
+		}
 		goto FetchFail;
 	}
 
@@ -1394,7 +1400,10 @@ FetchStart:
 	}
 
 	if (result != 0) {
-		NTSE_ASSERT(scanCallBack == NULL);
+		if (scanCallBack != NULL) {
+			cout << "TNT: Table:" << m_tableDef->m_name << " Index: "
+				<< m_indexDef->m_name << " May be Broken, Need Reconstruct" << endl;
+		}	
 		goto FetchFail;
 	}
 

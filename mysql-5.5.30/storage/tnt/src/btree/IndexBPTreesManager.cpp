@@ -266,8 +266,13 @@ void DrsBPTreeIndice::deleteIndexEntries(Session *session, const Record *record,
 				RecordOper::extractLobFromR(session, m_tableDef, indexDef, m_lobStorage, record, &lobArray);
 			}
 			SubRecord *key = IndexKey::allocSubRecord(memoryContext, keyNeedCompress, record, &lobArray, m_tableDef, indexDef);
-
+			u32 tryCount = 0;
 			while (!index->del(session, key)) {
+				tryCount++;
+				if (session->getTrans() != NULL && tryCount >= 30) {
+					tryCount = 0;
+					break;
+				}
 				nftrace(ts.irl, tout << session->getId() << " D dl and redo");
 				session->unlockIdxAllObjects();
 				index->statisticDL();
@@ -360,7 +365,13 @@ bool DrsBPTreeIndice::updateIndexEntries(Session *session, const SubRecord *befo
 		// update操作先删除后插入，可能会死锁，这个时候要回退对当前索引的操作，放锁再继续尝试更新本索引
 		while (true) {
 			token = session->getToken();
+			u32 tryCount = 0;
 			while (!index->del(session, key1)) {
+				tryCount++;
+				if (session->getTrans() != NULL && tryCount >= 30) {
+					tryCount = 0;
+					break;
+				}	
 				nftrace(ts.irl, tout << session->getId() << " D in U dl and redo");
 				session->unlockIdxObjects(token);
 				index->statisticDL();
@@ -546,7 +557,9 @@ void DrsBPTreeIndice::recvDeleteIndexEntries(Session *session, const Record *rec
 
 		SubRecord *key = IndexKey::allocSubRecord(memoryContext, keyNeedCompress, record, &lobArray, m_tableDef, indexDef);
 
-		NTSE_ASSERT(index->del(session, key));
+		if (!index->del(session, key)) {
+			cout << "TNT: recvDelete Index Error" << endl;
+		}
 		index->statisticOp(IDX_DELETE, 1);
 		m_logger->logDMLDoneUpdateIdxNo(session, i);
 
@@ -617,7 +630,9 @@ void DrsBPTreeIndice::recvUpdateIndexEntries(Session *session, const SubRecord *
 		SubRecord *key2 = IndexKey::allocSubRecord(memoryContext, keyNeedCompress, const_cast<Record*>(&rec2), &lobArray2, m_tableDef, indexDef);
 
 		// update操作先删除后插入，这时候首先单线程不会死锁，其次不会产生唯一键值冲突
-		NTSE_ASSERT(index->del(session, key1));
+		if (!index->del(session, key1)) {
+			cout << "TNT: recvUpdate Index Error" << endl;
+		}
 		// 恢复过程的记录日志方式应该保证和正常流程一致
 		m_logger->logDMLDeleteInUpdateDone(session);
 		NTSE_ASSERT(index->insert(session, key2, &duplicateKey));
