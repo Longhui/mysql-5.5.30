@@ -573,7 +573,7 @@ void LogFile::createLogFile(const char *filename, u64 size) throw (NtseException
 	File *file = new File(filename);
 	u64 errCode;
 _CREATE:
-	errCode = file->create(true, false);
+	errCode = file->create(false, false);
 	if (File::E_EXIST == File::getNtseError(errCode)) {
 		errCode = file->remove();
 		if (File::E_NO_ERROR != errCode)
@@ -968,7 +968,7 @@ LogFileMngr* LogFileMngr::open(Txnlog *txnLog, const char *basename, uint numLog
 
 		// 打开所有日志文件
 		for (uint i = 0; i < numLogFile; ++i) {
-			LogFile* file = LogFile::open(sysLog, lfm->makeFileName(i).c_str(), lfm->m_directIo);
+			LogFile* file = LogFile::open(sysLog, lfm->makeFileName(i).c_str(), false);
 
 			if (lfm->m_fileSize) {
 				if (lfm->m_fileSize != file->getSize())

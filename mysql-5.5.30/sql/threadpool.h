@@ -15,6 +15,12 @@
 
 #define MAX_THREAD_GROUPS 100000
 
+enum tp_high_prio_mode_t {
+  TP_HIGH_PRIO_MODE_TRANSACTIONS,
+  TP_HIGH_PRIO_MODE_STATEMENTS,
+  TP_HIGH_PRIO_MODE_NONE
+};
+
 /* Threadpool parameters */
 extern uint threadpool_min_threads;  /* Minimum threads in pool */
 extern uint threadpool_idle_timeout; /* Shutdown idle worker threads  after this timeout */
@@ -24,7 +30,8 @@ extern uint threadpool_stall_limit;  /* time interval in 10 ms units for stall c
 extern uint threadpool_max_threads;  /* Maximum threads in pool */
 extern uint threadpool_oversubscribe;  /* Maximum active threads in group */
 
-
+/* Possible values for thread_pool_high_prio_mode */
+extern const char *threadpool_high_prio_mode_names[];
 
 /* Common thread pool routines, suitable for different implementations */
 extern void threadpool_remove_connection(THD *thd);

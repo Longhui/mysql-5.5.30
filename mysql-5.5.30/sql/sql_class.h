@@ -514,6 +514,9 @@ typedef struct system_variables
   ulong long_query_io_ulong;
 
   my_bool binlog_row_write_table_metadata;
+
+  uint  threadpool_high_prio_tickets;
+  ulong threadpool_high_prio_mode;
 } SV;
 
 
