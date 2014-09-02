@@ -448,7 +448,7 @@ static void timeout_check(pool_timer_t *timer)
     if (thd->net.reading_or_writing != 1)
       continue;
  
-    connection_t *connection= (connection_t *)thd->event_scheduler.data;
+    connection_t *connection= (connection_t *)thd->scheduler.data;
     if (!connection)
     {
       /* 
@@ -462,7 +462,7 @@ static void timeout_check(pool_timer_t *timer)
     {
       /* Wait timeout exceeded, kill connection. */
       mysql_mutex_lock(&thd->LOCK_thd_data);
-      thd->killed = KILL_CONNECTION;
+      thd->killed = THD::KILL_CONNECTION;
       post_kill_notification(thd);
       mysql_mutex_unlock(&thd->LOCK_thd_data);
     }
@@ -501,7 +501,7 @@ static void* timer_thread(void *param)
   my_thread_init();
   DBUG_ENTER("timer_thread");
   timer->next_timeout_check= ULONGLONG_MAX;
-  timer->current_microtime= microsecond_interval_timer();
+  timer->current_microtime= my_getsystime()/1000;
 
   for(;;)
   {
@@ -518,7 +518,7 @@ static void* timer_thread(void *param)
     }
     if (err == ETIMEDOUT)
     {
-      timer->current_microtime= microsecond_interval_timer();
+      timer->current_microtime= my_getsystime()/1000;
       
       /* Check stalls in thread groups */
       for (i= 0; i < threadpool_max_size; i++)
@@ -808,8 +808,7 @@ static int create_worker(thread_group_t *thread_group)
          thread_group->pthread_attr, worker_main, thread_group);
   if (!err)
   {
-    thread_group->last_thread_creation_time=microsecond_interval_timer();
-    thread_created++;
+    thread_group->last_thread_creation_time=my_getsystime()/1000;
     add_thread_count(thread_group, 1);
   }
   else
@@ -887,7 +886,7 @@ static int wake_or_create_thread(thread_group_t *thread_group)
     DBUG_RETURN(create_worker(thread_group));
   }
 
-  ulonglong now = microsecond_interval_timer();
+  ulonglong now = my_getsystime()/1000;
   ulonglong time_since_last_thread_created =
     (now - thread_group->last_thread_creation_time);
   
@@ -1234,7 +1233,7 @@ void tp_add_connection(THD *thd)
   connection_t *connection= alloc_connection(thd);
   if (connection)
   {
-    thd->event_scheduler.data= connection;
+    thd->scheduler.data= connection;
       
     /* Assign connection to a group. */
     thread_group_t *group= 
@@ -1289,7 +1288,7 @@ void tp_wait_begin(THD *thd, int type)
 {
   DBUG_ENTER("tp_wait_begin");
   DBUG_ASSERT(thd);
-  connection_t *connection = (connection_t *)thd->event_scheduler.data;
+  connection_t *connection = (connection_t *)thd->scheduler.data;
   if (connection)
   {
     DBUG_ASSERT(!connection->waiting);
@@ -1309,7 +1308,7 @@ void tp_wait_end(THD *thd)
   DBUG_ENTER("tp_wait_end");
   DBUG_ASSERT(thd);
 
-  connection_t *connection = (connection_t *)thd->event_scheduler.data;
+  connection_t *connection = (connection_t *)thd->scheduler.data;
   if (connection)
   {
     DBUG_ASSERT(connection->waiting);
@@ -1369,7 +1368,7 @@ static int change_group(connection_t *c,
  thread_group_t *new_group)
 { 
   int ret= 0;
-  int fd= mysql_socket_getfd(c->thd->net.vio->mysql_socket);
+  int fd= c->thd->net.vio->sd;
 
   DBUG_ASSERT(c->thread_group == old_group);
 
@@ -1397,7 +1396,7 @@ static int change_group(connection_t *c,
 
 static int start_io(connection_t *connection)
 { 
-  int fd = mysql_socket_getfd(connection->thd->net.vio->mysql_socket);
+  int fd = connection->thd->net.vio->sd;
 
   /*
     Usually, connection will stay in the same group for the entire
@@ -1660,7 +1659,7 @@ static void print_pool_blocked_message(bool max_threads_reached)
   ulonglong now;
   static bool msg_written;
   
-  now= microsecond_interval_timer();
+  now= my_getsystime()/1000;
   if (pool_block_start == 0)
   {
     pool_block_start= now;

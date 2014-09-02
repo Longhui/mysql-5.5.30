@@ -836,6 +836,7 @@ THD::THD()
   init_sql_alloc(&main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0);
   stmt_arena= this;
   thread_stack= 0;
+  op_scheduler= thread_scheduler;
   catalog= (char*)"std"; // the only catalog we have for now
   main_security_ctx.init();
   security_ctx= &main_security_ctx;
@@ -1568,7 +1569,7 @@ void THD::awake(THD::killed_state state_to_set)
 
     /* Send an event to the scheduler that a thread should be killed. */
     if (!slave_thread)
-      MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (this));
+      MYSQL_CALLBACK(op_scheduler, post_kill_notification, (this));
   }
 
   /* Broadcast a condition to kick the target if it is waiting on it. */
@@ -3723,7 +3724,7 @@ extern "C" void thd_wait_begin(MYSQL_THD thd, int wait_type)
     if (unlikely(!thd))
       return;
   }
-  MYSQL_CALLBACK(thread_scheduler, thd_wait_begin, (thd, wait_type));
+  MYSQL_CALLBACK(thd->op_scheduler, thd_wait_begin, (thd, wait_type));
 }
 
 /**
@@ -3740,7 +3741,7 @@ extern "C" void thd_wait_end(MYSQL_THD thd)
     if (unlikely(!thd))
       return;
   }
-  MYSQL_CALLBACK(thread_scheduler, thd_wait_end, (thd));
+  MYSQL_CALLBACK(thd->op_scheduler, thd_wait_end, (thd));
 }
 #else
 extern "C" void thd_wait_begin(MYSQL_THD thd, int wait_type)

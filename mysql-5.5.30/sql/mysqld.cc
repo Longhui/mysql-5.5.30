@@ -1877,15 +1877,15 @@ static my_socket activate_tcp_port(uint port)
     struct addrinfo *ai, *a;
     struct addrinfo hints;
     const char *bind_address= my_bind_addr_str;
-	int	arg;
+    int	arg;
     int   ret;
     uint  waited, this_wait, retry;
-	char port_buf[NI_MAXSERV];
-	my_socket ip_sock= INVALID_SOCKET;
-	DBUG_ENTER("activate_tcp_port");
-	LINT_INIT(ret);
+    char port_buf[NI_MAXSERV];
+    my_socket ip_sock= INVALID_SOCKET;
+    DBUG_ENTER("activate_tcp_port");
+    LINT_INIT(ret);
 
-	if (!bind_address)
+    if (!bind_address)
       bind_address= "0.0.0.0";
     sql_print_information("Server hostname (bind-address): '%s'; port: %d",
                           bind_address, port);
@@ -1896,7 +1896,7 @@ static my_socket activate_tcp_port(uint port)
     hints.ai_socktype= SOCK_STREAM;
     hints.ai_family= AF_UNSPEC;
 
-    my_snprintf(port_buf, NI_MAXSERV, "%d", mysqld_port);
+    my_snprintf(port_buf, NI_MAXSERV, "%d", port);
     if (getaddrinfo(bind_address, port_buf, &hints, &ai))
     {
       sql_perror(ER_DEFAULT(ER_IPSOCK_ERROR));  /* purecov: tested */
@@ -2008,10 +2008,10 @@ static void network_init(void)
 {
 #ifdef HAVE_SYS_UN_H
   struct sockaddr_un	UNIXaddr;
+  int	arg;
 #endif
 
   DBUG_ENTER("network_init");
-  LINT_INIT(ret);
 
   if (MYSQL_CALLBACK_ELSE(thread_scheduler, init, (), 0))
     unireg_abort(1);			/* purecov: inspected */
@@ -2199,10 +2199,10 @@ void thd_cleanup(THD *thd)
     dec_connection_count()
 */
 
-void dec_connection_count()
+void dec_connection_count(THD *thd)
 {
   mysql_mutex_lock(&LOCK_connection_count);
-  --connection_count;
+  --(*thd->op_scheduler->connection_count);
   mysql_mutex_unlock(&LOCK_connection_count);
 }
 
@@ -2239,7 +2239,7 @@ void unlink_thd(THD *thd)
   DBUG_PRINT("enter", ("thd: 0x%lx", (long) thd));
 
   thd_cleanup(thd);
-  dec_connection_count();
+  dec_connection_count(thd);
   mysql_mutex_lock(&LOCK_thread_count);
   /*
     Used by binlog_reset_master.  It would be cleaner to use
@@ -5091,7 +5091,7 @@ void create_thread_to_handle_connection(THD *thd)
       mysql_mutex_unlock(&LOCK_thread_count);
 
       mysql_mutex_lock(&LOCK_connection_count);
-      --connection_count;
+      --(*thd->op_scheduler->connection_count);
       mysql_mutex_unlock(&LOCK_connection_count);
 
       statistic_increment(aborted_connects,&LOCK_status);
@@ -5136,7 +5136,8 @@ static void create_new_thread(THD *thd)
 
   mysql_mutex_lock(&LOCK_connection_count);
 
-  if (connection_count >= max_connections + super_connections_after_max || abort_loop)
+  if (*thd->op_scheduler->connection_count >= 
+      *thd->op_scheduler->max_connections + 1 || abort_loop)
   {
     mysql_mutex_unlock(&LOCK_connection_count);
 
@@ -5146,10 +5147,10 @@ static void create_new_thread(THD *thd)
     DBUG_VOID_RETURN;
   }
 
-  ++connection_count;
+  ++*thd->op_scheduler->connection_count;
 
-  if (connection_count > max_used_connections)
-    max_used_connections= connection_count;
+  if (connection_count + extra_connection_count > max_used_connections)
+    max_used_connections= connection_count + extra_connection_count;
 
   mysql_mutex_unlock(&LOCK_connection_count);
 
@@ -5166,7 +5167,7 @@ static void create_new_thread(THD *thd)
 
   thread_count++;
 
-  MYSQL_CALLBACK(thread_scheduler, add_connection, (thd));
+  MYSQL_CALLBACK(thd->op_scheduler, add_connection, (thd));
 
   DBUG_VOID_RETURN;
 }
