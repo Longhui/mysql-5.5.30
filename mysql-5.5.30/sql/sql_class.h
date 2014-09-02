@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2212,6 +2213,7 @@ public:
   char	     scramble[SCRAMBLE_LENGTH+1];
 
   bool       slave_thread, one_shot_set;
+  bool       extra_port;                        /* If extra connection */
   bool	     no_errors;
   char       flashback_stmt[2048];
   bool       flashback_thd;
@@ -2422,6 +2424,7 @@ public:
   {
     mysql_mutex_lock(&LOCK_thd_data);
     active_vio = vio;
+	vio_set_thread_id(vio, pthread_self());
     mysql_mutex_unlock(&LOCK_thd_data);
   }
   inline void clear_active_vio()
@@ -2884,6 +2887,7 @@ public:
     return FALSE;
   }
   thd_scheduler scheduler;
+  scheduler_functions *op_scheduler;
 
   /* Returns string as 'IP:port' for the client-side
      of the connnection represented

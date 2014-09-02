@@ -1,4 +1,5 @@
 /* Copyright (c) 2007, 2011, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,6 +28,8 @@
 #include "sql_connect.h"         // init_new_connection_handler_thread
 #include "scheduler.h"
 #include "sql_callback.h"
+#include "sql_class.h"
+#include <violite.h>
 
 /*
   End connection, in case when we are using 'no-threads'
@@ -38,7 +41,7 @@ static bool no_threads_end(THD *thd, bool put_in_cache)
   mysql_mutex_unlock(&LOCK_thread_count);
   return 1;                                     // Abort handle_one_connection
 }
-
+/*
 static scheduler_functions one_thread_scheduler_functions=
 {
   1,                                     // max_threads
@@ -70,9 +73,7 @@ static scheduler_functions one_thread_per_connection_scheduler_functions=
   NULL,                                  // end
 };
 #endif  // EMBEDDED_LIBRARY
-
-
-scheduler_functions *thread_scheduler= NULL;
+*/
 
 /** @internal
   Helper functions to allow mysys to call the thread scheduler when
@@ -109,23 +110,51 @@ static void scheduler_wait_sync_end(void) {
   one_thread_scheduler() or one_thread_per_connection_scheduler() in
   mysqld.cc, so this init function will always be called.
  */
-static void scheduler_init() {
+void scheduler_init() {
   thr_set_lock_wait_callback(scheduler_wait_lock_begin,
                              scheduler_wait_lock_end);
   thr_set_sync_wait_callback(scheduler_wait_sync_begin,
                              scheduler_wait_sync_end);
 }
 
+/**
+  Kill notification callback,  used by  one-thread-per-connection
+  and threadpool scheduler.
+
+  Wakes up a thread that is stuck in read/poll/epoll/event-poll 
+  routines used by threadpool, such that subsequent attempt to 
+  read from  client connection will result in IO error.
+*/
+
+void post_kill_notification(THD *thd)
+{
+  DBUG_ENTER("post_kill_notification");
+  if (current_thd == thd || thd->system_thread)
+    DBUG_VOID_RETURN;
+
+  if (thd->net.vio)
+    vio_shutdown(thd->net.vio, SHUT_RD);
+  DBUG_VOID_RETURN;
+}
+
+
 /*
   Initialize scheduler for --thread-handling=one-thread-per-connection
 */
 
 #ifndef EMBEDDED_LIBRARY
-void one_thread_per_connection_scheduler()
+void one_thread_per_connection_scheduler(scheduler_functions *func,
+    ulong *arg_max_connections,
+    uint *arg_connection_count)
 {
   scheduler_init();
-  one_thread_per_connection_scheduler_functions.max_threads= max_connections;
-  thread_scheduler= &one_thread_per_connection_scheduler_functions;
+  func->max_threads= *arg_max_connections + 1;
+  func->max_connections= arg_max_connections;
+  func->connection_count= arg_connection_count;
+  func->init_new_connection_thread= init_new_connection_handler_thread;
+  func->add_connection= create_thread_to_handle_connection;
+  func->end_thread= one_thread_per_connection_end;
+  func->post_kill_notification= post_kill_notification;
 }
 #endif
 
@@ -133,10 +162,17 @@ void one_thread_per_connection_scheduler()
   Initailize scheduler for --thread-handling=no-threads
 */
 
-void one_thread_scheduler()
+void one_thread_scheduler(scheduler_functions *func)
 {
   scheduler_init();
-  thread_scheduler= &one_thread_scheduler_functions;
+  func->max_threads= 1;
+  func->max_connections= &max_connections;
+  func->connection_count= &connection_count;
+#ifndef EMBEDDED_LIBRARY
+  func->init_new_connection_thread= init_new_connection_handler_thread;
+  func->add_connection= handle_connection_in_main_thread;
+#endif
+  func->end_thread= no_threads_end;
 }
 
 

@@ -738,6 +738,28 @@ static Sys_var_struct Sys_collation_connection(
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_collation_not_null),
        ON_UPDATE(fix_thd_charset));
 
+static Sys_var_uint Sys_extra_port(
+       "extra_port",
+       "Extra port number to use for tcp connections in a "
+       "one-thread-per-connection manner. 0 means don't use another port",
+       READ_ONLY GLOBAL_VAR(mysqld_extra_port), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1));
+
+static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
+{
+#ifndef EMBEDDED_LIBRARY
+  resize_thr_alarm(max_connections + extra_max_connections +
+                   global_system_variables.max_insert_delayed_threads + 10);
+#endif
+  return false;
+}
+
+static Sys_var_ulong Sys_extra_max_connections(
+       "extra_max_connections", "The number of connections on extra-port",
+       GLOBAL_VAR(extra_max_connections), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 100000), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_max_connections));
+
 static bool check_collation_db(sys_var *self, THD *thd, set_var *var)
 {
   if (check_collation_not_null(self, thd, var))
@@ -1306,15 +1328,6 @@ static Sys_var_ulong Sys_max_binlog_size(
        VALID_RANGE(IO_SIZE, 1024*1024L*1024L), DEFAULT(1024*1024L*1024L),
        BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_max_binlog_size));
-
-static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
-{
-#ifndef EMBEDDED_LIBRARY
-  resize_thr_alarm(max_connections +
-                   global_system_variables.max_insert_delayed_threads + 10);
-#endif
-  return false;
-}
 
 // Default max_connections of 151 is larger than Apache's default max
 // children, to avoid "too many connections" error in a common setup

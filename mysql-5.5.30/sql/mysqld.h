@@ -1,4 +1,5 @@
 /* Copyright (c) 2006, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -577,4 +578,8 @@ inline int set_current_thd(THD *thd)
 {
   return my_pthread_setspecific_ptr(THR_THD, thd);
 }
+
+extern uint mysqld_extra_port;
+extern ulong extra_max_connections;
+extern scheduler_functions *thread_scheduler, *extra_thread_scheduler;
 #endif /* MYSQLD_INCLUDED */
