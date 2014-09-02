@@ -1984,6 +1984,7 @@ buf_LRU_block_remove_hashed_page(
 				compressed page of an uncompressed page */
 	ibool		fc_move)/*!< in: TRUE if should move/migrate the page to l2cache */
 {
+	ibool			is_ibuf_page = FALSE;
 	ulint			fold;
 	const buf_page_t*	hashed_bpage;
 	buf_pool_t*		buf_pool = buf_pool_from_bpage(bpage);
@@ -2136,6 +2137,31 @@ buf_LRU_block_remove_hashed_page(
 		return(BUF_BLOCK_ZIP_FREE);
 
 	case BUF_BLOCK_FILE_PAGE:
+		//test for count ibuf pages in buffer pool
+		if (fc_move && ibuf && srv_ibuf_count_buffer_pages) {
+#ifdef UNIV_FLASH_CACHE_TRACE
+			ullint start_time = ut_time_us(NULL);
+			ullint end_time;
+#endif		
+			buf_pool_mutex_exit(buf_pool);
+			is_ibuf_page = ibuf_page(bpage->space, 
+				fil_space_get_zip_size(bpage->space), bpage->offset, NULL);
+
+#ifdef UNIV_FLASH_CACHE_TRACE
+			end_time = ut_time_us(NULL);
+			//fprintf(stderr, " take %lu us to print finish ibuf_page in remove \n",
+			//		(ulong)(end_time - start_time));
+#endif
+
+			buf_pool_mutex_enter(buf_pool);
+			if (is_ibuf_page == TRUE) {
+				if (ibuf->buf_size > 0)
+					ibuf->buf_size--;
+			} else if (is_ibuf_page == IBUF_FIXED_ADDR_PAGE) {
+				if (ibuf->buf_fixed_size > 0)			
+					ibuf->buf_fixed_size--;
+			}
+		}
 
 		if (fc_move && fc_is_enabled() && trx_doublewrite 
 			&& srv_flash_cache_enable_write && !bpage->zip.data){
@@ -2146,7 +2172,7 @@ buf_LRU_block_remove_hashed_page(
 			fc_LRU_move(bpage);
 			buf_pool_mutex_enter(buf_pool);
 		}
-		
+
 		memset(((buf_block_t*) bpage)->frame
 		       + FIL_PAGE_OFFSET, 0xff, 4);
 		memset(((buf_block_t*) bpage)->frame

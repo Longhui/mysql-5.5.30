@@ -65,6 +65,8 @@ ibuf_mtr_commit(
 struct ibuf_struct{
 	ulint		size;		/*!< current size of the ibuf index
 					tree, in pages */
+	ulint		buf_size;	/*!< number of ibuf pages in buf pool, in pages */
+	ulint		buf_fixed_size;	/*!< number of fixed address ibuf pages in buf pool, in pages */
 	ulint		max_size;	/*!< recommended maximum size of the
 					ibuf index tree, in pages */
 	ulint		seg_size;	/*!< allocated pages of the file

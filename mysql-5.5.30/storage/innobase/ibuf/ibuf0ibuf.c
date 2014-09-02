@@ -203,6 +203,9 @@ UNIV_INTERN ibuf_t*	ibuf			= NULL;
 /** Counter for ibuf_should_try() */
 UNIV_INTERN ulint	ibuf_flush_count	= 0;
 
+/* for test */
+UNIV_INTERN my_bool	srv_ibuf_count_buffer_pages = TRUE;
+
 #ifdef UNIV_PFS_MUTEX
 UNIV_INTERN mysql_pfs_key_t	ibuf_pessimistic_insert_mutex_key;
 UNIV_INTERN mysql_pfs_key_t	ibuf_mutex_key;
@@ -526,9 +529,16 @@ ibuf_init_at_db_start(void)
 	/* Note that also a pessimistic delete can sometimes make a B-tree
 	grow in size, as the references on the upper levels of the tree can
 	change */
+	//ibuf->max_size = buf_pool_get_curr_size() / UNIV_PAGE_SIZE
+	//	/ IBUF_POOL_SIZE_PER_MAX_SIZE;
 
-	ibuf->max_size = buf_pool_get_curr_size() / UNIV_PAGE_SIZE
-		/ IBUF_POOL_SIZE_PER_MAX_SIZE;
+	/* At startup we intialize ibuf to have a maximum of
+	CHANGE_BUFFER_DEFAULT_SIZE in terms of percentage of the
+	buffer pool size. Once ibuf struct is initialized this
+	value is updated with the user supplied size by calling
+	ibuf_max_size_update(). */
+	ibuf->max_size = ((buf_pool_get_curr_size() / UNIV_PAGE_SIZE)
+			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
 
 	mutex_create(ibuf_pessimistic_insert_mutex_key,
 		     &ibuf_pessimistic_insert_mutex,
@@ -599,6 +609,23 @@ ibuf_init_at_db_start(void)
 
 	ibuf->index = dict_table_get_first_index(table);
 }
+
+/*********************************************************************//**
+Updates the max_size value for ibuf. */
+UNIV_INTERN
+void
+ibuf_max_size_update(
+/*=================*/
+	ulint	new_val)	/*!< in: new value in terms of
+				percentage of the buffer pool size */
+{
+	ulint	new_size = ((buf_pool_get_curr_size() / UNIV_PAGE_SIZE)
+			    * new_val) / 100;
+	mutex_enter(&ibuf_mutex);
+	ibuf->max_size = new_size;
+	mutex_exit(&ibuf_mutex);
+}
+
 #endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Initializes an ibuf bitmap page. */
@@ -1136,7 +1163,7 @@ Checks if a page is a level 2 or 3 page in the ibuf hierarchy of pages.
 Must not be called when recv_no_ibuf_operations==TRUE.
 @return	TRUE if level 2 or level 3 page */
 UNIV_INTERN
-ibool
+ulint
 ibuf_page_low(
 /*==========*/
 	ulint		space,	/*!< in: space id */
@@ -1163,7 +1190,7 @@ ibuf_page_low(
 
 	if (ibuf_fixed_addr_page(space, zip_size, page_no)) {
 
-		return(TRUE);
+		return(IBUF_FIXED_ADDR_PAGE);
 	} else if (space != IBUF_SPACE_ID) {
 
 		return(FALSE);
@@ -4936,9 +4963,11 @@ ibuf_print(
 	mutex_enter(&ibuf_mutex);
 
 	fprintf(file,
-		"Ibuf: size %lu, free list len %lu,"
-		" seg size %lu, %lu merges\n",
+		"max size %lu, size %lu, buf bitmap size %lu\n"
+		"free list len %lu, seg size %lu, %lu merges\n",
+		(ulong) ibuf->max_size,		
 		(ulong) ibuf->size,
+		(ulong) ibuf->buf_fixed_size,		
 		(ulong) ibuf->free_list_len,
 		(ulong) ibuf->seg_size,
 		(ulong) ibuf->n_merges);

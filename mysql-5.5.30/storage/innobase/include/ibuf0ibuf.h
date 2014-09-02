@@ -35,6 +35,10 @@ Created 7/19/1997 Heikki Tuuri
 #ifndef UNIV_HOTBACKUP
 # include "ibuf0types.h"
 
+/** Default value for maximum on-disk size of change buffer in terms
+of percentage of the buffer pool. */
+#define CHANGE_BUFFER_DEFAULT_SIZE	(25)
+
 /* Possible operations buffered in the insert/whatever buffer. See
 ibuf_insert(). DO NOT CHANGE THE VALUES OF THESE, THEY ARE STORED ON DISK. */
 typedef enum {
@@ -71,6 +75,9 @@ extern uint		ibuf_debug;
 /** The insert buffer control structure */
 extern ibuf_t*		ibuf;
 
+/* for test */
+extern my_bool	srv_ibuf_count_buffer_pages;
+
 /* The purpose of the insert buffer is to reduce random disk access.
 When we wish to insert a record into a non-unique secondary index and
 the B-tree leaf page where the record belongs to is not in the buffer
@@ -97,6 +104,14 @@ UNIV_INTERN
 void
 ibuf_init_at_db_start(void);
 /*=======================*/
+/*********************************************************************//**
+Updates the max_size value for ibuf. */
+UNIV_INTERN
+void
+ibuf_max_size_update(
+/*=================*/
+	ulint	new_val);	/*!< in: new value in terms of
+				percentage of the buffer pool size */
 /*********************************************************************//**
 Reads the biggest tablespace id from the high end of the insert buffer
 tree and updates the counter in fil_system. */
@@ -261,7 +276,7 @@ Checks if a page is a level 2 or 3 page in the ibuf hierarchy of pages.
 Must not be called when recv_no_ibuf_operations==TRUE.
 @return	TRUE if level 2 or level 3 page */
 UNIV_INTERN
-ibool
+ulint
 ibuf_page_low(
 /*==========*/
 	ulint		space,	/*!< in: space id */
@@ -451,6 +466,8 @@ for the file segment from which the pages for the ibuf tree are allocated */
 
 /* The insert buffer tree itself is always located in space 0. */
 #define IBUF_SPACE_ID		0
+
+#define IBUF_FIXED_ADDR_PAGE		2
 
 #ifndef UNIV_NONINL
 #include "ibuf0ibuf.ic"

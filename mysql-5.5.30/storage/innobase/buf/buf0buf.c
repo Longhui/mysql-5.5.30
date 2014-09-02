@@ -3124,12 +3124,27 @@ buf_page_init_for_read(
 	mtr_t		mtr;
 	ulint		fold;
 	ibool		lru	= FALSE;
+	ulint		is_ibuf_page = FALSE;
 	void*		data;
 	buf_pool_t*	buf_pool = buf_pool_get(space, offset);
 
 	ut_ad(buf_pool);
 
 	*err = DB_SUCCESS;
+	
+	//test if it is a ibuf page
+	if (ibuf && srv_ibuf_count_buffer_pages) {
+#ifdef UNIV_FLASH_CACHE_TRACE
+		ullint start_time = ut_time_us(NULL);
+		ullint end_time;
+#endif
+		is_ibuf_page = ibuf_page(space, zip_size, offset, NULL);
+#ifdef UNIV_FLASH_CACHE_TRACE
+		end_time = ut_time_us(NULL);
+		//fprintf(stderr, " take %lu us to print finish ibuf_page in init \n",
+		//		(ulong)(end_time - start_time));
+#endif
+	}
 
 	if (mode == BUF_READ_IBUF_PAGES_ONLY) {
 		/* It is a read-ahead within an ibuf routine */
@@ -3196,6 +3211,12 @@ err_exit:
 
 		/* The block must be put to the LRU list, to the old blocks */
 		buf_LRU_add_block(bpage, old/* to old blocks */);
+
+		if (is_ibuf_page == TRUE) {
+			ibuf->buf_size++;
+		} else if (is_ibuf_page == IBUF_FIXED_ADDR_PAGE) {
+			ibuf->buf_fixed_size++;
+		}
 
 		/* We set a pass-type x-lock on the frame because then
 		the same thread which called for the read operation
@@ -3343,6 +3364,7 @@ buf_page_create(
 	ulint	zip_size,/*!< in: compressed page size, or 0 */
 	mtr_t*	mtr)	/*!< in: mini-transaction handle */
 {
+	ulint		is_ibuf_page = FALSE;
 	buf_frame_t*	frame;
 	buf_block_t*	block;
 	ulint		fold;
@@ -3352,6 +3374,20 @@ buf_page_create(
 	ut_ad(mtr);
 	ut_ad(mtr->state == MTR_ACTIVE);
 	ut_ad(space || !zip_size);
+
+	//test if it is a ibuf page
+	if (ibuf && srv_ibuf_count_buffer_pages) {
+#ifdef UNIV_FLASH_CACHE_TRACE
+		ullint start_time = ut_time_us(NULL);
+		ullint end_time;
+#endif
+		is_ibuf_page = ibuf_page(space, zip_size, offset, NULL);
+#ifdef UNIV_FLASH_CACHE_TRACE
+		end_time = ut_time_us(NULL);
+		//fprintf(stderr, " take %lu us to print finish ibuf_page in create \n",
+		//		(ulong)(end_time - start_time));
+#endif
+	}
 
 	free_block = buf_LRU_get_free_block(buf_pool);
 
@@ -3398,6 +3434,12 @@ buf_page_create(
 
 	/* The block must be put to the LRU list */
 	buf_LRU_add_block(&block->page, FALSE);
+
+	if (is_ibuf_page == TRUE) {
+		ibuf->buf_size++;
+	} else if (is_ibuf_page == IBUF_FIXED_ADDR_PAGE) {
+		ibuf->buf_fixed_size++;
+	}
 
 	buf_block_buf_fix_inc(block, __FILE__, __LINE__);
 	buf_pool->stat.n_pages_created++;
@@ -4697,13 +4739,15 @@ buf_print_io_instance(
 		"Database pages     %lu\n"
 		"Old database pages %lu\n"
 		"Modified db pages  %lu\n"
-		"Pending reads %lu\n"
+		"Change buf pages   %lu\n"		
+		"Pending reads      %lu\n"
 		"Pending writes: LRU %lu, flush list %lu, single page %lu\n",
 		pool_info->pool_size,
 		pool_info->free_list_len,
 		pool_info->lru_len,
 		pool_info->old_lru_len,
 		pool_info->flush_list_len,
+		(ibuf ? ibuf->buf_size : 0),
 		pool_info->n_pend_reads,
 		pool_info->n_pending_flush_lru,
 		pool_info->n_pending_flush_list,
