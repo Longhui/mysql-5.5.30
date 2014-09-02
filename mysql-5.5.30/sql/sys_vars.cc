@@ -1139,6 +1139,11 @@ static Sys_var_mybool Sys_binlog_user_ip(
        READ_ONLY GLOBAL_VAR(opt_binlog_user_ip),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
+static Sys_var_mybool Sys_prepare_optimize(
+       "prepare_optimize","prepare stage flush less time disk",
+       GLOBAL_VAR(prepare_optimize),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
 /* this says NO_CMD_LINE, as command-line option takes a string, not a bool */
 static Sys_var_mybool Sys_log_bin(
        "log_bin", "Whether the binary log is enabled",

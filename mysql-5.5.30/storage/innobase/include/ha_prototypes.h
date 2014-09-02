@@ -29,6 +29,8 @@ Created 5/11/2006 Osku Salerma
 
 #include "trx0types.h"
 #include "m_ctype.h" /* CHARSET_INFO */
+#include "my_sys.h"
+
 
 /*********************************************************************//**
 Wrapper around MySQL's copy_and_convert function.
@@ -112,6 +114,18 @@ ibool
 thd_is_replication_slave_thread(
 /*============================*/
 	void*	thd);	/*!< in: thread handle (THD*) */
+
+/******************************************************************//**
+Gets information on the durability property requested by thread.
+Used when writing either a prepare or commit record to the log
+buffer.
+@return the durability property. */
+UNIV_INTERN
+enum durability_properties
+thd_requested_durability(
+/*=====================*/
+	const void* thd)	/*!< in: thread handle */
+	__attribute__((nonnull, warn_unused_result));
 
 /******************************************************************//**
 Returns true if the transaction this thread is processing has edited

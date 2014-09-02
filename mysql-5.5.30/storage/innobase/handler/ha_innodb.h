@@ -27,6 +27,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #pragma interface			/* gcc class implementation */
 #endif
 
+
 /* Structure defines translation table between mysql index and innodb
 index structures */
 typedef struct innodb_idx_translate_struct {
@@ -290,6 +291,14 @@ void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all);
   @retval 1 the query is not filtered, 0 otherwise.
 */
 bool thd_binlog_filter_ok(const MYSQL_THD thd);
+
+/**
+  Gets information on the durability property requested by
+  a thread.
+  @param  thd   Thread handle
+  @return a durability property.
+*/
+enum durability_properties thd_get_durability_property(const MYSQL_THD thd);
 
 /**
   Check if the query may generate row changes which

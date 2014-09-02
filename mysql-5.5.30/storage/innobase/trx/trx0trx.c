@@ -2014,28 +2014,30 @@ trx_prepare_off_kernel(
 		That would spoil our group prepare algorithm. */
 
 		mutex_exit(&kernel_mutex);
-
-		if (srv_flush_log_at_trx_commit == 0) {
+        /*@raolh*/
+        if( thd_requested_durability(trx->mysql_thd) != HA_IGNORE_DURABILITY )
+		{
+  		  if (srv_flush_log_at_trx_commit == 0) {
 			/* Do nothing */
-		} else if (srv_flush_log_at_trx_commit == 1 || srv_flush_log_at_trx_commit == 3) {
-			if (srv_unix_file_flush_method == SRV_UNIX_NOSYNC) {
-				/* Write the log but do not flush it to disk */
+		   } else if (srv_flush_log_at_trx_commit == 1 || srv_flush_log_at_trx_commit == 3) {
+			   if (srv_unix_file_flush_method == SRV_UNIX_NOSYNC) {
+		  		/* Write the log but do not flush it to disk */
 
-				log_write_up_to(lsn, LOG_WAIT_ONE_GROUP,
-						FALSE);
-			} else {
+				log_write_up_to(lsn, LOG_WAIT_ONE_GROUP,FALSE);
+			    } else {
 				/* Write the log to the log files AND flush
 				them to disk */
 
 				log_write_up_to(lsn, LOG_WAIT_ONE_GROUP, TRUE);
-			}
-		} else if (srv_flush_log_at_trx_commit == 2) {
+			    }
+		   } else if (srv_flush_log_at_trx_commit == 2) {
 
 			/* Write the log but do not flush it to disk */
 
-			log_write_up_to(lsn, LOG_WAIT_ONE_GROUP, FALSE);
-		} else {
+		  	log_write_up_to(lsn, LOG_WAIT_ONE_GROUP, FALSE);
+		  } else {
 			ut_error;
+		  }
 		}
 
 		mutex_enter(&kernel_mutex);

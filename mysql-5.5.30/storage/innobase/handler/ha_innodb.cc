@@ -828,6 +828,19 @@ thd_is_replication_slave_thread(
 }
 
 /******************************************************************//**
+Gets information on the durability property requested by thread.
+Used when writing either a prepare or commit record to the log
+buffer. @return the durability property. */
+UNIV_INTERN
+enum durability_properties
+thd_requested_durability(
+/*=====================*/
+	const void* thd)	/*!< in: thread handle */
+{
+	return(thd_get_durability_property((const THD *)thd));
+}
+
+/******************************************************************//**
 Save some CPU by testing the value of srv_thread_concurrency in inline
 functions. */
 static inline

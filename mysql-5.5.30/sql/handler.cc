@@ -1371,7 +1371,12 @@ int ha_commit_trans(THD *thd, bool all)
           Sic: we know that prepare() is not NULL since otherwise
           trans->no_2pc would have been set.
         */
+      if ( prepare_optimize && opt_bin_log )
+        thd->durability_property= HA_IGNORE_DURABILITY;
+
 	  err = ht->prepare(ht, thd, all);
+	  thd->durability_property= HA_REGULAR_DURABILITY;
+
       status_var_increment(thd->status_var.ha_prepare_count);
 	  if(err)
 		my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);

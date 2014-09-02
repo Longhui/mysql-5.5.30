@@ -6618,6 +6618,10 @@ void MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     group_commit_queue = NULL;
     mysql_mutex_unlock(&LOCK_group_commit_queue);
     group_commit_entry *queue = NULL;
+   if (prepare_optimize)
+   {
+     ha_flush_logs(NULL);
+   }
     /*
       reverse group_commit_entry list nodes
     */

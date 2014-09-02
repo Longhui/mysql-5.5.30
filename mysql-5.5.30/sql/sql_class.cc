@@ -872,6 +872,7 @@ THD::THD()
   mysys_var=0;
   binlog_evt_union.do_union= FALSE;
   enable_slow_log= 0;
+  durability_property= HA_REGULAR_DURABILITY;
 #ifndef DBUG_OFF
   dbug_sentry=THD_SENTRY_MAGIC;
 #endif
@@ -3684,6 +3685,16 @@ extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
 extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
 {
   return binlog_filter->db_ok(thd->db);
+}
+
+extern "C" enum durability_properties thd_get_durability_property(const void* thd)
+{
+  enum durability_properties ret= HA_REGULAR_DURABILITY;
+  
+  if (thd != NULL)
+    ret= ((MYSQL_THD)thd)->durability_property;
+
+  return ret;
 }
 
 extern "C" bool thd_sqlcom_can_generate_row_events(const MYSQL_THD thd)

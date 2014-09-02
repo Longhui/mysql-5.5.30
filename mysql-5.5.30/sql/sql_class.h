@@ -1730,6 +1730,8 @@ public:
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
 
+  enum durability_properties durability_property;
+
 #ifndef MYSQL_CLIENT
   int binlog_setup_trx_data();
 
