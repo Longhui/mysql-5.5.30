@@ -185,8 +185,8 @@ buf_read_page_low(
 
 	ut_ad(buf_page_in_file(bpage));
 
-	if(sync)
-	  thd_wait_begin(NULL, THD_WAIT_DISKIO);
+        if(sync)
+	 thd_wait_begin(NULL, THD_WAIT_DISKIO);
 
 	if (zip_size) {
 		if (fc_is_enabled()) {
@@ -209,7 +209,9 @@ buf_read_page_low(
 					  ((buf_block_t*) bpage)->frame, bpage);
 		}
 	}
-	thd_wait_end(NULL);
+
+        if(sync)
+	  thd_wait_end(NULL);
 
 	if (*err == DB_TABLESPACE_DELETED) {
 		buf_read_page_handle_error(bpage);
