@@ -185,7 +185,9 @@ buf_read_page_low(
 
 	ut_ad(buf_page_in_file(bpage));
 
-	thd_wait_begin(NULL, THD_WAIT_DISKIO);
+	if(sync)
+	  thd_wait_begin(NULL, THD_WAIT_DISKIO);
+
 	if (zip_size) {
 		if (fc_is_enabled()) {
 			*err = fc_read_page(sync,space,zip_size,

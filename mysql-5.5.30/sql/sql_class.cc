@@ -3717,6 +3717,12 @@ extern "C" void thd_pool_wait_end(MYSQL_THD thd);
 */
 extern "C" void thd_wait_begin(MYSQL_THD thd, int wait_type)
 {
+  if (!thd)
+  {
+    thd= current_thd;
+    if (unlikely(!thd))
+      return;
+  }
   MYSQL_CALLBACK(thread_scheduler, thd_wait_begin, (thd, wait_type));
 }
 
@@ -3728,6 +3734,12 @@ extern "C" void thd_wait_begin(MYSQL_THD thd, int wait_type)
 */
 extern "C" void thd_wait_end(MYSQL_THD thd)
 {
+  if (!thd)
+  {
+    thd= current_thd;
+    if (unlikely(!thd))
+      return;
+  }
   MYSQL_CALLBACK(thread_scheduler, thd_wait_end, (thd));
 }
 #else

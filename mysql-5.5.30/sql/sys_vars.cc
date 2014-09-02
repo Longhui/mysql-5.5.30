@@ -1,4 +1,5 @@
 /* Copyright (c) 2002, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,6 +46,7 @@
                      // mysql_user_table_is_in_short_password_format
 #include "derror.h"  // read_texts
 #include "sql_base.h"                           // close_cached_tables
+#include <threadpool.h>
 
 #include "log_event.h"
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -1987,13 +1989,27 @@ static Sys_var_ulong Sys_trans_prealloc_size(
 
 static const char *thread_handling_names[]=
 {
-  "one-thread-per-connection", "no-threads", "loaded-dynamically",
+  "one-thread-per-connection", "no-threads",
+#ifdef HAVE_POOL_OF_THREADS
+  "pool-of-threads",
+#endif
   0
 };
+
+#if defined (_WIN32) && defined (HAVE_POOL_OF_THREADS)
+/* Windows is using OS threadpool, so we're pretty sure it works well */
+#define DEFAULT_THREAD_HANDLING 2
+#else
+#define DEFAULT_THREAD_HANDLING 0
+#endif
+
 static Sys_var_enum Sys_thread_handling(
        "thread_handling",
        "Define threads usage for handling queries, one of "
-       "one-thread-per-connection, no-threads, loaded-dynamically"
+       "one-thread-per-connection, no-threads"
+#ifdef HAVE_POOL_OF_THREADS
+       ", pool-of-threads"
+#endif
        , READ_ONLY GLOBAL_VAR(thread_handling), CMD_LINE(REQUIRED_ARG),
        thread_handling_names, DEFAULT(0));
 
@@ -2324,6 +2340,107 @@ static Sys_var_ulong Sys_thread_cache_size(
        "How many threads we should keep in a cache for reuse",
        GLOBAL_VAR(thread_cache_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 16384), DEFAULT(0), BLOCK_SIZE(1));
+
+#ifdef HAVE_POOL_OF_THREADS
+static bool fix_tp_max_threads(sys_var *, THD *, enum_var_type)
+{
+#ifdef _WIN32
+  tp_set_max_threads(threadpool_max_threads);
+#endif
+  return false;
+}
+
+
+#ifdef _WIN32
+static bool fix_tp_min_threads(sys_var *, THD *, enum_var_type)
+{
+  tp_set_min_threads(threadpool_min_threads);
+  return false;
+}
+#endif
+
+
+#ifndef  _WIN32
+static bool check_threadpool_size(sys_var *self, THD *thd, set_var *var)
+{
+  ulonglong v= var->save_result.ulonglong_value;
+  if (v > threadpool_max_size)
+  {
+    var->save_result.ulonglong_value= threadpool_max_size;
+    return throw_bounds_warning(thd, self->name.str, true, true, v);
+  }
+  return false;
+}
+
+
+static bool fix_threadpool_size(sys_var*, THD*, enum_var_type)
+{
+  tp_set_threadpool_size(threadpool_size);
+  return false;
+}
+
+static bool fix_threadpool_stall_limit(sys_var*, THD*, enum_var_type)
+{
+  tp_set_threadpool_stall_limit(threadpool_stall_limit);
+  return false;
+}
+#endif
+
+#ifdef _WIN32
+static Sys_var_uint Sys_threadpool_min_threads(
+  "thread_pool_min_threads",
+  "Minimum number of threads in the thread pool.",
+  GLOBAL_VAR(threadpool_min_threads), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(1, 256), DEFAULT(1), BLOCK_SIZE(1),
+  NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+  ON_UPDATE(fix_tp_min_threads)
+  );
+#else
+static Sys_var_uint Sys_threadpool_idle_thread_timeout(
+  "thread_pool_idle_timeout",
+  "Timeout in seconds for an idle thread in the thread pool."
+  "Worker thread will be shut down after timeout",
+  GLOBAL_VAR(threadpool_idle_timeout), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(1, UINT_MAX), DEFAULT(60), BLOCK_SIZE(1)
+);
+static Sys_var_uint Sys_threadpool_oversubscribe(
+  "thread_pool_oversubscribe",
+  "How many additional active worker threads in a group are allowed.",
+  GLOBAL_VAR(threadpool_oversubscribe), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(1, 1000), DEFAULT(3), BLOCK_SIZE(1)
+);
+static Sys_var_uint Sys_threadpool_size(
+ "thread_pool_size",
+ "Number of thread groups in the pool. "
+ "This parameter is roughly equivalent to maximum number of concurrently "
+ "executing threads (threads in a waiting state do not count as executing).",
+  GLOBAL_VAR(threadpool_size), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(1, MAX_THREAD_GROUPS), DEFAULT(my_getncpus()), BLOCK_SIZE(1),
+  NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_threadpool_size),
+  ON_UPDATE(fix_threadpool_size)
+);
+static Sys_var_uint Sys_threadpool_stall_limit(
+ "thread_pool_stall_limit",
+ "Maximum query execution time in milliseconds,"
+ "before an executing non-yielding thread is considered stalled."
+ "If a worker thread is stalled, additional worker thread "
+ "may be created to handle remaining clients.",
+  GLOBAL_VAR(threadpool_stall_limit), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(10, UINT_MAX), DEFAULT(500), BLOCK_SIZE(1),
+  NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), 
+  ON_UPDATE(fix_threadpool_stall_limit)
+);
+#endif /* !WIN32 */
+static Sys_var_uint Sys_threadpool_max_threads(
+  "thread_pool_max_threads",
+  "Maximum allowed number of worker threads in the thread pool",
+   GLOBAL_VAR(threadpool_max_threads), CMD_LINE(REQUIRED_ARG),
+   VALID_RANGE(1, 65536), DEFAULT(500), BLOCK_SIZE(1),
+   NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), 
+   ON_UPDATE(fix_tp_max_threads)
+);
+#endif /* HAVE_POOL_OF_THREADS */
+
 
 /**
   Can't change the 'next' tx_isolation if we are already in a

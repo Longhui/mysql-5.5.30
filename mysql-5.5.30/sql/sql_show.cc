@@ -1750,7 +1750,7 @@ public:
 
   ulong thread_id;
   time_t start_time;
-  ulonglong rpl_wait_begin_usec;
+  ulong rpl_wait_begin_usec;
   uint   command;
   const char *user,*host,*db,*proc_info,*state_info;
   CSET_STRING query_string;
@@ -1802,7 +1802,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   field_list.push_back(new Item_empty_string("Command",16));
   field_list.push_back(field= new Item_return_int("Time",7, MYSQL_TYPE_LONG));
   field->unsigned_flag= 0;
-  field_list.push_back(field= new Item_return_int("Ack_wait_time ",7, MYSQL_TYPE_LONGLONG));
+  field_list.push_back(field= new Item_return_int("Ack_wait_time ",7, MYSQL_TYPE_LONG));
   field->unsigned_flag= 0;
   field_list.push_back(field=new Item_empty_string("State",30));
   field->maybe_null=1;
