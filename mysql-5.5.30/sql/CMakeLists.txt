@@ -81,8 +81,15 @@ SET (SQL_SOURCE
                sql_reload.cc rpl_info_handler.cc rpl_info_table.cc
                rpl_info_table_access.cc rpl_info_values.cc rpl_info_fake.cc
                sql_statistics.cc rpl_parallel.cc
+			   threadpool_common.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE})
+
+IF(WIN32)
+  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc)
+ELSE()
+ SET(SQL_SOURCE ${SQL_SOURCE} threadpool_unix.cc)
+ENDIF()
 
 IF(WITH_TOKUDB)
   SET(SQL_SOURCE ${SQL_SOURCE} sql_backup.cc)
