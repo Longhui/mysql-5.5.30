@@ -5,7 +5,7 @@ use test;
 
 ******* ddl test
 
-xxx 1.test flashback reanme table sql
+xxx 1.test flashback rename table sql
 create table t1 (a int);
 insert into t1 value (1);
 before:
