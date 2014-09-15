@@ -297,6 +297,8 @@ typedef struct st_lex_master_info
     ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt;
   char *ssl_key, *ssl_cert, *ssl_ca, *ssl_capath, *ssl_cipher;
   char *relay_log_name;
+  char *replicate_do_db, *replicate_ignore_db, *replicate_do_table;
+  char *replicate_ignore_table, *replicate_wild_do_table, *replicate_wild_ignore_table;
   ulong relay_log_pos;
   DYNAMIC_ARRAY repl_ignore_server_ids;
   ulong server_ids_buffer[2];

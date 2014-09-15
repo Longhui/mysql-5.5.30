@@ -1601,6 +1601,31 @@ bool change_master(THD* thd, Master_info* mi)
     mi->rli.group_relay_log_pos= mi->rli.event_relay_log_pos= lex_mi->relay_log_pos;
   }
 
+  if (lex_mi->replicate_do_db)
+  {
+    rpl_filter->set_do_db((const char*)lex_mi->replicate_do_db);
+  }
+  if (lex_mi->replicate_ignore_db)
+  {
+    rpl_filter->set_ignore_db((const char*)lex_mi->replicate_ignore_db);
+  }
+  if (lex_mi->replicate_do_table)
+  {
+    rpl_filter->set_do_table((const char*)lex_mi->replicate_do_table);
+  }
+  if (lex_mi->replicate_ignore_table)
+  {
+    rpl_filter->set_ignore_table((const char*)lex_mi->replicate_ignore_table);
+  }
+  if (lex_mi->replicate_wild_do_table)
+  {
+    rpl_filter->set_wild_do_table((const char*)lex_mi->replicate_wild_do_table);
+  }
+  if (lex_mi->replicate_wild_ignore_table)
+  {
+    rpl_filter->set_wild_ignore_table((const char*)lex_mi->replicate_wild_ignore_table);
+  }
+
   /*
     If user did specify neither host nor port nor any log name nor any log
     pos, i.e. he specified only user/password/master_connect_retry, he probably

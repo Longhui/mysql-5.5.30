@@ -1,0 +1,17 @@
+include/master-slave.inc
+[connection master]
+stop slave;
+change master to replicate_do_db="test";
+change master to replicate_do_db="";
+change master to replicate_do_table="test.t1";
+change master to replicate_do_table="";
+change master to replicate_ignore_table="test.t1";
+change master to replicate_ignore_table="";
+change master to replicate_ignore_db="test";
+change master to replicate_ignore_db="";
+change master to replicate_wild_do_table="test.*";
+change master to replicate_wild_do_table="";
+change master to replicate_wild_ignore_table="test.*";
+change master to replicate_wild_ignore_table="";
+start slave;
+include/rpl_end.inc

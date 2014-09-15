@@ -1229,6 +1229,12 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  REPEATABLE_SYM                /* SQL-2003-N */
 %token  REPEAT_SYM                    /* MYSQL-FUNC */
 %token  REPLACE                       /* MYSQL-FUNC */
+%token  REPLICATE_DO_DB
+%token  REPLICATE_DO_TABLE
+%token  REPLICATE_IGNORE_DB
+%token  REPLICATE_IGNORE_TABLE
+%token  REPLICATE_WILD_DO_TABLE
+%token  REPLICATE_WILD_IGNORE_TABLE
 %token  REPLICATION
 %token  REQUIRE_SYM
 %token  RESET_SYM
@@ -1919,6 +1925,30 @@ master_def:
         | MASTER_PORT_SYM EQ ulong_num
           {
             Lex->mi.port = $3;
+          }
+        | REPLICATE_DO_DB EQ TEXT_STRING_sys
+          {
+            Lex->mi.replicate_do_db = $3.str;
+          }
+        | REPLICATE_DO_TABLE EQ TEXT_STRING_sys
+          {
+            Lex->mi.replicate_do_table = $3.str;
+          }
+        | REPLICATE_IGNORE_DB EQ TEXT_STRING_sys
+          {
+            Lex->mi.replicate_ignore_db = $3.str;
+          }
+        | REPLICATE_IGNORE_TABLE EQ TEXT_STRING_sys
+          {
+            Lex->mi.replicate_ignore_table = $3.str;
+          }
+        | REPLICATE_WILD_DO_TABLE EQ TEXT_STRING_sys
+          {
+            Lex->mi.replicate_wild_do_table = $3.str;
+          }
+        | REPLICATE_WILD_IGNORE_TABLE EQ TEXT_STRING_sys
+          {
+            Lex->mi.replicate_wild_ignore_table = $3.str;
           }
         | MASTER_CONNECT_RETRY_SYM EQ ulong_num
           {
@@ -12882,6 +12912,12 @@ keyword_sp:
         | RELOAD                   {}
         | REORGANIZE_SYM           {}
         | REPEATABLE_SYM           {}
+        | REPLICATE_DO_DB          {}
+        | REPLICATE_DO_TABLE       {}
+        | REPLICATE_IGNORE_DB      {}
+        | REPLICATE_IGNORE_TABLE   {}
+        | REPLICATE_WILD_DO_TABLE  {}
+        | REPLICATE_WILD_IGNORE_TABLE   {}
         | REPLICATION              {}
         | RESOURCES                {}
         | RESUME_SYM               {}
