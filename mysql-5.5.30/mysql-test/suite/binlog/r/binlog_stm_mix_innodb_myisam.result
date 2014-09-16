@@ -498,7 +498,7 @@ get_lock("a",10)
 1
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	4	Format_desc	1	150	Server ver: 5.5.30-v5a-log, Binlog ver: 4
+master-bin.000001	4	Format_desc	1	150	Server ver: 5.5.30-v6-log, Binlog ver: 4
 master-bin.000001	150	Binlog_checkpoint	1	190	master-bin.000001
 master-bin.000001	190	Gcid_event	1	217	GCID id=0
 master-bin.000001	217	Query	1	317	use `test`; create table t1 (a int) engine=innodb
