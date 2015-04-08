@@ -39,6 +39,7 @@ char  *ha_partner_host= 0;
 uint   ha_partner_port= 0;
 char  *ha_partner_user= 0;
 char  *ha_partner_password= 0;
+uint   ha_partner_force= 0;
 
 void 
 Vsr_master_delegate::before_recover(char *fname)
@@ -60,7 +61,12 @@ Vsr_master_delegate::before_recover(char *fname)
     param.user= ha_partner_user;
     param.passwd= ha_partner_password;
     param.last_binlog= fname;
-    observer->before_recover(&param);
+    if ( observer->before_recover(&param) && 
+         ha_partner_force )
+    {
+      sql_print_warning("VSR HA : forcelly shutdown mysqld !! because ha_partner_force=1.");
+      unireg_abort(1);                        
+    }
   }
 }
 

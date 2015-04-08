@@ -25,7 +25,7 @@ static int get_slave_sync_info(char *host, uint port, char *user, char* passwd,
   uint net_timeout= 3600;
   if (!(mysql = mysql_init(NULL)))
   {
-    return -1;
+    return 1;
   }
   mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &net_timeout);
   mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &net_timeout);
@@ -36,24 +36,24 @@ static int get_slave_sync_info(char *host, uint port, char *user, char* passwd,
     reconnect++;
     mysql->reconnect= 1;
     my_sleep(reconnect * 100000);
-    if (reconnect >= 5)
+    if (reconnect >= 10)
     {
       sql_print_error("VSR HA : can't connect ha_parter (errno:%d)", (int)mysql_errno(mysql));
-      error =-1;
+      error =1;
       goto err;
     }
   }
   if (simple_command(mysql, COM_VSR_QUERY, 0, 0, 1))
   {
     sql_print_information("VSR HA : vsr query_ha parter fail!");
-    error= -1;
+    error= 1;
     goto err;
   }
   len = cli_safe_read(mysql);
   if ( len==packet_error || (long)len < 1)
   {
     sql_print_error("VSR HA : net error ");
-    error= -1;
+    error= 1;
     goto err;
   }
   buf= (const char*)mysql->net.read_pos;
@@ -112,12 +112,15 @@ static int append_rollback_event(const char *fname)
   return 0;
 }
 
-void adjust_binlog_with_slave(char *host, uint port, char *user, char* passwd, char* last_binlog)
+int adjust_binlog_with_slave(char *host, uint port, char *user, char* passwd, char* last_binlog)
 {
   my_off_t len;
   char* binlog= NULL;
-  if (-1 == get_slave_sync_info(host, port, user ,passwd, &binlog, &len))
+  int error = 0; 
+  error = get_slave_sync_info(host, port, user ,passwd, &binlog, &len);
+  if (0 != error)
   {
+    sql_print_error("VSR HA : fail to connect slave");
     goto over;
   }
   sql_print_information("VSR HA : slave receive master binlog %s %lld", binlog, len);  
@@ -140,6 +143,8 @@ void adjust_binlog_with_slave(char *host, uint port, char *user, char* passwd, c
 over:
   if (NULL != binlog)
     my_free(binlog);
+
+  return error>0 ? 1 : 0;
 }
 
 void send_slave_sync_info(NET *net, char* fname, my_off_t pos)

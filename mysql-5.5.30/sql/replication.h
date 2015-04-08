@@ -34,7 +34,7 @@ typedef struct Vsr_master_param {
 
 typedef struct Vsr_master_observer {
   uint32 len;
-  void (*before_recover)(Vsr_master_param *param);
+  int (*before_recover)(Vsr_master_param *param);
 } Vsr_master_observer;
 
 typedef struct Vsr_slave_param {
