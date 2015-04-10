@@ -61,10 +61,10 @@ Vsr_master_delegate::before_recover(char *fname)
     param.user= ha_partner_user;
     param.passwd= ha_partner_password;
     param.last_binlog= fname;
-    if ( observer->before_recover(&param) && 
+    if ( 0 != observer->before_recover(&param) && 
          ha_partner_force )
     {
-      sql_print_warning("VSR HA : forcelly shutdown mysqld !! because ha_partner_force=1.");
+      sql_print_warning("VSR HA : force shutdown mysqld !! because ha_partner_force is set to 1.");
       unireg_abort(1);                        
     }
   }
