@@ -1,7 +1,7 @@
 #!/bin/sh
 
-prefix=/mnt/ddb/1/wenzhh/version_work_v6/build/jemalloc
-exec_prefix=/mnt/ddb/1/wenzhh/version_work_v6/build/jemalloc
+prefix=/styx/home/hzraolh/work/5.5.30-v6/innosql/build/jemalloc
+exec_prefix=/styx/home/hzraolh/work/5.5.30-v6/innosql/build/jemalloc
 libdir=${exec_prefix}/lib
 
 LD_PRELOAD=${libdir}/libjemalloc.so.1
