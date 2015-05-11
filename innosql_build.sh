@@ -114,7 +114,7 @@ function build_mysql_server()
     pushd bld
     if [ $package -eq 1 ]
     then
-      cmake .. -DBUILD_CONFIG=mysql_release -DWITH_TOKUDB=1 -DCMAKE_BUILD_TYPE=$build_type -DWITH_EMBEDDED_SERVER=0 -DTOKU_JEMALLOC_LIBRARY="-Wl,--whole-archive $jemalloc_lib/libjemalloc.a -Wl,-no-whole-archive"
+      cmake .. -DBUILD_CONFIG=mysql_release -DWITH_TOKUDB=1 -DCMAKE_BUILD_TYPE=$build_type -DWITH_EMBEDDED_SERVER=0 -DTOKU_JEMALLOC_LIBRARY="-Wl,--whole-archive $jemalloc_lib/libjemalloc.a -Wl,-no-whole-archive" -DWITH_TNT=0
     else
       cmake .. -DCMAKE_INSTALL_PREFIX=$mysql_prefix -DWITH_TOKUDB=1 -DBUILD_CONFIG=mysql_release -DCMAKE_BUILD_TYPE=$build_type -DWITH_EMBEDDED_SERVER=0 -DTOKU_JEMALLOC_LIBRARY="-Wl,--whole-archive $jemalloc_lib/libjemalloc.a -Wl,-no-whole-archive"
     fi

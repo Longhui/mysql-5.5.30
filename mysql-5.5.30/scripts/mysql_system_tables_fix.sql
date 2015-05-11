@@ -244,13 +244,16 @@ SET GLOBAL general_log = @old_log_state;
 SET @old_log_state = @@global.slow_query_log;
 SET GLOBAL slow_query_log = 'OFF';
 ALTER TABLE slow_log
+  ADD logical_reads INTEGER DEFAULT 0 NOT NULL AFTER rows_examined;
+ALTER TABLE slow_log
+  ADD physical_reads INTEGER DEFAULT 0 NOT NULL AFTER logical_reads;
+ALTER TABLE slow_log
   MODIFY start_time TIMESTAMP NOT NULL,
   MODIFY user_host MEDIUMTEXT NOT NULL,
   MODIFY query_time TIME NOT NULL,
   MODIFY lock_time TIME NOT NULL,
   MODIFY rows_sent INTEGER NOT NULL,
   MODIFY rows_examined INTEGER NOT NULL,
-  ADD logical_reads INTEGER DEFAULT 0 NOT NULL AFTER rows_examined, ADD physical_reads INTEGER DEFAULT 0 NOT NULL AFTER logical_reads,
   MODIFY logical_reads INTEGER NOT NULL,
   MODIFY physical_reads INTEGER NOT NULL,
   MODIFY db VARCHAR(512) NOT NULL,
@@ -627,8 +630,8 @@ UPDATE user SET Create_tablespace_priv = Super_priv WHERE @hadCreateTablespacePr
 SET @hadProfilePriv := 0;
 SELECT @hadProfilePriv :=1 FROM user WHERE Profile_priv LIKE '%';
 
-ALTER TABLE user ADD Profile_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Create_tablespace_priv;
-ALTER TABLE user MODIFY Profile_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Create_tablespace_priv;
+ALTER TABLE user ADD Profile_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'Y' NOT NULL AFTER Create_tablespace_priv;
+ALTER TABLE user MODIFY Profile_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'Y' NOT NULL AFTER Create_tablespace_priv;
 
 UPDATE user SET profile_priv = Super_priv WHERE @hadProfilePriv = 0;
 

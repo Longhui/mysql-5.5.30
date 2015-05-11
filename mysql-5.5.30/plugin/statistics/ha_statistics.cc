@@ -461,6 +461,13 @@ stat_show_sql_stats(uint count, THD *thd)
     while(index != NULL)
     {
       INDEX_INFO *info = s->m_index_queue.iterator_value(index);
+      /* if more indexes exist, maybe cause the buffer out of memory */
+      if (buffer + MAX_SQL_TEXT_SIZE - p < info->index_name.length + 10)
+      {
+         sprintf(p, "....");
+         p += 4;
+         break;
+      }
       sprintf(p, "%s(%d),",info->index_name.str,info->index_reads);
       while(*p != '\0') p++; 
       index = s->m_index_queue.iterator_next(index);
@@ -763,6 +770,7 @@ static void get_sql_text(char *text, Statistics *s)
   }
   const uint max_converted_size = MAX_SQL_TEXT_SIZE * 4;
   char *id_buffer = (char*)my_malloc(max_converted_size,MYF(MY_WME));
+  memset(id_buffer, 0, max_converted_size);
   char *id_string;
   int id_length;
   bool convert_text = !my_charset_same(from_cs, to_cs);
@@ -1137,6 +1145,7 @@ remove_expire_stats()
 
   my_thread_init();
   if (!(thd = new THD)) return;
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
   thd->thread_stack = (char *)&thd;
   thd->store_globals();
   ulonglong current_time = my_time(0);
@@ -1226,6 +1235,7 @@ store_sql_stats()
   {
     Statistics *s = statistics_array.array[i];
     if ( s == NULL) continue;
+    memset(buffer, 0, MAX_SQL_TEXT_SIZE);
     table->field[0]->store(start_output_time, TRUE);
     table->field[1]->store(end_output_time, TRUE);
     get_sql_text(buffer,s);
@@ -1238,6 +1248,13 @@ store_sql_stats()
     while(index != NULL)
     {
       INDEX_INFO *info = s->m_index_queue.iterator_value(index);
+      /* if more indexes exist, maybe cause the buffer out of memory */
+      if (buffer + MAX_SQL_TEXT_SIZE - p < info->index_name.length + 10)
+      {
+        sprintf(p, "....");
+        p += 4;
+        break;
+      }
       sprintf(p, "%s(%d),",info->index_name.str,info->index_reads);
       while(*p != '\0') p++; 
       index = s->m_index_queue.iterator_next(index);

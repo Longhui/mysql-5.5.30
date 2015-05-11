@@ -40,7 +40,7 @@ Master_info::Master_info(bool is_slave_recovery)
    ssl(0), ssl_verify_server_cert(0), fd(-1), io_thd(0), 
    rli(is_slave_recovery, opt_enable_table_relay_info), port(MYSQL_PORT),
    connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
-   slave_running(0), slave_run_id(0), sync_counter(0),
+   slave_running(0), slave_run_id(0), sync_counter(0), update_counter(0),
    heartbeat_period(0), received_heartbeats(0), master_id(0)
 {
   host[0] = 0; user[0] = 0; password[0] = 0;
@@ -450,7 +450,8 @@ err:
 */
 int flush_master_info(Master_info* mi, 
                       bool flush_relay_log_cache, 
-                      bool need_lock_relay_log)
+                      bool need_lock_relay_log,
+                      bool flush_master_info_cache)
 {
   IO_CACHE* file = &mi->file;
   char lbuf[22];
@@ -489,46 +490,48 @@ int flush_master_info(Master_info* mi,
       DBUG_RETURN(2);
   }
   
-  /*
-    produce a line listing the total number and all the ignored server_id:s
-  */
-  char* ignore_server_ids_buf;
+  if (flush_master_info_cache)
   {
-    ignore_server_ids_buf=
-      (char *) my_malloc((sizeof(::server_id) * 3 + 1) *
-                         (1 + mi->ignore_server_ids.elements), MYF(MY_WME));
-    if (!ignore_server_ids_buf)
-      DBUG_RETURN(1);
-    ulong cur_len= sprintf(ignore_server_ids_buf, "%u",
-                           mi->ignore_server_ids.elements);
-    for (ulong i= 0; i < mi->ignore_server_ids.elements; i++)
+    /*
+      produce a line listing the total number and all the ignored server_id:s
+    */
+    char* ignore_server_ids_buf;
     {
-      ulong s_id;
-      get_dynamic(&mi->ignore_server_ids, (uchar*) &s_id, i);
-      cur_len+= sprintf(ignore_server_ids_buf + cur_len, " %lu", s_id);
+      ignore_server_ids_buf=
+        (char *) my_malloc((sizeof(::server_id) * 3 + 1) *
+                         (1 + mi->ignore_server_ids.elements), MYF(MY_WME));
+      if (!ignore_server_ids_buf)
+        DBUG_RETURN(1);
+      ulong cur_len= sprintf(ignore_server_ids_buf, "%u",
+                           mi->ignore_server_ids.elements);
+      for (ulong i= 0; i < mi->ignore_server_ids.elements; i++)
+      {
+        ulong s_id;
+        get_dynamic(&mi->ignore_server_ids, (uchar*) &s_id, i);
+        cur_len+= sprintf(ignore_server_ids_buf + cur_len, " %lu", s_id);
+      }
     }
-  }
 
-  /*
-    We flushed the relay log BEFORE the master.info file, because if we crash
-    now, we will get a duplicate event in the relay log at restart. If we
-    flushed in the other order, we would get a hole in the relay log.
-    And duplicate is better than hole (with a duplicate, in later versions we
-    can add detection and scrap one event; with a hole there's nothing we can
-    do).
-  */
+    /*
+      We flushed the relay log BEFORE the master.info file, because if we crash
+      now, we will get a duplicate event in the relay log at restart. If we
+      flushed in the other order, we would get a hole in the relay log.
+      And duplicate is better than hole (with a duplicate, in later versions we
+      can add detection and scrap one event; with a hole there's nothing we can
+      do).
+    */
 
-  /*
-     In certain cases this code may create master.info files that seems
-     corrupted, because of extra lines filled with garbage in the end
-     file (this happens if new contents take less space than previous
-     contents of file). But because of number of lines in the first line
-     of file we don't care about this garbage.
-  */
-  char heartbeat_buf[sizeof(mi->heartbeat_period) * 4]; // buffer to suffice always
-  sprintf(heartbeat_buf, "%.3f", mi->heartbeat_period);
-  my_b_seek(file, 0L);
-  my_b_printf(file,
+    /*
+      In certain cases this code may create master.info files that seems
+      corrupted, because of extra lines filled with garbage in the end
+      file (this happens if new contents take less space than previous
+      contents of file). But because of number of lines in the first line
+      of file we don't care about this garbage.
+    */
+    char heartbeat_buf[sizeof(mi->heartbeat_period) * 4]; // buffer to suffice always
+    sprintf(heartbeat_buf, "%.3f", mi->heartbeat_period);
+    my_b_seek(file, 0L);
+    my_b_printf(file,
               "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n",
               LINES_IN_MASTER_INFO,
               mi->master_log_name, llstr(mi->master_log_pos, lbuf),
@@ -537,13 +540,18 @@ int flush_master_info(Master_info* mi,
               (int)(mi->ssl), mi->ssl_ca, mi->ssl_capath, mi->ssl_cert,
               mi->ssl_cipher, mi->ssl_key, mi->ssl_verify_server_cert,
               heartbeat_buf, "", ignore_server_ids_buf);
-  my_free(ignore_server_ids_buf);
-  err= flush_io_cache(file);
-  if (sync_masterinfo_period && !err && 
-      ++(mi->sync_counter) >= sync_masterinfo_period)
+    my_free(ignore_server_ids_buf);
+    err= flush_io_cache(file);
+    if (sync_masterinfo_period && !err && 
+        ++(mi->sync_counter) >= sync_masterinfo_period)
+    {
+      err= my_sync(mi->fd, MYF(MY_WME));
+      mi->sync_counter= 0;
+    }
+  }
+  else
   {
-    err= my_sync(mi->fd, MYF(MY_WME));
-    mi->sync_counter= 0;
+    ++(mi->sync_counter);
   }
   DBUG_RETURN(-err);
 }

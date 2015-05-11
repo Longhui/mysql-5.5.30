@@ -655,6 +655,12 @@ static void free_forbid_deleted_users()
 
 bool is_forbid_deleted_user(const char *user, const char *host)
 {
+  /*
+  if (current_thd->main_security_ctx.master_access & SUPER_ACL)
+  {
+    return false;
+  }
+  */
   for(uint i = 0; i < forbid_deleted_users.elements; i++)
   {
     LEX_USER *lex_user= dynamic_element(&forbid_deleted_users,i,LEX_USER*);
@@ -671,6 +677,12 @@ bool is_forbid_deleted_user(const char *user, const char *host)
 
 bool contain_forbid_deleted_user(const char *record)
 {
+  /*
+  if (current_thd->main_security_ctx.master_access & SUPER_ACL)
+  {
+    return false;
+  }
+  */
   for(uint i = 0; i < forbid_deleted_users.elements; i++)
   {
     LEX_USER *lex_user= dynamic_element(&forbid_deleted_users,i,LEX_USER*);

@@ -110,6 +110,7 @@ class Master_info : public Slave_reporting_capability
     events should happen before fsyncing.
   */
   uint sync_counter;
+  uint update_counter;
   float heartbeat_period;         // interface with CHANGE MASTER or master.info
   ulonglong received_heartbeats;  // counter of received heartbeat events
   DYNAMIC_ARRAY ignore_server_ids;
@@ -122,7 +123,8 @@ int init_master_info(Master_info* mi, const char* master_info_fname,
 void end_master_info(Master_info* mi);
 int flush_master_info(Master_info* mi, 
                       bool flush_relay_log_cache, 
-                      bool need_lock_relay_log);
+                      bool need_lock_relay_log,
+                      bool flush_master_info_cache = TRUE);
 int change_master_server_id_cmp(ulong *id1, ulong *id2);
 
 #endif /* HAVE_REPLICATION */

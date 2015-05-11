@@ -85,6 +85,7 @@ extern char  *ha_partner_user;
 extern char  *ha_partner_password;
 
 extern my_bool opt_enable_table_relay_info;
+extern uint update_masterinfo_period;
 /**
   Character set of the buildin error messages loaded from errmsg.sys.
 */
