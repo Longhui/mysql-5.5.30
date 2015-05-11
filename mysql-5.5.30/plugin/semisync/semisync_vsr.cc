@@ -1,4 +1,5 @@
 #include <m_string.h>
+#include <stdio.h>
 #include "semisync_vsr.h"
 #include "my_sys.h"
 #include "mysql.h"
@@ -25,7 +26,7 @@ static int get_slave_sync_info(char *host, uint port, char *user, char* passwd,
   uint net_timeout= 3600;
   if (!(mysql = mysql_init(NULL)))
   {
-    return -1;
+    return 1;
   }
   mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &net_timeout);
   mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &net_timeout);
@@ -36,24 +37,24 @@ static int get_slave_sync_info(char *host, uint port, char *user, char* passwd,
     reconnect++;
     mysql->reconnect= 1;
     my_sleep(reconnect * 100000);
-    if (reconnect >= 5)
+    if (reconnect >= 10)
     {
       sql_print_error("VSR HA : can't connect ha_parter (errno:%d)", (int)mysql_errno(mysql));
-      error =-1;
+      error =1;
       goto err;
     }
   }
   if (simple_command(mysql, COM_VSR_QUERY, 0, 0, 1))
   {
     sql_print_information("VSR HA : vsr query_ha parter fail!");
-    error= -1;
+    error= 1;
     goto err;
   }
   len = cli_safe_read(mysql);
   if ( len==packet_error || (long)len < 1)
   {
     sql_print_error("VSR HA : net error ");
-    error= -1;
+    error= 1;
     goto err;
   }
   buf= (const char*)mysql->net.read_pos;
@@ -69,7 +70,14 @@ err:
 
 static int truncate_file(const char *fname, my_off_t len)
 {
-  File fd;
+  File fd, fd_new;
+  int error= 0;
+  char new_fname[512]={0};
+  uchar buff[512]={0};
+  int Count= 0;
+  //const char* fname_bak= new_fname;
+  ulonglong f_len;
+
   if (fname == 0 || len == 0)
   {
     return 0;
@@ -79,12 +87,58 @@ static int truncate_file(const char *fname, my_off_t len)
   {
     return -1;
   }
+  f_len= my_seek(fd, 0, SEEK_END, MYF(MY_THREADSAFE));
+  my_seek(fd, 0 , SEEK_SET, MYF(MY_WME));
+  if (f_len == MY_FILEPOS_ERROR)
+  {
+    error= 1;
+    goto end;
+  }
+
+  if (f_len <= len)
+  {
+    sql_print_information("VSR HA : no need to truncate %s for it's length is %lld less than %lld",
+      fname, f_len, len);
+    error= 0;
+    goto end;
+  }
+
+  my_seek(fd, 0, SEEK_SET, MYF(MY_WME));
+  sprintf(new_fname, "%s_bak", fname);
+  fd_new= my_open(new_fname, O_CREAT | O_RDWR | O_BINARY | O_SHARE, MYF(MY_WME));
+  if (fd_new < 0)
+  {
+    error= 1;
+    sql_print_error("VSR HA : fail to save %s truncation port, errno: %d", fname, errno);
+    goto end;
+  }
+  
+  while ((Count=my_read(fd, buff, sizeof(buff), MYF(MY_WME))) != 0)
+  {
+    if (Count == (uint) -1 ||
+         my_write(fd_new,buff,Count,MYF(MY_WME | MY_NABP)))
+    {
+      my_close(fd_new, MYF(MY_WME));
+      error= 1;
+      sql_print_error("VSR HA : fail to save %s truncation port, errno: %d", fname, errno);
+      goto end;
+    }
+  }
+  my_sync(fd_new, MYF(MY_WME));  
+  my_close(fd_new, MYF(MY_WME));
+  sql_print_information("VSR HA : save %s to %s", fname, new_fname);   
+  
+  my_seek(fd, 0, SEEK_SET, MYF(MY_WME));
   if (my_chsize(fd, len, 0, MYF(MY_WME)))
   {
-    return -1;
+    error= 1;
+    goto end;
   }
+  sql_print_information("VSR HA : truncate binlog %s length from %lld to %lld", fname, f_len, len);
+
+end:
   my_close(fd, MYF(MY_WME));
-  return 0;
+  return error;
 }
 
 static int append_rollback_event(const char *fname)
@@ -112,12 +166,15 @@ static int append_rollback_event(const char *fname)
   return 0;
 }
 
-void adjust_binlog_with_slave(char *host, uint port, char *user, char* passwd, char* last_binlog)
+int adjust_binlog_with_slave(char *host, uint port, char *user, char* passwd, char* last_binlog)
 {
   my_off_t len;
   char* binlog= NULL;
-  if (-1 == get_slave_sync_info(host, port, user ,passwd, &binlog, &len))
+  int error = 0; 
+  error = get_slave_sync_info(host, port, user ,passwd, &binlog, &len);
+  if (0 != error)
   {
+    sql_print_error("VSR HA : fail to connect slave");
     goto over;
   }
   sql_print_information("VSR HA : slave receive master binlog %s %lld", binlog, len);  
@@ -127,11 +184,12 @@ void adjust_binlog_with_slave(char *host, uint port, char *user, char* passwd, c
                           "for slave receive binlog %s", last_binlog, binlog);
     goto over;
   }
-  if (-1 == truncate_file(binlog, len))
+
+  error =truncate_file(binlog, len);
+  if (0 != error)
   {
     goto over;
   }
-  sql_print_information("VSR HA : truncate binlog %s length to %lld", binlog, len);
   if (-1 == append_rollback_event(binlog))
   {
     goto over;
@@ -140,6 +198,8 @@ void adjust_binlog_with_slave(char *host, uint port, char *user, char* passwd, c
 over:
   if (NULL != binlog)
     my_free(binlog);
+
+  return error>0 ? 1 : 0;
 }
 
 void send_slave_sync_info(NET *net, char* fname, my_off_t pos)

@@ -19,39 +19,40 @@
 #include <sql_class.h>
 #include <my_pthread.h>
 #include <scheduler.h>
-
-#ifdef HAVE_POOL_OF_THREADS
-
 #include <sql_connect.h>
 #include <mysqld.h>
 #include <debug_sync.h>
 #include <time.h>
 #include <sql_plist.h>
 #include <threadpool.h>
+#include <mysql/thread_pool_priv.h>             // thd_is_transaction_active()
 #include <time.h>
 #ifdef __linux__
 #include <sys/epoll.h>
 typedef struct epoll_event native_event;
-#elif defined(HAVE_KQUEUE)
+#endif
+#if defined (__FreeBSD__) || defined (__APPLE__)
 #include <sys/event.h>
 typedef struct kevent native_event;
-#elif defined (__sun)
+#endif
+#if defined (__sun)
 #include <port.h>
 typedef port_event_t native_event;
-#else
-#error threadpool is not available on this platform
 #endif
 
 /** Maximum number of native events a listener can read in one go */
 #define MAX_EVENTS 1024
 
-bool thd_is_transaction_active(THD *thd);
-/** Indicates that threadpool was initialized*/
-static bool threadpool_started= false; 
+/** Define if wait_begin() should create threads if necessary without waiting
+for stall detection to kick in */
+#define THREADPOOL_CREATE_THREADS_ON_WAIT
 
 /* Possible values for thread_pool_high_prio_mode */
 const char *threadpool_high_prio_mode_names[]= {"transactions", "statements",
                                                  "none", NullS};
+
+/** Indicates that threadpool was initialized*/
+static bool threadpool_started= false; 
 
 /* 
   Define PSI Keys for performance schema. 
@@ -88,8 +89,6 @@ static PSI_thread_info	thread_list[] =
 /* Macro to simplify performance schema registration */ 
 #define PSI_register(X) \
  if(PSI_server) PSI_server->register_ ## X("threadpool", X ## _list, array_elements(X ## _list))
-#else
-#define PSI_register(X) /* no-op */
 #endif
 
 
@@ -158,9 +157,8 @@ struct thread_group_t
   
 } MY_ALIGNED(512);
 
-static thread_group_t *all_groups;
+static thread_group_t all_groups[MAX_THREAD_GROUPS];
 static uint group_count;
-static int32 shutdown_group_count;
 
 /**
  Used for printing "pool blocked" message, see
@@ -189,6 +187,7 @@ static int  create_worker(thread_group_t *thread_group);
 static void *worker_main(void *param);
 static void check_stall(thread_group_t *thread_group);
 static void connection_abort(connection_t *connection);
+void tp_post_kill_notification(THD *thd);
 static void set_wait_timeout(connection_t *connection);
 static void set_next_timeout_check(ulonglong abstime);
 static void print_pool_blocked_message(bool);
@@ -301,21 +300,7 @@ static void *native_event_get_userdata(native_event *event)
   return event->data.ptr;
 }
 
-#elif defined(HAVE_KQUEUE)
-
-/* 
-  NetBSD is incompatible with other BSDs , last parameter in EV_SET macro
-  (udata, user data) needs to be intptr_t, whereas it needs to be void* 
-  everywhere else.
-*/
-
-#ifdef __NetBSD__
-#define MY_EV_SET(a, b, c, d, e, f, g) EV_SET(a, b, c, d, e, f, (intptr_t)g)
-#else
-#define MY_EV_SET(a, b, c, d, e, f, g) EV_SET(a, b, c, d, e, f, g)
-#endif
-
-
+#elif defined (__FreeBSD__) || defined (__APPLE__)
 int io_poll_create()
 {
   return kqueue();
@@ -324,7 +309,7 @@ int io_poll_create()
 int io_poll_start_read(int pollfd, int fd, void *data)
 {
   struct kevent ke;
-  MY_EV_SET(&ke, fd, EVFILT_READ, EV_ADD|EV_ONESHOT, 
+  EV_SET(&ke, fd, EVFILT_READ, EV_ADD|EV_ONESHOT, 
          0, 0, data);
   return kevent(pollfd, &ke, 1, 0, 0, 0); 
 }
@@ -333,7 +318,7 @@ int io_poll_start_read(int pollfd, int fd, void *data)
 int io_poll_associate_fd(int pollfd, int fd, void *data)
 {
   struct kevent ke;
-  MY_EV_SET(&ke, fd, EVFILT_READ, EV_ADD|EV_ONESHOT, 
+  EV_SET(&ke, fd, EVFILT_READ, EV_ADD|EV_ONESHOT, 
          0, 0, data);
   return io_poll_start_read(pollfd,fd, data); 
 }
@@ -342,7 +327,7 @@ int io_poll_associate_fd(int pollfd, int fd, void *data)
 int io_poll_disassociate_fd(int pollfd, int fd)
 {
   struct kevent ke;
-  MY_EV_SET(&ke,fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
+  EV_SET(&ke,fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
   return kevent(pollfd, &ke, 1, 0, 0, 0);
 }
 
@@ -367,7 +352,7 @@ int io_poll_wait(int pollfd, struct kevent *events, int maxevents, int timeout_m
 
 static void* native_event_get_userdata(native_event *event)
 {
-  return (void *)event->udata;
+  return event->udata;
 }
 
 #elif defined (__sun)
@@ -416,18 +401,22 @@ static void* native_event_get_userdata(native_event *event)
 {
   return event->portev_user;
 }
+#else
+#error not ported yet to this OS
 #endif
+
 namespace {
 
-/* 
-  Prevent too many threads executing at the same time,if the workload is 
+/*
+  Prevent too many active threads executing at the same time, if the workload is
   not CPU bound.
 */
 
-static bool too_many_threads(thread_group_t *thread_group)
+inline bool too_many_active_threads(thread_group_t *thread_group)
 {
-  return (thread_group->active_thread_count >= 1+(int)threadpool_oversubscribe 
-   && !thread_group->stalled);
+  return (thread_group->active_thread_count
+          >= 1 + (int) threadpool_oversubscribe
+          && !thread_group->stalled);
 }
 
 /*
@@ -457,8 +446,7 @@ inline bool connection_is_high_prio(connection_t *c)
      c->tickets > 0 && thd_is_transaction_active(c->thd));
 }
 
-} //namespace
-
+} // namespace
 
 /* Dequeue element from a workqueue */
 
@@ -467,6 +455,7 @@ static connection_t *queue_get(thread_group_t *thread_group)
   DBUG_ENTER("queue_get");
   thread_group->queue_event_count++;
   connection_t *c;
+
   if ((c= thread_group->high_prio_queue.front()))
   {
     thread_group->high_prio_queue.remove(c);
@@ -521,7 +510,7 @@ static void timeout_check(pool_timer_t *timer)
       /* Wait timeout exceeded, kill connection. */
       mysql_mutex_lock(&thd->LOCK_thd_data);
       thd->killed = THD::KILL_CONNECTION;
-      post_kill_notification(thd);
+      tp_post_kill_notification(thd);
       mysql_mutex_unlock(&thd->LOCK_thd_data);
     }
     else 
@@ -579,7 +568,7 @@ static void* timer_thread(void *param)
       timer->current_microtime= my_getsystime()/1000;
       
       /* Check stalls in thread groups */
-      for (i= 0; i < threadpool_max_size; i++)
+      for(i=0; i< array_elements(all_groups);i++)
       {
         if(all_groups[i].connection_count)
            check_stall(&all_groups[i]);
@@ -634,21 +623,21 @@ void check_stall(thread_group_t *thread_group)
   thread_group->io_event_count= 0;
 
   /* 
-    Check whether requests from the workqueue are being dequeued.
+    Check whether requests from the workqueues are being dequeued.
 
     The stall detection and resolution works as follows:
 
     1. There is a counter thread_group->queue_event_count for the number of 
-       events removed from the queue. Timer resets the counter to 0 on each run.
+       events removed from the queues. Timer resets the counter to 0 on each run.
     2. Timer determines stall if this counter remains 0 since last check
-       and the queue is not empty.
+       and at least one of the high and low priority queues is not empty.
     3. Once timer determined a stall it sets thread_group->stalled flag and
        wakes and idle worker (or creates a new one, subject to throttling).
     4. The stalled flag is reset, when an event is dequeued.
 
-    Q : Will this handling lead to an unbound growth of threads, if queue
-    stalls permanently?
-    A : No. If queue stalls permanently, it is an indication for many very long
+    Q : Will this handling lead to an unbound growth of threads, if queues
+    stall permanently?
+    A : No. If queues stall permanently, it is an indication for many very long
     simultaneous queries. The maximum number of simultanoues queries is 
     max_connections, further we have threadpool_max_threads limit, upon which no
     worker threads are created. So in case there is a flood of very long 
@@ -659,7 +648,7 @@ void check_stall(thread_group_t *thread_group)
     do wait and indicate that via thd_wait_begin/end callbacks, thread creation
     will be faster.
   */
-  if (!queues_are_empty(thread_group) && !thread_group->queue_event_count)
+  if (!thread_group->queue_event_count && !queues_are_empty(thread_group))
   {
     thread_group->stalled= true;
     wake_or_create_thread(thread_group);
@@ -735,7 +724,7 @@ static connection_t * listener(worker_thread_t *current_thread,
     
     /* 
      We got some network events and need to make decisions : whether
-     listener  should handle events and whether or not any wake worker
+     listener  hould handle events and whether or not any wake worker
      threads so they can handle events.
      
      Q1 : Should listener handle an event itself, or put all events into 
@@ -777,7 +766,8 @@ static connection_t * listener(worker_thread_t *current_thread,
      more workers.
     */
     
-    bool listener_picks_event= thread_group->high_prio_queue.is_empty() && thread_group->queue.is_empty();
+    bool listener_picks_event= thread_group->high_prio_queue.is_empty() &&
+      thread_group->queue.is_empty();
     
     /* 
       If listener_picks_event is set, listener thread will handle first event, 
@@ -886,6 +876,7 @@ static int create_worker(thread_group_t *thread_group)
   if (!err)
   {
     thread_group->last_thread_creation_time=my_getsystime()/1000;
+    thread_created++;
     add_thread_count(thread_group, 1);
   }
   else
@@ -987,8 +978,6 @@ int thread_group_init(thread_group_t *thread_group, pthread_attr_t* thread_attr)
   thread_group->pollfd= -1;
   thread_group->shutdown_pipe[0]= -1;
   thread_group->shutdown_pipe[1]= -1;
-  thread_group->queue.empty();
-  thread_group->high_prio_queue.empty();
   DBUG_RETURN(0);
 }
 
@@ -1009,8 +998,6 @@ void thread_group_destroy(thread_group_t *thread_group)
       thread_group->shutdown_pipe[i]= -1;
     }
   }
-  if (my_atomic_add32(&shutdown_group_count, -1) == 1)
-    my_free(all_groups);
 }
 
 /**
@@ -1094,6 +1081,7 @@ static void queue_put(thread_group_t *thread_group, connection_t *connection)
   DBUG_ENTER("queue_put");
 
   mysql_mutex_lock(&thread_group->mutex);
+  connection->tickets= connection->thd->variables.threadpool_high_prio_tickets;
   thread_group->queue.push_back(connection);
 
   if (thread_group->active_thread_count == 0)
@@ -1103,7 +1091,6 @@ static void queue_put(thread_group_t *thread_group, connection_t *connection)
 
   DBUG_VOID_RETURN;
 }
-
 
 /**
   Retrieve a connection with pending event.
@@ -1135,7 +1122,7 @@ connection_t *get_event(worker_thread_t *current_thread,
 
   for(;;) 
   {
-    bool oversubscribed = too_many_threads(thread_group); 
+    bool oversubscribed = too_many_active_threads(thread_group); 
     if (thread_group->shutdown)
      break;
 
@@ -1260,12 +1247,13 @@ void wait_begin(thread_group_t *thread_group)
   mysql_mutex_lock(&thread_group->mutex);
   thread_group->active_thread_count--;
   thread_group->waiting_thread_count++;
-  
+
   DBUG_ASSERT(thread_group->active_thread_count >=0);
   DBUG_ASSERT(thread_group->connection_count > 0);
- 
+
+#ifdef THREADPOOL_CREATE_THREADS_ON_WAIT
   if ((thread_group->active_thread_count == 0) && 
-     (!queues_are_empty(thread_group) || !thread_group->listener))
+      (!queues_are_empty(thread_group) || !thread_group->listener))
   {
     /* 
       Group might stall while this thread waits, thus wake 
@@ -1273,7 +1261,8 @@ void wait_begin(thread_group_t *thread_group)
     */
     wake_or_create_thread(thread_group);
   }
-  
+#endif
+
   mysql_mutex_unlock(&thread_group->mutex);
   DBUG_VOID_RETURN;
 }
@@ -1309,6 +1298,7 @@ connection_t *alloc_connection(THD *thd)
     connection->logged_in= false;
     connection->bound_to_poll_descriptor= false;
     connection->abs_wait_timeout= ULONGLONG_MAX;
+    connection->tickets = 0;
   }
   DBUG_RETURN(connection);
 }
@@ -1363,17 +1353,32 @@ static void connection_abort(connection_t *connection)
 {
   DBUG_ENTER("connection_abort");
   thread_group_t *group= connection->thread_group;
-  
+
   threadpool_remove_connection(connection->thd); 
   
   mysql_mutex_lock(&group->mutex);
   group->connection_count--;
   mysql_mutex_unlock(&group->mutex);
-  
+
   my_free(connection);
   DBUG_VOID_RETURN;
 }
 
+
+/**
+  MySQL scheduler callback : kill connection
+*/
+
+void tp_post_kill_notification(THD *thd)
+{
+  DBUG_ENTER("tp_post_kill_notification");
+  if (current_thd == thd || thd->system_thread)
+    DBUG_VOID_RETURN;
+  
+  if (thd->net.vio)
+    vio_shutdown(thd->net.vio, SHUT_RD);
+  DBUG_VOID_RETURN;
+}
 
 /**
   MySQL scheduler callback: wait begin
@@ -1436,7 +1441,7 @@ static void set_wait_timeout(connection_t *c)
   DBUG_ENTER("set_wait_timeout");
   /* 
     Calculate wait deadline for this connection.
-    Instead of using microsecond_interval_timer() which has a syscall 
+    Instead of using my_getsystime()/1000 which has a syscall 
     overhead, use pool_timer.current_microtime and take 
     into account that its value could be off by at most 
     one tick interval.
@@ -1463,7 +1468,7 @@ static int change_group(connection_t *c,
  thread_group_t *new_group)
 { 
   int ret= 0;
-  int fd= c->thd->net.vio->sd;
+  int fd = c->thd->net.vio->sd;
 
   DBUG_ASSERT(c->thread_group == old_group);
 
@@ -1611,18 +1616,10 @@ static void *worker_main(void *param)
 bool tp_init()
 {
   DBUG_ENTER("tp_init");
-  threadpool_max_size= MY_MAX(threadpool_size, 128);
-  all_groups= (thread_group_t *)
-    my_malloc(sizeof(thread_group_t) * threadpool_max_size, MYF(MY_WME|MY_ZEROFILL));
-  if (!all_groups)
-  {
-    threadpool_max_size= 0;
-    DBUG_RETURN(1);
-  }
   threadpool_started= true;
   scheduler_init();
 
-  for (uint i= 0; i < threadpool_max_size; i++)
+  for(uint i=0; i < array_elements(all_groups); i++)
   {
     thread_group_init(&all_groups[i], get_connection_attrib());  
   }
@@ -1633,9 +1630,11 @@ bool tp_init()
     sql_print_error("Can't set threadpool size to %d",threadpool_size);
     DBUG_RETURN(1);
   }
+#ifdef HAVE_PSI_INTERFACE
   PSI_register(mutex);
   PSI_register(cond);
   PSI_register(thread);
+#endif
   
   pool_timer.tick_interval= threadpool_stall_limit;
   start_timer(&pool_timer);
@@ -1651,8 +1650,7 @@ void tp_end()
     DBUG_VOID_RETURN;
 
   stop_timer(&pool_timer);
-  shutdown_group_count= threadpool_max_size;
-  for (uint i= 0; i < threadpool_max_size; i++)
+  for(uint i=0; i< array_elements(all_groups); i++)
   {
     thread_group_close(&all_groups[i]);
   }
@@ -1714,7 +1712,9 @@ void tp_set_threadpool_stall_limit(uint limit)
 int tp_get_idle_thread_count()
 {
   int sum=0;
-  for (uint i= 0; i < threadpool_max_size && all_groups[i].pollfd >= 0; i++)
+  for(uint i= 0; 
+      i< array_elements(all_groups) && (all_groups[i].pollfd >= 0); 
+      i++)
   {
     sum+= (all_groups[i].thread_count - all_groups[i].active_thread_count);
   }
@@ -1775,5 +1775,3 @@ static void print_pool_blocked_message(bool max_threads_reached)
     msg_written= true;
   }
 }
-
-#endif /* HAVE_POOL_OF_THREADS */

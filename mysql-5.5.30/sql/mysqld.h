@@ -81,9 +81,11 @@ extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
 
 extern char  *ha_partner_host;
 extern uint   ha_partner_port;
+extern uint   ha_partner_force;
 extern char  *ha_partner_user;
 extern char  *ha_partner_password;
 
+extern ulong thread_created;
 extern my_bool opt_enable_table_relay_info;
 extern uint update_masterinfo_period;
 /**

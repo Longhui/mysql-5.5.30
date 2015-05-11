@@ -3723,6 +3723,12 @@ static Sys_var_uint Sys_ha_partner_port(
        GLOBAL_VAR(ha_partner_port), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
+static Sys_var_uint Sys_ha_partner_force(
+       "ha_partner_force", 
+       "force mysqld shutdown when fail to connect ha partner ",
+       GLOBAL_VAR(ha_partner_force), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1), DEFAULT(0), BLOCK_SIZE(1));
+
 static Sys_var_charptr Sys_ha_partner_user(
        "ha_partner_user",
        "vsr ha suite partner's user ",

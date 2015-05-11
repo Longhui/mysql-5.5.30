@@ -434,9 +434,9 @@ static void init_semisync_psi_keys(void)
 }
 #endif /* HAVE_PSI_INTERFACE */
 
-void repl_semi_adjust_binlog(Vsr_master_param *param )
+int repl_semi_adjust_binlog(Vsr_master_param *param )
 {
-  adjust_binlog_with_slave(param->slave_host, param->slave_port,
+  return adjust_binlog_with_slave(param->slave_host, param->slave_port,
              param->user, param->passwd, param->last_binlog);
 }
 

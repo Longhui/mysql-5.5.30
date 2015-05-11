@@ -7938,7 +7938,7 @@ int TC_LOG_BINLOG::open(const char *opt_name)
       goto err;
     }
 
-	VSR_BEFORE_RECOVER(log_name + dirname_length(log_name));
+    VSR_BEFORE_RECOVER(log_name + dirname_length(log_name));
 
     if ((file= open_binlog(&log, log_name, &errmsg)) < 0)
     {
