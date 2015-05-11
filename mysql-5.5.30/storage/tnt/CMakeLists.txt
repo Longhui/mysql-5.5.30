@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-
+IF(WITH_TNT)
 INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
@@ -288,3 +288,4 @@ TARGET_LINK_LIBRARIES(tnt_upgrade tnt pthread)
 MYSQL_ADD_PLUGIN(tnt ${TNT_SOURCES} STORAGE_ENGINE 
   DEFAULT
   MODULE_OUTPUT_NAME ha_tnt)
+ENDIF()

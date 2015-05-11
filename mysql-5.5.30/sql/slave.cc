@@ -74,7 +74,7 @@ char* slave_load_tmpdir = 0;
 Master_info *active_mi= 0;
 my_bool replicate_same_server_id;
 ulonglong relay_log_space_limit = 0;
-
+uint update_masterinfo_period = 1;
 /*
   When slave thread exits, we need to remember the temporary tables so we
   can re-use them on slave start.
@@ -323,6 +323,16 @@ int init_slave()
       error= 1;
       goto err;
     }
+  }
+  if( OPT_ROW_BINLOG == opt_slave_parallel_mode)
+  {
+    rpl_row_entry= new rpl_row_parallel(&active_mi->rli);
+    active_mi->rli.parallel= rpl_row_entry;
+  }
+  else if(OPT_GROUP_COMMIT == opt_slave_parallel_mode)
+  {
+    rpl_group_entry= new rpl_group_parallel(&active_mi->rli);
+    active_mi->rli.parallel= rpl_group_entry;
   }
 
 err:
@@ -3194,10 +3204,23 @@ Stopping slave I/O thread due to out-of-memory error from master");
                    "Failed to run 'after_queue_event' hook");
         goto err;
       }
-      if (flush_master_info(mi, TRUE, TRUE))
+      if (update_masterinfo_period &&
+        ++(mi->update_counter) >= update_masterinfo_period)
       {
-        sql_print_error("Failed to flush master info file");
-        goto err;
+        mi->update_counter = 0;
+        if (flush_master_info(mi, TRUE, TRUE))
+        {
+          sql_print_error("Failed to flush master info file");
+          goto err;
+        }
+      }
+      else
+      {
+        if (flush_master_info(mi, TRUE, TRUE))
+        {
+          sql_print_error("Failed to flush master info file");
+          goto err;
+        }
       }
       /*
         See if the relay logs take too much space.

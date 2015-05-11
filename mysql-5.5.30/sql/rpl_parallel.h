@@ -310,7 +310,7 @@ public:
     current_trans(NULL), pool(&global_rpl_thread_pool), rpt_cur(NULL)
   {}
   void wait_for_done();
-  bool workers_idle(){};
+  bool workers_idle(){return TRUE;};
   bool do_event(rpl_group_info *serial_rgi, Log_event *ev, size_t event_size);
 };
 

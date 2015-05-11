@@ -102,17 +102,6 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, bool is_rli_table)
     handler= new Rpl_info_fake();
   }
 
-  if( OPT_ROW_BINLOG == opt_slave_parallel_mode)
-  {
-    rpl_row_entry= new rpl_row_parallel(this);
-    parallel= rpl_row_entry;
-  }
-  else if(OPT_GROUP_COMMIT == opt_slave_parallel_mode)
-  {
-    rpl_group_entry= new rpl_group_parallel(this);
-    parallel= rpl_group_entry;
-  }
-
   DBUG_VOID_RETURN;
 }
 
