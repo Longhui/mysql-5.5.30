@@ -20,6 +20,7 @@
 #include "handler.h"                            /* my_xid */
 
 class Relay_log_info;
+class Master_info;
 
 class Format_description_log_event;
 
@@ -615,6 +616,7 @@ public:
   void stop_union_events(THD *thd);
   bool is_query_in_union(THD *thd, query_id_t query_id_param);
 
+  bool append_rotate_event(Master_info* mi);
   /*
     v stands for vector
     invoked as appendv(buf1,len1,buf2,len2,...,bufn,lenn,0)

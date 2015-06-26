@@ -4728,6 +4728,10 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
                     MYF(ME_FATALERROR), file_to_open, error);
     close_on_error= TRUE;
   }
+  if (!error && is_relay_log)
+  {
+    append_rotate_event(active_mi);
+  }
 
   my_free(old_name);
 
@@ -4791,6 +4795,13 @@ err:
   DBUG_RETURN(error);
 }
 
+bool MYSQL_BIN_LOG::append_rotate_event(Master_info* mi)
+{
+   Rotate_log_event rev(mi->master_log_name,0,mi->master_log_pos,0);
+   rev.server_id= mi->master_id;
+   rev.write(get_log_file());
+   return 0;
+}
 
 bool MYSQL_BIN_LOG::appendv(const char* buf, uint len,...)
 {
@@ -4815,7 +4826,9 @@ bool MYSQL_BIN_LOG::appendv(const char* buf, uint len,...)
   if (flush_and_sync(0))
     goto err;
   if ((uint) my_b_append_tell(&log_file) > max_size)
-    error= new_file_without_locking();
+  {
+     error= new_file_without_locking();
+  }
 err:
   if (!error)
     signal_update();

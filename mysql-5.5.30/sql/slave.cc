@@ -4344,14 +4344,15 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   else
   {
     /* write the event to the relay log */
+    mi->master_log_pos+= inc_pos;
     if (likely(!(rli->relay_log.appendv(buf,event_len,0))))
     {
-      mi->master_log_pos+= inc_pos;
       DBUG_PRINT("info", ("master_log_pos: %lu", (ulong) mi->master_log_pos));
       rli->relay_log.harvest_bytes_written(&rli->log_space_total);
     }
     else
     {
+      mi->master_log_pos+= inc_pos;
       error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
     }
     rli->ign_master_log_name_end[0]= 0; // last event is not ignored
