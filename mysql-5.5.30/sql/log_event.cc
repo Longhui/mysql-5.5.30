@@ -5743,7 +5743,7 @@ Rotate_log_event::Rotate_log_event(const char* buf, uint event_len,
                                    const Format_description_log_event* description_event)
   :Log_event(buf, description_event) ,new_log_ident(0), flags(DUP_NAME)
 {
-  DBUG_ENTER("Rotate_log_event::Rotate_log_event(char*,...)");
+  DBUG_ENTER("Rotae_log_event::Rotate_log_event(char*,...)");
   // The caller will ensure that event_len is what we have at EVENT_LEN_OFFSET
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[ROTATE_EVENT-1];

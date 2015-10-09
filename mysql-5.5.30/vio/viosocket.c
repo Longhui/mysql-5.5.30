@@ -383,6 +383,8 @@ int vio_close(Vio * vio)
     DBUG_ASSERT(vio->sd >= 0);
     if (mysql_socket_shutdown(vio->sd, SHUT_RDWR))
       r= -1;
+    if (closesocket(vio->sd))
+      r= -1;
   }
   if (r)
   {

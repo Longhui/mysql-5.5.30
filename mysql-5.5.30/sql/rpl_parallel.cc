@@ -1625,10 +1625,10 @@ rpl_row_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev, size_t eve
         memcpy(rli->future_event_master_log_name,
                rev->new_log_ident, rev->ident_len+1);
       }
-      else
-        qev->is_relay_log_event= 1; 
     }
 
+    qev->is_relay_log_event= ((qev->evt->server_id == ::server_id) &&
+                             !rli->replicate_same_server_id);
     qev->rgi= serial_rgi;    
     bool tmp= serial_rgi->is_parallel_exec;
     serial_rgi->is_parallel_exec= false;

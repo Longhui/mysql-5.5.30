@@ -1561,7 +1561,9 @@ void THD::awake(THD::killed_state state_to_set)
         reading the next statement.
       */
 
-      close_active_vio();
+      //close_active_vio();
+      if(active_vio)
+        vio_shutdown(active_vio, SHUT_RDWR);
     }
 #endif
 

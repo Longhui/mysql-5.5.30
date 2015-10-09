@@ -4798,7 +4798,7 @@ err:
 bool MYSQL_BIN_LOG::append_rotate_event(Master_info* mi)
 {
    Rotate_log_event rev(mi->master_log_name,0,mi->master_log_pos,0);
-   rev.server_id= mi->master_id;
+   //rev.server_id= mi->master_id;
    rev.write(get_log_file());
    return 0;
 }
